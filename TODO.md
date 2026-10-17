@@ -82,5 +82,28 @@ be used to walk up in the list of options
 ---
 
 - [ ] need a way to jump in list by group or nesting level probably `{` and `}`
+- [ ] able to schedule recurring reminders , with terminal/os notificatoins
+- [ ] able to assign notes to projects/tasks. a parent and child inherit each other's notes
+- [ ] okay, when creating and writing a prompt, i want the option to choose from certain presets and i want the ability to define new presets. prefet presets include question right i want to pre-populate a prompt with something like answer this question in less than 10 words and then you know when i enter the prompt it auto-prepends that right so that's like one example not just customizing the prompt i also probably want to customize the the project directory, right? like the the current working directory where the session is started and things like that. 
+- [ ] mass-add projects/tasks - tab and shift-tab should change indentation/nesting level
+- [ ] ability to assign a prompt to any task and start it from a modal of queued
+  prompts
+
+## Review Queue
+
+- [ ] add review queue - ask questions for details
+
+## FOCUS Mode
+
+- [ ] focus mode - ask questions for details
+- [ ] lock the screen into a single task.  i  havn't decided if it has to be a
+leaf or if it can be locked to a high-level item like a project
+- [ ] when locked, entire screen matches its theme
+- [ ] when idle for 3 minutes - no user interaction - it unlocks and entire left
+  rail is visible again
+- [ ] when there is activity every minute for 15 minutes straight, it also
+unlocks but has a buffer screen for 30s that will let the user hit enter and
+continue
+- [ ] focus plan mode - let user mark easy tasks
 
 
