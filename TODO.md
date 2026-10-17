@@ -75,5 +75,12 @@ it extremely easy to add multiple projects/tasks/subtasks both brand new or add
 sub-items to existing items.  then once they are created, the user can choose
 the one for assignment.  also, this mass-input screen should always be
 available.
+- [ ] delete confirmation prompt default to Y or yes instead of N or no.
+- [ ] once command palette is open....esc closes it...not ctrl-p so ctrl-p can
+be used to walk up in the list of options
+
+---
+
+- [ ] need a way to jump in list by group or nesting level probably `{` and `}`
 
 
