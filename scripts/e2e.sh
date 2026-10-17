@@ -238,6 +238,7 @@ settle; deckcap 07-agent
 check "sleeper listed" "$SCRATCH/out/07-agent.txt" 'sleeper'
 SLEEPER=$(window_id sleeper)
 wait_store "\"$SLEEPER\"" present 10 && echo "PASS store holds an assignment for sleeper" || { echo "FAIL no assignment for $SLEEPER in $DATA"; fails=$((fails+1)); }
+check "unassigned fake agent row shows !!!!" "$SCRATCH/out/07-agent.txt" '^  . !!!! fake'
 check "sleeper row leads with the project's four letters" "$SCRATCH/out/07-agent.txt" '^  . deck sleeper'
 
 echo "== group the left rail with o and O"

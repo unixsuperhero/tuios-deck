@@ -23,7 +23,9 @@ var (
 	cTabOn  = lipgloss.NewStyle().Bold(true).Reverse(true)
 	cTabOff = lipgloss.NewStyle().Faint(true)
 	cBorder = lipgloss.NewStyle().Faint(true)
-	stateFg = map[string]string{
+	// An unassigned pane is meant to be hard to miss.
+	cUnassigned = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("15")).Background(lipgloss.Color("1"))
+	stateFg     = map[string]string{
 		"working": "3", "needs_input": "1", "errored": "1", "idle": "2", "done": "4",
 	}
 	stateDot = map[string]string{
@@ -169,13 +171,14 @@ func (m *Model) listLines(width, height int) []string {
 // paneRow is a pane's line in the rail, indented by its depth: its state
 // dot, the project's first four letters and the task title in their theme
 // colours, the pane name, and the state flush right. A narrow rail truncates the task title first, then
-// the name. The selected row is drawn in reverse over each part's own
-// colours, so the theme colours stay visible.
+// the name. An unassigned pane shows !!!! and its name in white on red. The
+// selected row is drawn in reverse over each part's own colours, so the
+// theme colours stay visible.
 func (m *Model) paneRow(p *panes.Pane, dot, state string, depth, width int, sel bool) string {
 	plain := lipgloss.NewStyle()
-	chip, chipStyle, task, taskStyle := "    ", plain, "", plain
+	chip, chipStyle, task, taskStyle, nameStyle := "!!!!", cUnassigned, "", plain, cUnassigned
 	if a, ok := m.assignmentOf(p.ID); ok {
-		chip, chipStyle, task, taskStyle = a.chip, a.chipStyle, a.task, a.taskStyle
+		chip, chipStyle, task, taskStyle, nameStyle = a.chip, a.chipStyle, a.task, a.taskStyle, plain
 	}
 	indent := strings.Repeat("  ", max(depth, 1))
 	lead := len(indent) + 7 // the indent, the dot, " ", the chip, " "
@@ -197,7 +200,7 @@ func (m *Model) paneRow(p *panes.Pane, dot, state string, depth, width int, sel 
 		return s.Render(text)
 	}
 	return r(plain, indent) + r(stateStyle(p.State), dot) + r(plain, " ") + r(chipStyle, chip) + r(plain, " ") +
-		r(taskStyle, task) + r(plain, name+strings.Repeat(" ", fill)) + r(stateStyle(p.State), state)
+		r(taskStyle, task) + r(nameStyle, name) + r(plain, strings.Repeat(" ", fill)) + r(stateStyle(p.State), state)
 }
 
 func (m *Model) detailLines(width, height int) []string {

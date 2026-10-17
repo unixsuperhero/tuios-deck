@@ -59,6 +59,7 @@ aside { border-right: 1px solid var(--line); background: var(--panel); display: 
 .glyph { display: inline-block; width: 1.2em; text-align: center; margin-right: 2px; }
 .chip { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre; margin-right: 6px; }
 .pane .task { margin-right: 8px; }
+.unassigned { color: #fff; background: #cd0000; font-weight: 700; }
 .dot { font-size: 12px; text-align: center; }
 .s-working { color: var(--working); } .s-needs_input, .s-errored { color: var(--needs); } .s-idle { color: var(--idle); } .s-done { color: var(--done); }
 section { display: grid; grid-template-rows: auto 1fr; min-height: 0; }
@@ -514,12 +515,14 @@ function renderList() {
     el.children[0].textContent = dot; el.children[0].className = 'dot s-' + (p.is_agent ? p.state : 'none');
     const name = el.children[1];
     // The project's first four letters and the task title lead the
-    // name, each in its own theme colour.
+    // name, each in its own theme colour. An unassigned pane shows !!!!
+    // and its name in white on red.
     const a = p.assignment;
     const pr = a && a.project_id && projectById(a.project_id);
     const t = a && a.task_id && taskById(a.task_id);
     const chip = document.createElement('span'); chip.className = 'chip';
-    chip.textContent = (a ? (a.project || '?') : '').slice(0, 4).padEnd(4);
+    chip.textContent = a ? (a.project || '?').slice(0, 4).padEnd(4) : '!!!!';
+    if (!a) chip.classList.add('unassigned');
     if (pr) chip.style.color = pr.theme.css;
     name.append(chip);
     if (t) {
@@ -527,7 +530,9 @@ function renderList() {
       tk.title = taskPathOf(t.id);
       name.append(tk);
     }
-    name.append(document.createTextNode(p.name));
+    const nm = document.createElement('span'); nm.textContent = p.name;
+    if (!a) nm.className = 'unassigned';
+    name.append(nm);
     name.title = (p.cwd || '') + (state.group !== 'session' ? `\n${p.session}` : '');
     el.children[2].textContent = st; el.children[2].className = 'state s-' + (p.is_agent ? p.state : 'none');
     el.onclick = () => select(p.id);
