@@ -56,6 +56,8 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "C":
 		m.openCaptures()
 		return m, nil
+	case "A":
+		return m, m.openMassAdd("")
 	}
 	if m.page == pageTasks {
 		return m.handleTasksKey(msg)

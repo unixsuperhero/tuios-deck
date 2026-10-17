@@ -288,6 +288,7 @@ selection stays on the same pane across a regroup.
 | `j` `k` `g` `G` | Select a project or a task |
 | `N` | New project: its name |
 | `n` | New task under the selected project, or a new subtask under the selected task |
+| `A` | Add many projects, tasks and subtasks at once from an outline (below); `A` works on every page |
 | `e` | Rename the project or task |
 | `s` | Cycle the task's or project's status: open, done, skipped, open |
 | `m` | The next colour for the row's theme: the free ones first, then the rest of the palette |
@@ -297,6 +298,32 @@ selection stays on the same pane across a regroup.
 | `x` | Delete the row, what is under it and their assignments, after a confirmation that counts them |
 | `r` | Refresh |
 | `esc` | Back to the deck |
+
+`A`, on any page, or `add many…` in the palette, opens a multiline form
+titled `add projects and tasks`. Its text is an outline:
+
+```
+deck
+  command palette
+    verb autocomplete
+  captures page
+web
+  landing
+```
+
+A line with no indent is a project: an existing name is reused, a new one
+is created. Each further indent, two spaces or a tab, nests a task under
+the line above it, so `verb autocomplete` becomes a subtask of `command
+palette`. A title already taken under the same parent is reused rather than
+added twice, which is how sub-items go under an existing task; a line with
+no indent may also name an existing task by its path, `deck / command
+palette`, to add under it. Blank lines and lines starting with `#` are
+skipped. `ctrl+s` checks the whole outline first: a line indented under
+nothing, an indent that jumps more than one level, or an odd number of
+spaces is refused with its line number on the status line, and nothing is
+created. Then the items are created in order, each new one with a free
+colour from the theme pool, and the status says `added N projects, M
+tasks`. The tasks page keeps its selection.
 
 ### The captures page
 

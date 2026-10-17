@@ -488,6 +488,52 @@ check "r on the captures page leaves the deck alive" "$SCRATCH/out/20d-r-capture
 check "r on the captures page reports the count" "$SCRATCH/out/20d-r-captures.txt" '^[0-9][0-9]* captures*$'
 b send-keys -s host -w deck Escape >/dev/null; settle
 
+echo "== A adds projects, tasks and subtasks from an outline"
+# Types an outline line by line, Enter between lines, into the open form.
+type_lines() {
+	local l first=1
+	while IFS= read -r l; do
+		[ "$first" = 1 ] || b send-keys -s host -w deck Enter >/dev/null
+		first=0
+		b send-text -s host -w deck "$l" >/dev/null
+	done
+}
+b send-text -s host -w deck 'T'; settle
+b send-keys -s host -w deck g >/dev/null; b send-keys -s host -w deck j >/dev/null; settle
+b send-text -s host -w deck 'A'; settle; deckcap 20-mass-box
+check "A opens the mass-add box" "$SCRATCH/out/20-mass-box.txt" '╭─ add projects and tasks ─'
+check "the hint shows the example outline" "$SCRATCH/out/20-mass-box.txt" '│         verb autocomplete'
+printf '  orphan\n' | type_lines
+b send-keys -s host -w deck ctrl+s >/dev/null; settle; deckcap 20b-mass-refused
+check "an indent under nothing is refused with its line" "$SCRATCH/out/20b-mass-refused.txt" 'line 1: indented under nothing'
+b send-keys -s host -w deck ctrl+u >/dev/null
+printf 'deck\n    too deep\n' | type_lines
+b send-keys -s host -w deck ctrl+s >/dev/null; settle; deckcap 20c-mass-jump
+check "an indent jump of two levels is refused with its line" "$SCRATCH/out/20c-mass-jump.txt" 'line 2: indented more than one level'
+b send-keys -s host -w deck ctrl+u >/dev/null
+printf '# the example from the hint\ndeck\n  command palette\n    verb autocomplete\n  captures page\nweb\n  landing\n' | type_lines
+b send-keys -s host -w deck ctrl+s >/dev/null; settle; deckcap 20d-mass-added
+check "status counts what was added; existing ones are reused" "$SCRATCH/out/20d-mass-added.txt" 'added 0 projects, 2 tasks'
+check "the tasks page shows the new subtask" "$SCRATCH/out/20d-mass-added.txt" 'verb autocomplete'
+check "the tasks page keeps its selection" "$SCRATCH/out/20d-mass-added.txt" 'path *deck › command palette$'
+python3 - "$DATA" <<'PY2' && echo "PASS store holds the outline, nothing duplicated" || { echo "FAIL store shape after the mass add"; fails=$((fails+1)); }
+import json, sys
+d = json.load(open(sys.argv[1]))
+proj = {p["name"]: p for p in d["projects"]}
+assert [p["name"] for p in d["projects"]].count("web") == 1
+deck, web = proj["deck"], proj["web"]
+def tasks(title): return [t for t in d["tasks"] if t["title"] == title]
+assert len(tasks("command palette")) == 1, tasks("command palette")
+assert len(tasks("landing")) == 1 and tasks("landing")[0]["project_id"] == web["id"]
+cp = tasks("command palette")[0]
+cap = tasks("captures page")
+assert len(cap) == 1 and cap[0]["project_id"] == deck["id"] and cap[0]["parent_id"] == "", cap
+va = tasks("verb autocomplete")
+assert len(va) == 1 and va[0]["parent_id"] == cp["id"], va
+assert va[0]["theme"]["color"] and cap[0]["theme"]["color"]
+PY2
+b send-keys -s host -w deck Escape >/dev/null; settle
+
 echo "== close a pane with confirmation"
 select_pane 1
 b send-keys -s host -w deck x >/dev/null; settle; deckcap 08-confirm
