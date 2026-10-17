@@ -707,6 +707,25 @@ assert len(t) == 1 and t[0]["project_id"] == deck["id"], t
 assert d["assignments"][sys.argv[2]]["task_id"] == t[0]["id"]
 PY2
 
+echo "== h and l move the focus between the rail and the main area"
+# The build pane's screen holds the seq of the check above, taller than the detail.
+select_pane 1
+b send-keys -s host -w deck 1 >/dev/null; settle
+b send-keys -s host -w deck l >/dev/null; settle; deckcap 21a-main
+check "l focuses the main area: its help line" "$SCRATCH/out/21a-main.txt" 'main area: h rail · j/k scroll'
+check "the rail keeps a dim marker on the selected pane" "$SCRATCH/out/21a-main.txt" '^▸.*build'
+b send-keys -s host -w deck j >/dev/null; settle; deckcap 21b-j
+check "j in the main area scrolls the detail (the ↓G indicator)" "$SCRATCH/out/21b-j.txt" '[0-9]*/[0-9]* ↓G'
+check "j in the main area keeps the rail on build" "$SCRATCH/out/21b-j.txt" 'target › build'
+b send-keys -s host -w deck k >/dev/null; settle; deckcap 21c-k
+pos() { grep -o '[0-9]*/[0-9]* ↓G' "$1" | cut -d/ -f1; }
+if [ -n "$(pos "$SCRATCH/out/21b-j.txt")" ] && [ "$(pos "$SCRATCH/out/21c-k.txt")" = "$(( $(pos "$SCRATCH/out/21b-j.txt") - 1 ))" ]; then echo "PASS k scrolls the detail up one line"; else echo "FAIL k did not move the detail one line up"; fails=$((fails+1)); fi
+check "k in the main area keeps the rail on build" "$SCRATCH/out/21c-k.txt" 'target › build'
+b send-keys -s host -w deck h >/dev/null; settle; deckcap 21d-rail
+check "h returns the focus to the rail" "$SCRATCH/out/21d-rail.txt" 'j/k move · l main area'
+b send-keys -s host -w deck j >/dev/null; settle; deckcap 21e-rail-j
+check "j on the rail moves the selection again" "$SCRATCH/out/21e-rail-j.txt" 'target › fake'
+
 echo "== close a pane with confirmation"
 select_pane 1
 b send-keys -s host -w deck x >/dev/null; settle; deckcap 08-confirm

@@ -84,7 +84,20 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 
 	switch msg.String() {
-	case "j", "down", "k", "up", "g", "home", "tab", "l", "right", "shift+tab", "h", "left", "1", "2", "3", "r", "enter":
+	case "h", "left":
+		m.focusMain = false
+		return m, nil
+	case "l", "right":
+		m.focusMain = true
+		return m, nil
+	}
+	if m.focusMain {
+		if handled, cmd := m.handleMainKey(msg); handled {
+			return m, cmd
+		}
+	}
+	switch msg.String() {
+	case "j", "down", "k", "up", "g", "home", "tab", "]", "shift+tab", "[", "1", "2", "3", "r", "enter":
 		m.clearResult() // moving the selection or the tab ends a verb's result view
 	}
 	switch msg.String() {
@@ -100,30 +113,17 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.detail, m.revision, m.scroll = nil, 0, 0
 		}
 		return m, m.loadDetail(true)
-	case "tab", "l", "right":
-		m.tab = (m.tab + 1) % 3
-		m.detail, m.detailErr, m.revision = nil, "", 0
-		m.follow = true
-		return m, m.loadDetail(true)
-	case "shift+tab", "h", "left":
-		m.tab = (m.tab + 2) % 3
-		m.detail, m.detailErr, m.revision = nil, "", 0
-		m.follow = true
-		return m, m.loadDetail(true)
+	case "tab", "]":
+		return m, m.setTab((m.tab + 1) % numTabs)
+	case "shift+tab", "[":
+		return m, m.setTab((m.tab + numTabs - 1) % numTabs)
 	case "1", "2", "3":
-		m.tab = tab(msg.String()[0] - '1')
-		m.detail, m.detailErr, m.revision = nil, "", 0
-		m.follow = true
-		return m, m.loadDetail(true)
+		return m, m.setTab(tab(msg.String()[0] - '1'))
 	case "J", "ctrl+d", "pgdown":
-		m.follow = false
-		m.scroll += m.detailHeight() / 2
-		m.clampScroll()
+		m.scrollBy(m.detailHeight() / 2)
 		return m, nil
 	case "K", "ctrl+u", "pgup":
-		m.follow = false
-		m.scroll -= m.detailHeight() / 2
-		m.clampScroll()
+		m.scrollBy(-m.detailHeight() / 2)
 		return m, nil
 	case "G", "end":
 		m.follow = true
@@ -160,6 +160,43 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, m.confirmClose(p)
 	}
 	return m, nil
+}
+
+// handleMainKey answers the keys that mean something else while the main
+// area has focus: j/k and the rest scroll the detail, and the rail's
+// selection stays where it is. It reports whether it took the key.
+func (m *Model) handleMainKey(msg tea.KeyPressMsg) (bool, tea.Cmd) {
+	switch msg.String() {
+	case "j", "down":
+		m.scrollBy(1)
+	case "k", "up":
+		m.scrollBy(-1)
+	case "g", "home":
+		m.follow = false
+		m.scroll = 0
+		m.clampScroll()
+	case "enter":
+		// The accordion tab acts on its focused row; the other tabs have
+		// nothing to act on.
+	default:
+		return false, nil
+	}
+	return true, nil
+}
+
+// scrollBy moves the detail by n lines and stops following its end.
+func (m *Model) scrollBy(n int) {
+	m.follow = false
+	m.scroll += n
+	m.clampScroll()
+}
+
+// setTab shows another tab of the selected pane from its end.
+func (m *Model) setTab(t tab) tea.Cmd {
+	m.tab = t
+	m.detail, m.detailErr, m.revision = nil, "", 0
+	m.scroll, m.follow = 0, true
+	return m.loadDetail(true)
 }
 
 // confirmClose asks before closing the pane.

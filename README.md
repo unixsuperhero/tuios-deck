@@ -25,7 +25,7 @@ same panes you see in `tuios attach`.
 ▾ deck                   │■ turn ended
   ○ helper          idle │
 captured to ~/.local/share/tuios-deck/captures/work-build-20261017-133455.txt
- j/k move · 1-3 tab · J/K scroll · G follow · o group · n agent · t term · p prompt · a assign · c capture · x close · T tasks · C captures · r refresh · q quit
+ j/k move · l main area · [/] or 1-3 tab · J/K scroll · G follow · o group · n agent · t term · p prompt · a assign · c capture · x close · T tasks · C captures · r refresh · q quit
 ```
 
 ## Install
@@ -241,9 +241,10 @@ on the deck, the grouping when it is not by session.
 
 | Key | Does |
 | --- | --- |
-| `j` `k` `g` | Select a pane |
-| `1` `2` `3`, `tab` `shift+tab` (`l` `h`) | Screen, activity or transcript of the selected pane |
-| `J` `K`, `G` | Scroll the detail; `G` follows the newest output again |
+| `h` `l` (`←` `→`) | Move the focus to the list on the left, or to the main area on the right |
+| `j` `k` `g` | Select a pane; with the main area focused, scroll the detail a line, or to the top, and the selection stays |
+| `1` `2` `3`, `[` `]`, `tab` `shift+tab` | Screen, activity or transcript of the selected pane |
+| `J` `K`, `G` | Scroll the detail half a page; `G` follows the newest output again |
 | `o` `O` | Group the list the next way, or the previous one (below) |
 | `n` | Start an agent: session, agent command, name, cwd, task or project, first prompt. Waits until it is at its prompt |
 | `t` | Open a terminal: session, name, cwd, task or project. Always an interactive shell, the pane tuios itself opens; send commands to it with `p`. Creates the session when it does not exist |
@@ -255,6 +256,11 @@ on the deck, the grouping when it is not by session.
 | `T` `C` | The tasks page, the captures page |
 | `:` `ctrl+p` | The command palette |
 | `q` | Quit; the panes stay |
+
+The focused area is marked: the selected pane is in reverse video while
+the list has focus and keeps a dim `▸` while the main area has it, when the
+tab bar brightens and underlines the shown tab. The help line names the keys
+of the focused area.
 
 The list refreshes itself on the daemon's `agent-state`, `attention` and
 window events. The detail pane re-reads once a second and keeps your scroll

@@ -173,7 +173,11 @@ func (m *Model) listLines(width, height int) []string {
 			if p.Queued > 0 {
 				state += fmt.Sprintf(" +%d", p.Queued)
 			}
-			line = m.paneRow(p, dot, state, r.Depth, width, i == m.sel)
+			line = m.paneRow(p, dot, state, r.Depth, width, i == m.sel && !m.focusMain)
+			if i == m.sel && m.focusMain {
+				// The main area has focus: a dim marker keeps the place.
+				line = cDim.Render("▸") + ansi.Cut(line, 1, width)
+			}
 		}
 		lines = append(lines, line)
 	}
@@ -224,12 +228,18 @@ func (m *Model) detailLines(width, height int) []string {
 	}
 	lines := make([]string, 0, height)
 	var tabs []string
-	for t := tabScreen; t <= tabTranscript; t++ {
+	// With the main area focused the bar brightens and the shown tab is
+	// underlined, so the person sees where j and k go.
+	on, off := cTabOn, cTabOff
+	if m.focusMain {
+		on, off = cTabOn.Underline(true), lipgloss.NewStyle()
+	}
+	for t := tab(0); t < numTabs; t++ {
 		label := fmt.Sprintf(" %d %s ", int(t)+1, t.String())
 		if t == m.tab {
-			tabs = append(tabs, cTabOn.Render(label))
+			tabs = append(tabs, on.Render(label))
 		} else {
-			tabs = append(tabs, cTabOff.Render(label))
+			tabs = append(tabs, off.Render(label))
 		}
 	}
 	bar := strings.Join(tabs, " ")
@@ -301,7 +311,10 @@ func (m *Model) helpLine() string {
 	case pageContext:
 		return cDim.Render(" j/k select · s sort · f filter · o/O group · * star · ! pin · a assign · y copy · enter insert · ^o open · w open with · x delete · esc deck · q quit")
 	}
-	return cDim.Render(" j/k move · 1-3 tab · J/K scroll · G follow · o group · n agent · t term · p prompt · a assign · c capture · i context · x close · T tasks · C captures · I context · r refresh · q quit")
+	if m.focusMain {
+		return cDim.Render(" main area: h rail · j/k scroll · J/K half page · g top · G follow · [/] or 1-3 tab · p prompt · c capture · T tasks · C captures · q quit")
+	}
+	return cDim.Render(" j/k move · l main area · [/] or 1-3 tab · J/K scroll · G follow · o group · n agent · t term · p prompt · a assign · c capture · i context · x close · T tasks · C captures · I context · r refresh · q quit")
 }
 
 // pad fits s to width: truncated when longer, padded with spaces when shorter.

@@ -46,6 +46,7 @@ const (
 	tabScreen tab = iota
 	tabActivity
 	tabTranscript
+	numTabs
 )
 
 func (t tab) String() string {
@@ -95,6 +96,7 @@ type Model struct {
 
 	cx ctxPage // the context page
 
+	focusMain  bool // h and l move it: the rail, or the main area to the right
 	tab        tab
 	detail     []string
 	detailErr  string
