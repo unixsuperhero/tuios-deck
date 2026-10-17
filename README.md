@@ -1,7 +1,7 @@
 # tuios-deck
 
 A dashboard over the [tuios](https://tuios.dev) daemon, as a terminal program
-(`deck`) and as a web page (`deck-web`). Both list every terminal and agent
+(`deck tui`) and as a web page (`deck web`). Both list every terminal and agent
 the daemon holds, start new ones with a first prompt, queue prompts, follow
 each pane's screen, activity and transcript, and save captures to files. The
 web page also shows a pane live, in xterm.js, and types into it.
@@ -29,16 +29,45 @@ session).
 
 ```sh
 go build -o deck ./cmd/deck
-go build -o deck-web ./cmd/deck-web
-./deck                       # $TUIOS_SOCKET, or the per-user runtime folder
-./deck --socket /path/to/tuios.sock --captures ./captures
-./deck-web                   # http://127.0.0.1:8787
-./deck-web --listen 127.0.0.1:9000 --socket /path/to/tuios.sock
+./deck                       # prints the commands
+./deck tui                   # $TUIOS_SOCKET, or the per-user runtime folder
+./deck tui --socket /path/to/tuios.sock --captures ./captures
+./deck web                   # http://127.0.0.1:8787
+./deck web --listen 127.0.0.1:9000 --socket /path/to/tuios.sock
+./deck setup                 # the files the deck needs on this machine
 ```
+
+## Setting up a machine
+
+Some of what the deck shows needs a file outside its own binary. `deck setup`
+carries those files, embedded, and puts them in place:
+
+```sh
+deck setup list                    # what there is, and where each file goes
+deck setup status                  # missing, current, outdated or foreign, per file
+deck setup install                 # write them all; --force replaces a foreign file
+deck setup uninstall omp-activity  # remove what the deck wrote, nothing else
+deck setup print omp-activity      # show the file before installing it
+```
+
+Every file the deck writes carries a `TUIOS_DECK_SETUP_ID` marker, so a file
+of the same name that the deck did not write is reported as foreign and never
+overwritten or removed without `--force`. The sources live under `setup/` in
+this repository.
+
+| Item | File | Does |
+| --- | --- | --- |
+| `omp-activity` | `~/.omp/agent/extensions/tuios-deck-omp-activity.ts` | An [oh-my-pi](https://github.com/can1357/oh-my-pi) extension that reports the prompt typed, each tool call starting and ending, and the end of a turn to tuios through `tuios call set-agent-state`. With it, `tuios agent-activity` and the Activity tab show an omp pane the way they show Claude Code. It sits beside the state extension `tuios integration install omp` writes and does not replace it. |
+
+The omp extension needs `tuios` on `PATH` (or `TUIOS_DECK_TUIOS` naming it)
+and takes effect in omp sessions started after the install, inside a tuios
+pane. Transcripts for omp are a different matter: the daemon serves
+`agent-transcript` only for formats it has a reader for, and today that is
+Claude Code's. No file outside tuios adds a reader.
 
 ## The web page
 
-`deck-web` serves one page and a JSON API. The left list and the state
+`deck web` serves one page and a JSON API. The left list and the state
 badges follow the daemon's event stream; the detail re-reads every two
 seconds without touching the list, the selection, an open dialog or a
 scroll position that is not at the bottom.
@@ -57,7 +86,7 @@ have a Browse button that walks the folders of the machine the daemon runs
 on, through the server, since a browser's own picker cannot name a path
 there.
 
-There is no password. `deck-web` listens on loopback and refuses any other
+There is no password. `deck web` listens on loopback and refuses any other
 address unless `--allow-remote` is given; put it behind something that
 authenticates before doing that. xterm.js loads from jsdelivr, so the Live
 tab needs the browser to reach the internet once.
@@ -105,9 +134,9 @@ answer it in tuios.
 
 The transcript tab reads `agent-transcript`, which the daemon only serves to
 the person, through `attach-presence`. The daemon refuses that call from a
-process inside one of its own panes. Run `deck` or `deck-web` from a
+process inside one of its own panes. Run `deck tui` or `deck web` from a
 terminal outside tuios, or inside a pane of a different daemon, to read
-transcripts. Screen and activity work from anywhere. `deck-web` asks again
+transcripts. Screen and activity work from anywhere. `deck web` asks again
 when the daemon drops the presence, as it does across a restart.
 
 ## Captures
@@ -120,14 +149,16 @@ else `$XDG_DATA_HOME/tuios-deck/captures`, else
 
 `scripts/e2e.sh` runs the TUI against two throwaway daemons under a scratch
 folder: one holds the panes it manages, the other runs the deck in a pane and
-drives it with `send-keys`. `scripts/e2e-web.sh` runs `deck-web` against a
+drives it with `send-keys`. `scripts/e2e-web.sh` runs `deck web` against a
 throwaway daemon and checks the API with curl, the event stream, and the
-WebSocket pane stream with `scripts/wscheck`. Every check keeps what it saw
-under `$SCRATCH/out` and prints PASS or FAIL.
+WebSocket pane stream with `scripts/wscheck`. `scripts/e2e-setup.sh` runs
+`deck setup` against a scratch HOME and drives the omp extension under bun
+with a fake pi and a fake tuios. Every check keeps what it saw under
+`$SCRATCH/out` and prints PASS or FAIL.
 
 ```sh
-go build -o .dev/deck ./cmd/deck && scripts/e2e.sh
-go build -o .dev/deck-web ./cmd/deck-web && scripts/e2e-web.sh
+go build -o .dev/deck ./cmd/deck
+scripts/e2e.sh && scripts/e2e-web.sh && scripts/e2e-setup.sh
 ```
 
 ## Layout
@@ -140,4 +171,6 @@ go build -o .dev/deck-web ./cmd/deck-web && scripts/e2e-web.sh
 - `internal/web`: the HTTP API, the event relay, the WebSocket bridge and
   the embedded page in `static/index.html`.
 - `internal/capture`: capture files.
-- `cmd/deck` and `cmd/deck-web`: the binaries.
+- `setup`: the files the deck installs on a machine, embedded, and the code
+  that installs, checks and removes them.
+- `cmd/deck`: the binary, with the `tui`, `web` and `setup` commands.

@@ -63,7 +63,7 @@ ASOCK="$A/run/tuios/tuios.sock"
 
 echo "== daemon B: the deck in a pane, pointed at A"
 b new host --detach --cwd "$SCRATCH" >/dev/null
-b new-window -s host deck --no-focus -- "$DECK" --socket "$ASOCK" --captures "$SCRATCH/captures" >/dev/null
+b new-window -s host deck --no-focus -- "$DECK" tui --socket "$ASOCK" --captures "$SCRATCH/captures" >/dev/null
 b wait-for window-output -s host -w deck --pattern 'tuios-deck' --timeout 15000 >/dev/null
 select_pane 1; deckcap 01-start
 check "title shows the deck" "$SCRATCH/out/01-start.txt" 'tuios-deck'

@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# End-to-end check of deck-web against a throwaway tuios daemon: the JSON
+# End-to-end check of `deck web` against a throwaway tuios daemon: the JSON
 # API, the event stream and the WebSocket pane stream. Every check prints
 # PASS or FAIL; the exit status is the number of failures. Responses are
 # kept under $SCRATCH/out.
 set -uo pipefail
 
 here=$(cd "$(dirname "$0")/.." && pwd)
-DECKWEB=${DECKWEB:-$here/.dev/deck-web}
+DECK=${DECK:-$here/.dev/deck}
 PORT=${PORT:-18787}
 SCRATCH=${SCRATCH:-${TMPDIR:-/tmp}/tuios-deck-web-e2e-$(id -u)}
 rm -rf "$SCRATCH"; mkdir -p "$SCRATCH/out" "$SCRATCH/captures"
@@ -45,7 +45,7 @@ if lsof -nP -iTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1; then
 	echo "FAIL port $PORT is already in use; a stale deck-web? (lsof -nP -iTCP:$PORT)"; exit 1
 fi
 echo "== deck-web, outside every pane of A"
-(unset TUIOS_ENV TUIOS_SESSION TUIOS_PANE_ID TUIOS_PANE_TOKEN TUIOS_SOCKET; exec "$DECKWEB" --listen "127.0.0.1:$PORT" --socket "$ASOCK" --captures "$SCRATCH/captures" > "$SCRATCH/out/web.log" 2>&1) &
+(unset TUIOS_ENV TUIOS_SESSION TUIOS_PANE_ID TUIOS_PANE_TOKEN TUIOS_SOCKET; exec "$DECK" web --listen "127.0.0.1:$PORT" --socket "$ASOCK" --captures "$SCRATCH/captures" > "$SCRATCH/out/web.log" 2>&1) &
 webpid=$!
 for i in $(seq 1 50); do curl -sf "$base/api/state" > "$SCRATCH/out/state.json" 2>/dev/null && break; sleep 0.2; done
 check "state lists the session" "$SCRATCH/out/state.json" '"name":"target"'
