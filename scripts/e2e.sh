@@ -209,7 +209,7 @@ wait_store "\"$EXTRA\"" present 10 && echo "PASS store holds an assignment for e
 python3 -c 'import json,sys; a=json.load(open(sys.argv[1]))["assignments"][sys.argv[2]]; sys.exit(0 if a["task_id"]=="t_e2e001" and a["session"]=="target" else 1)' "$DATA" "$EXTRA" \
 	&& echo "PASS extra is assigned to the task in session target" || { echo "FAIL extra assignment is not the task"; fails=$((fails+1)); }
 select_pane 3; deckcap 06d-assigned
-check "list row shows the task title" "$SCRATCH/out/06d-assigned.txt" 'extra *command palette'
+check "list row leads with the project's four letters and the task title" "$SCRATCH/out/06d-assigned.txt" '^  . deck command palette  extra'
 check "detail bar shows project › task" "$SCRATCH/out/06d-assigned.txt" 'deck › command palette'
 
 echo "== assign a pane with a"
@@ -238,7 +238,7 @@ settle; deckcap 07-agent
 check "sleeper listed" "$SCRATCH/out/07-agent.txt" 'sleeper'
 SLEEPER=$(window_id sleeper)
 wait_store "\"$SLEEPER\"" present 10 && echo "PASS store holds an assignment for sleeper" || { echo "FAIL no assignment for $SLEEPER in $DATA"; fails=$((fails+1)); }
-check "sleeper row shows the project" "$SCRATCH/out/07-agent.txt" 'sleeper *deck'
+check "sleeper row leads with the project's four letters" "$SCRATCH/out/07-agent.txt" '^  . deck sleeper'
 
 echo "== group the left rail with o and O"
 b send-keys -s host -w deck o >/dev/null; settle; deckcap 07b-by-project
@@ -251,7 +251,7 @@ b send-keys -s host -w deck o >/dev/null; settle; deckcap 07b2-by-parent
 check "title says by project > parent task" "$SCRATCH/out/07b2-by-parent.txt" 'tuios-deck.* deck  by project > parent task'
 check "project header at the outer level" "$SCRATCH/out/07b2-by-parent.txt" '^◆ deck '
 check "parent-task header indented under the project" "$SCRATCH/out/07b2-by-parent.txt" '^  ● command palette'
-check "pane indented under the parent-task header" "$SCRATCH/out/07b2-by-parent.txt" '^    · ● extra'
+check "pane indented under the parent-task header" "$SCRATCH/out/07b2-by-parent.txt" '^    · deck command palette  extra'
 b send-keys -s host -w deck o >/dev/null; settle; deckcap 07c-by-task
 check "title says by task" "$SCRATCH/out/07c-by-task.txt" 'tuios-deck.* deck  by task'
 check "task header row shows the path" "$SCRATCH/out/07c-by-task.txt" '^● deck › command palette'

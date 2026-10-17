@@ -259,6 +259,7 @@ done
 check "page has the group select" "$SCRATCH/out/index.html" 'id="group"'
 check "page has the free-text grouping field" "$SCRATCH/out/index.html" 'id="group-custom"'
 check "page lists the nested presets" "$SCRATCH/out/index.html" "'harness > project > parent task'"
+check "pane rows lead with the project chip" "$SCRATCH/out/index.html" "chip.className = 'chip'"
 
 echo "== websocket pane stream"
 EXTRA=$(a list-windows -s target --json | python3 -c 'import json,sys; print([w["window_id"] for w in json.load(sys.stdin)["windows"] if w["title"]=="extra"][0])')

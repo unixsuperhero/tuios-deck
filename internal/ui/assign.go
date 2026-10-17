@@ -6,6 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/unixsuperhero/tuios-deck/internal/store"
 )
@@ -113,8 +114,13 @@ func (m *Model) targetFields(keep bool) []field {
 type assignment struct {
 	glyph string
 	style lipgloss.Style
-	short string // the task title or the project name
 	path  string // "project › top task › task"
+	// The rail row draws the project's first four letters and the task
+	// title, each in its own theme colour.
+	chip      string
+	chipStyle lipgloss.Style
+	task      string
+	taskStyle lipgloss.Style
 }
 
 func (m *Model) assignmentOf(windowID string) (assignment, bool) {
@@ -125,10 +131,12 @@ func (m *Model) assignmentOf(windowID string) (assignment, bool) {
 	var a assignment
 	if project != nil {
 		a.glyph, a.style = project.Theme.Glyph, themeStyle(project.Theme)
-		a.short, a.path = project.Name, project.Name
+		a.path = project.Name
+		a.chip, a.chipStyle = project.Name, a.style
 	}
 	if task != nil {
-		a.glyph, a.style, a.short = task.Theme.Glyph, themeStyle(task.Theme), task.Title
+		a.glyph, a.style = task.Theme.Glyph, themeStyle(task.Theme)
+		a.task, a.taskStyle = task.Title, a.style
 		for _, c := range m.store.Path(task.ID) {
 			a.path += " › " + c.Title
 		}
@@ -136,6 +144,10 @@ func (m *Model) assignmentOf(windowID string) (assignment, bool) {
 	if a.glyph == "" {
 		a.glyph = "●"
 	}
+	if a.chip == "" {
+		a.chip = "?"
+	}
+	a.chip = pad(ansi.Truncate(a.chip, 4, ""), 4)
 	return a, true
 }
 

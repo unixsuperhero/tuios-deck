@@ -156,29 +156,7 @@ func (m *Model) listLines(width, height int) []string {
 			if p.Queued > 0 {
 				state += fmt.Sprintf(" +%d", p.Queued)
 			}
-			// The assignment's glyph sits before the name in its theme
-			// colour; the task title follows the name when it has room.
-			glyph, title := " ", ""
-			if a, ok := m.assignmentOf(p.ID); ok {
-				glyph, title = a.style.Render(a.glyph), a.short
-			}
-			indent := strings.Repeat("  ", max(r.Depth, 1))
-			used := len(indent) + 4 // the indent, the dot, the glyph and their spaces
-			name := ansi.Truncate(p.Name, width-used-ansi.StringWidth(state)-1, "…")
-			room := width - used - ansi.StringWidth(name) - ansi.StringWidth(state) - 2
-			if title != "" && room >= 4 {
-				title = " " + cDim.Render(ansi.Truncate(title, room-1, "…"))
-			} else {
-				title = ""
-			}
-			fill := width - used - ansi.StringWidth(name) - ansi.StringWidth(title) - ansi.StringWidth(state)
-			if fill < 1 {
-				fill = 1
-			}
-			line = indent + stateStyle(p.State).Render(dot) + " " + glyph + " " + name + title + strings.Repeat(" ", fill) + stateStyle(p.State).Render(state)
-			if i == m.sel {
-				line = cSel.Render(ansi.Strip(pad(line, width)))
-			}
+			line = m.paneRow(p, dot, state, r.Depth, width, i == m.sel)
 		}
 		lines = append(lines, line)
 	}
@@ -186,6 +164,40 @@ func (m *Model) listLines(width, height int) []string {
 		lines = append(lines, "")
 	}
 	return lines
+}
+
+// paneRow is a pane's line in the rail, indented by its depth: its state
+// dot, the project's first four letters and the task title in their theme
+// colours, the pane name, and the state flush right. A narrow rail truncates the task title first, then
+// the name. The selected row is drawn in reverse over each part's own
+// colours, so the theme colours stay visible.
+func (m *Model) paneRow(p *panes.Pane, dot, state string, depth, width int, sel bool) string {
+	plain := lipgloss.NewStyle()
+	chip, chipStyle, task, taskStyle := "    ", plain, "", plain
+	if a, ok := m.assignmentOf(p.ID); ok {
+		chip, chipStyle, task, taskStyle = a.chip, a.chipStyle, a.task, a.taskStyle
+	}
+	indent := strings.Repeat("  ", max(depth, 1))
+	lead := len(indent) + 7 // the indent, the dot, " ", the chip, " "
+	room := width - lead - ansi.StringWidth(state) - 1
+	name := ansi.Truncate(p.Name, room, "…")
+	if left := room - ansi.StringWidth(name) - 2; task != "" && left >= 4 {
+		task = ansi.Truncate(task, left, "…") + "  "
+	} else {
+		task = ""
+	}
+	fill := width - lead - ansi.StringWidth(task) - ansi.StringWidth(name) - ansi.StringWidth(state)
+	if fill < 1 {
+		fill = 1
+	}
+	r := func(s lipgloss.Style, text string) string {
+		if sel {
+			s = s.Reverse(true)
+		}
+		return s.Render(text)
+	}
+	return r(plain, indent) + r(stateStyle(p.State), dot) + r(plain, " ") + r(chipStyle, chip) + r(plain, " ") +
+		r(taskStyle, task) + r(plain, name+strings.Repeat(" ", fill)) + r(stateStyle(p.State), state)
 }
 
 func (m *Model) detailLines(width, height int) []string {
