@@ -200,6 +200,8 @@ for id in page-deck page-tasks page-captures dlg-palette; do
 	check "page has #$id" "$SCRATCH/out/index.html" "id=\"$id\""
 done
 check "page has the group select" "$SCRATCH/out/index.html" 'id="group"'
+check "page has the free-text grouping field" "$SCRATCH/out/index.html" 'id="group-custom"'
+check "page lists the nested presets" "$SCRATCH/out/index.html" "'harness > project > parent task'"
 
 echo "== websocket pane stream"
 EXTRA=$(a list-windows -s target --json | python3 -c 'import json,sys; print([w["window_id"] for w in json.load(sys.stdin)["windows"] if w["title"]=="extra"][0])')

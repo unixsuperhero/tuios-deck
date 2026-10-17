@@ -247,11 +247,16 @@ check "project header row in its glyph" "$SCRATCH/out/07b-by-project.txt" '^◆ 
 check "unassigned panes under (none)" "$SCRATCH/out/07b-by-project.txt" '(none)'
 check "status confirms the grouping" "$SCRATCH/out/07b-by-project.txt" 'grouped by project'
 check "selection stays on build across the regroup" "$SCRATCH/out/07b-by-project.txt" 'target › build  ◆ deck'
+b send-keys -s host -w deck o >/dev/null; settle; deckcap 07b2-by-parent
+check "title says by project > parent task" "$SCRATCH/out/07b2-by-parent.txt" 'tuios-deck.* deck  by project > parent task'
+check "project header at the outer level" "$SCRATCH/out/07b2-by-parent.txt" '^◆ deck '
+check "parent-task header indented under the project" "$SCRATCH/out/07b2-by-parent.txt" '^  ● command palette'
+check "pane indented under the parent-task header" "$SCRATCH/out/07b2-by-parent.txt" '^    · ● extra'
 b send-keys -s host -w deck o >/dev/null; settle; deckcap 07c-by-task
 check "title says by task" "$SCRATCH/out/07c-by-task.txt" 'tuios-deck.* deck  by task'
 check "task header row shows the path" "$SCRATCH/out/07c-by-task.txt" '^● deck › command palette'
-b send-text -s host -w deck 'OO'; settle; deckcap 07d-by-session
-check "O twice is back to session" "$SCRATCH/out/07d-by-session.txt" 'grouped by session'
+b send-text -s host -w deck 'OOO'; settle; deckcap 07d-by-session
+check "O three times is back to session" "$SCRATCH/out/07d-by-session.txt" 'grouped by session'
 check "session header row is back" "$SCRATCH/out/07d-by-session.txt" '▾ target'
 if grep -q ' deck  by ' "$SCRATCH/out/07d-by-session.txt"; then echo "FAIL title still names a grouping"; fails=$((fails+1)); else echo "PASS title drops the grouping by session"; fi
 
@@ -269,6 +274,15 @@ b send-text -s host -w deck ' by pro'; b send-keys -s host -w deck Enter >/dev/n
 check "enter on group by project regroups the rail" "$SCRATCH/out/07g-regrouped.txt" 'tuios-deck.* deck  by project'
 check "status confirms the palette's regroup" "$SCRATCH/out/07g-regrouped.txt" 'grouped by project'
 if grep -q '─ command palette' "$SCRATCH/out/07g-regrouped.txt"; then echo "FAIL palette still open after enter"; fails=$((fails+1)); else echo "PASS palette closed after enter"; fi
+b send-text -s host -w deck ':'; settle
+b send-text -s host -w deck 'group by…'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 07g2-group-form
+check "group by… opens the levels form" "$SCRATCH/out/07g2-group-form.txt" 'group by · levels: '
+b send-text -s host -w deck 'harness > project'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 07g3-free-text
+check "free-text grouping named in the title" "$SCRATCH/out/07g3-free-text.txt" 'tuios-deck.* deck  by harness > project'
+check "harness header at the outer level" "$SCRATCH/out/07g3-free-text.txt" '^▾ claude-code'
+check "project header indented under a harness" "$SCRATCH/out/07g3-free-text.txt" '^  ◆ deck '
+b send-text -s host -w deck 'oo'; settle; deckcap 07g4-back
+check "o from a custom grouping restarts the presets" "$SCRATCH/out/07g4-back.txt" 'tuios-deck.* deck  by project '
 b send-keys -s host -w deck ctrl+p >/dev/null; settle
 b send-text -s host -w deck 'nosuchthing'; settle; deckcap 07h-nomatch
 check "an unknown query says no matches" "$SCRATCH/out/07h-nomatch.txt" 'no matches'

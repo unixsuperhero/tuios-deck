@@ -95,7 +95,7 @@ func (m *Model) titleLine() string {
 		}
 	}
 	s := cTitle.Render(" tuios-deck ") + cTabOn.Render(" "+m.page.String()+" ")
-	if m.page == pageDeck && m.grouping != bySession {
+	if m.page == pageDeck && !m.grouping.bySession() {
 		s += " by " + m.grouping.String()
 	}
 	s += " " + cDim.Render(m.daemonInfo+"  "+m.client.Socket)
@@ -134,10 +134,11 @@ func (m *Model) listLines(width, height int) []string {
 			if r.Session != nil && r.Session.Attached {
 				tag = " ·attached"
 			}
+			indent := strings.Repeat("  ", r.Depth)
 			if r.Theme != nil {
-				line = themeStyle(*r.Theme).Render(r.Theme.Glyph) + " " + cHeader.Render(ansi.Truncate(r.Header, width-2, "…"))
+				line = indent + themeStyle(*r.Theme).Render(r.Theme.Glyph) + " " + cHeader.Render(ansi.Truncate(r.Header, width-len(indent)-2, "…"))
 			} else {
-				line = cHeader.Render(ansi.Truncate("▾ "+r.Header, width-len(tag), "…")) + cDim.Render(tag)
+				line = indent + cHeader.Render(ansi.Truncate("▾ "+r.Header, width-len(indent)-len(tag), "…")) + cDim.Render(tag)
 			}
 		} else {
 			p := r.Pane
@@ -161,18 +162,20 @@ func (m *Model) listLines(width, height int) []string {
 			if a, ok := m.assignmentOf(p.ID); ok {
 				glyph, title = a.style.Render(a.glyph), a.short
 			}
-			name := ansi.Truncate(p.Name, width-6-ansi.StringWidth(state)-1, "…")
-			room := width - 6 - ansi.StringWidth(name) - ansi.StringWidth(state) - 2
+			indent := strings.Repeat("  ", max(r.Depth, 1))
+			used := len(indent) + 4 // the indent, the dot, the glyph and their spaces
+			name := ansi.Truncate(p.Name, width-used-ansi.StringWidth(state)-1, "…")
+			room := width - used - ansi.StringWidth(name) - ansi.StringWidth(state) - 2
 			if title != "" && room >= 4 {
 				title = " " + cDim.Render(ansi.Truncate(title, room-1, "…"))
 			} else {
 				title = ""
 			}
-			fill := width - 6 - ansi.StringWidth(name) - ansi.StringWidth(title) - ansi.StringWidth(state)
+			fill := width - used - ansi.StringWidth(name) - ansi.StringWidth(title) - ansi.StringWidth(state)
 			if fill < 1 {
 				fill = 1
 			}
-			line = "  " + stateStyle(p.State).Render(dot) + " " + glyph + " " + name + title + strings.Repeat(" ", fill) + stateStyle(p.State).Render(state)
+			line = indent + stateStyle(p.State).Render(dot) + " " + glyph + " " + name + title + strings.Repeat(" ", fill) + stateStyle(p.State).Render(state)
 			if i == m.sel {
 				line = cSel.Render(ansi.Strip(pad(line, width)))
 			}

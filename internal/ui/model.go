@@ -59,6 +59,7 @@ type row struct {
 	Session *panes.Session
 	Theme   *store.Theme
 	Pane    *panes.Pane
+	Depth   int // the nesting: a header's level, or one past the deepest header for a pane
 }
 
 // Model is the deck's Bubble Tea model.

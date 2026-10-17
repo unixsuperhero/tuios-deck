@@ -345,16 +345,14 @@ func (m *Model) deckCommands() []palItem {
 		{"deck", "go to tasks", "the projects, tasks and subtasks page (T)", func() tea.Cmd { m.page = pageTasks; m.rebuildTasks(); return nil }},
 		{"deck", "go to captures", "the captures folder page (C)", func() tea.Cmd { m.openCaptures(); return nil }},
 	}
-	for g := bySession; g < groupings; g++ {
-		name := g.String()
-		items = append(items, palItem{"deck", "group by " + name, "group the left rail of the deck by " + name + " (o/O cycle)", func() tea.Cmd {
-			if g, ok := parseGrouping(name); ok {
-				m.page = pageDeck
-				m.setGrouping(g)
-			}
+	for _, g := range presets {
+		items = append(items, palItem{"deck", "group by " + g.String(), "group the left rail of the deck by " + g.String() + " (o/O cycle)", func() tea.Cmd {
+			m.page = pageDeck
+			m.setGrouping(g)
 			return nil
 		}})
 	}
+	items = append(items, palItem{"deck", "group by…", "group the left rail by levels such as project > parent task", m.openGroupingForm})
 	return append(items,
 		palItem{"deck", "new project", "add a project (N on the tasks page)", m.openProjectForm},
 		palItem{"deck", "new task", "add a top-level task; the project of the selected pane is offered", m.openNewTaskForm},
@@ -781,4 +779,40 @@ func (m *Model) resultLines(width, height int) []string {
 		lines[height-1] = pad(lines[height-1], width-12) + cDim.Render(fmt.Sprintf("%4d/%d ↓G", m.scroll+1, len(m.detail)))
 	}
 	return lines
+}
+
+// openGroupingForm asks for a grouping as level names joined by ">"; tab
+// completes the level being typed.
+func (m *Model) openGroupingForm() tea.Cmd {
+	m.mode = modeForm
+	m.form = &form{
+		Title: "group by",
+		Fields: []field{{Label: "levels", Default: m.grouping.String(), Hint: "a > b > c, e.g. harness > project > parent task", Options: func() []string {
+			head := ""
+			if m.form != nil {
+				v := m.form.Fields[0].Value
+				if i := strings.LastIndex(v, ">"); i >= 0 {
+					head = strings.TrimRight(v[:i], " ") + " > "
+				}
+			}
+			var out []string
+			for _, name := range levelNames() {
+				out = append(out, head+name)
+			}
+			return out
+		}}},
+		Validate: func(v []string) (int, string) {
+			if _, ok := parseGrouping(v[0]); !ok {
+				return 0, "levels are " + strings.Join(levelNames(), ", ") + ", joined by >"
+			}
+			return 0, ""
+		},
+		Done: func(v []string) tea.Cmd {
+			g, _ := parseGrouping(v[0])
+			m.page = pageDeck
+			m.setGrouping(g)
+			return nil
+		},
+	}
+	return nil
 }

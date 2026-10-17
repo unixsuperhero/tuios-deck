@@ -46,6 +46,8 @@ main { min-height: 0; }
 aside { border-right: 1px solid var(--line); background: var(--panel); display: grid; grid-template-rows: auto 1fr; min-height: 0; }
 .railhead { display: flex; gap: 8px; align-items: center; padding: 6px 12px; border-bottom: 1px solid var(--line); font-size: 12px; color: var(--muted); }
 .railhead select { font-size: 12px; padding: 3px 6px; margin-left: auto; }
+.railhead #group-custom { font-size: 12px; padding: 3px 6px; width: 9em; min-width: 0; margin-left: auto; }
+.railhead #group-custom + select { margin-left: 0; }
 .rail { overflow: auto; min-height: 0; }
 .session { padding: 8px 12px 4px; font-weight: 600; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; display: flex; justify-content: space-between; gap: 8px; }
 .session span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -151,16 +153,8 @@ dialog .hint.err:empty { display: none; }
   <div class="page split on" id="page-deck">
     <aside>
       <div class="railhead"><span>Group by</span>
-        <select id="group">
-          <option value="session">session</option>
-          <option value="project">project</option>
-          <option value="task">task</option>
-          <option value="top">top-level task</option>
-          <option value="cwd">cwd</option>
-          <option value="harness">harness</option>
-          <option value="state">state</option>
-          <option value="kind">kind</option>
-        </select>
+        <input id="group-custom" placeholder="a > b > c" title="Group by levels joined by &gt;, then Enter">
+        <select id="group"></select>
       </div>
       <div class="rail" id="list"><div class="empty">loading…</div></div>
     </aside>
@@ -319,8 +313,9 @@ dialog .hint.err:empty { display: none; }
 (() => {
 const $ = (id) => document.getElementById(id);
 const DOTS = { working: '◐', needs_input: '●', errored: '✗', idle: '○', done: '✓' };
-const GROUPS = ['session', 'project', 'task', 'top', 'cwd', 'harness', 'state', 'kind'];
-const GROUP_NAMES = { session: 'session', project: 'project', task: 'task', top: 'top-level task', cwd: 'cwd', harness: 'harness', state: 'state', kind: 'kind' };
+// A grouping is a list of levels joined by " > ", the first outermost.
+const LEVELS = ['session', 'project', 'task', 'parent task', 'top-level task', 'cwd', 'harness', 'state', 'kind'];
+const GROUPS = ['session', 'project', 'project > parent task', 'task', 'top-level task', 'harness > project > parent task', 'cwd', 'harness', 'state', 'kind'];
 const PAGES = ['deck', 'tasks', 'captures'];
 const state = {
   sessions: [], panes: {}, order: [], selected: null, tab: 'screen', transcripts: false,
@@ -389,41 +384,113 @@ function taskPathOf(id) { const t = taskById(id); return t ? t.path : ''; }
 function paneProject(p) { return p?.assignment?.project || ''; }
 
 // ---------------------------------------------------------------- grouping
-// groupKey is the label a pane sorts under for the current grouping; an
-// empty label is the "(none)" group, which lists last.
-function groupKey(p) {
+// parseGroup reads "a > b > c" into level names, or null when a level is
+// unknown. "top" and "parent" are short for top-level task and parent task.
+function parseGroup(text) {
+  const out = [];
+  for (let part of String(text || '').split('>')) {
+    part = part.trim().toLowerCase().replace(/\s+/g, ' ');
+    if (part === 'top' || part === 'top task') part = 'top-level task';
+    if (part === 'parent') part = 'parent task';
+    if (!LEVELS.includes(part)) return null;
+    out.push(part);
+  }
+  return out;
+}
+// groupKey is the group a pane falls in at one level: a key that tells
+// groups apart and the label its header shows; an empty key is the
+// "(none)" group, which lists last. Under a project level a task label
+// leaves the project out.
+function groupKey(level, p, underProject) {
   const a = p.assignment || {};
-  switch (state.group) {
-    case 'project': return a.project || '';
-    case 'task': return a.task_id ? taskPathOf(a.task_id) : '';
-    case 'top': { const t = a.task_id && taskById(a.task_id); if (!t) return ''; return `${a.project} / ${a.top}`; }
-    case 'cwd': return p.cwd || '';
-    case 'harness': return p.harness || '';
-    case 'state': return p.is_agent ? p.state : '';
-    case 'kind': return p.is_agent ? 'agent' : 'terminal';
-    default: return p.session;
+  const taskLabel = (t) => {
+    if (!t) return ['', ''];
+    let label = t.path || t.title;
+    if (underProject && a.project && label.startsWith(a.project + ' / ')) label = label.slice(a.project.length + 3);
+    return [t.id, label];
+  };
+  switch (level) {
+    case 'project': return [a.project_id || '', a.project || ''];
+    case 'task': return taskLabel(a.task_id && taskById(a.task_id));
+    case 'parent task': { const t = a.task_id && taskById(a.task_id); return taskLabel(t && (t.parent_id && taskById(t.parent_id) || t)); }
+    case 'top-level task': {
+      let t = a.task_id && taskById(a.task_id);
+      for (let i = 0; t && t.parent_id && i < state.tasks.length; i++) t = taskById(t.parent_id) || t;
+      return taskLabel(t);
+    }
+    case 'cwd': return [p.cwd || '', p.cwd || ''];
+    case 'harness': return [p.harness || '', p.harness || ''];
+    case 'state': return p.is_agent ? [p.state || '', p.state || ''] : ['terminal', 'terminal'];
+    case 'kind': return p.is_agent ? ['agent', 'agent'] : ['terminal', 'terminal'];
+    default: return [p.session, p.session];
   }
 }
+// groups is the rail's rows: { header, note, depth } for a header and
+// { pane, depth } for a pane, each level nested under the one before.
+// Groups sort by label with "(none)" last; sessions keep the daemon's order.
 function groups() {
+  const levels = parseGroup(state.group) || ['session'];
+  const rows = [];
+  if (levels.length === 1 && levels[0] === 'session') {
+    for (const s of state.sessions) {
+      rows.push({ header: s.name, note: s.attached ? 'attached' : '', depth: 0 });
+      for (const p of s.panes || []) rows.push({ pane: p, depth: 1 });
+    }
+    return rows;
+  }
+  const nest = (ps, depth, underProject) => {
+    if (depth === levels.length) { for (const p of ps) rows.push({ pane: p, depth }); return; }
+    const level = levels[depth];
+    const by = new Map();
+    for (const p of ps) {
+      const [k, label] = groupKey(level, p, underProject);
+      if (!by.has(k)) by.set(k, { label, panes: [] });
+      by.get(k).panes.push(p);
+    }
+    const keys = [...by.keys()].filter((k) => k !== '');
+    if (level !== 'session') keys.sort((a, b) => by.get(a).label.localeCompare(by.get(b).label));
+    if (by.has('')) keys.push('');
+    for (const k of keys) {
+      const g = by.get(k);
+      rows.push({ header: k ? g.label : '(none)', note: `${g.panes.length}`, depth });
+      nest(g.panes, depth + 1, underProject || level === 'project');
+    }
+  };
   const all = [];
   for (const s of state.sessions) for (const p of s.panes || []) all.push(p);
-  if (state.group === 'session') {
-    return state.sessions.map((s) => ({ key: s.name, note: s.attached ? 'attached' : '', panes: s.panes || [] }));
-  }
-  const by = new Map();
-  for (const p of all) { const k = groupKey(p); if (!by.has(k)) by.set(k, []); by.get(k).push(p); }
-  const keys = [...by.keys()].filter((k) => k !== '').sort((a, b) => a.localeCompare(b));
-  if (by.has('')) keys.push('');
-  return keys.map((k) => ({ key: k || '(none)', note: `${by.get(k).length}`, panes: by.get(k) }));
+  nest(all, 0, false);
+  return rows;
 }
-function setGroup(g) {
-  if (!GROUPS.includes(g)) return;
+// setGroup regroups the rail by a preset or by free text "a > b > c".
+function setGroup(text) {
+  const levels = parseGroup(text);
+  if (!levels) { setStatus(`levels are ${LEVELS.join(', ')}, joined by >`, true); return; }
+  const g = levels.join(' > ');
   state.group = g;
-  $('group').value = g;
+  fillGroupSelect();
+  $('group-custom').value = GROUPS.includes(g) ? '' : g;
   try { localStorage.setItem('deck.group', g); } catch (_) {}
   renderList();
-  setStatus(`grouped by ${GROUP_NAMES[g]}`);
+  setStatus(`grouped by ${g}`);
 }
+// fillGroupSelect lists the presets, and the current grouping when it is
+// no preset.
+function fillGroupSelect() {
+  const sel = $('group');
+  sel.replaceChildren();
+  const opts = GROUPS.includes(state.group) ? GROUPS : [...GROUPS, state.group];
+  for (const g of opts) { const o = document.createElement('option'); o.value = g; o.textContent = g; sel.append(o); }
+  sel.value = state.group;
+}
+function cycleGroup(step) {
+  const i = GROUPS.indexOf(state.group);
+  const next = i < 0 ? (step > 0 ? 0 : GROUPS.length - 1) : (i + step + GROUPS.length) % GROUPS.length;
+  setGroup(GROUPS[next]);
+}
+$('group-custom').onkeydown = (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); setGroup(e.target.value); }
+  if (e.key === 'Escape') { e.target.value = ''; e.target.blur(); }
+};
 $('group').onchange = () => setGroup($('group').value);
 
 // ---------------------------------------------------------------- list
@@ -433,39 +500,43 @@ function renderList() {
   list.replaceChildren();
   state.order = [];
   if (!state.sessions.length) { list.innerHTML = '<div class="empty">no sessions yet: start an agent or open a terminal</div>'; return; }
-  for (const g of groups()) {
-    const h = document.createElement('div'); h.className = 'session';
-    h.innerHTML = `<span></span><span></span>`;
-    h.firstChild.textContent = g.key; h.firstChild.title = g.key; h.lastChild.textContent = g.note;
-    list.append(h);
-    for (const p of g.panes) {
-      state.order.push(p.id);
-      const el = document.createElement('div');
-      el.className = 'pane' + (p.id === state.selected ? ' selected' : '');
-      el.dataset.id = p.id;
-      const dot = p.is_agent ? (DOTS[p.state] || '?') : '·';
-      let st = p.is_agent ? p.state : (p.foreground || '');
-      if (p.queued) st += ` +${p.queued}`;
-      el.innerHTML = `<span class="dot"></span><span class="name"></span><span class="state"></span>`;
-      el.children[0].textContent = dot; el.children[0].className = 'dot s-' + (p.is_agent ? p.state : 'none');
-      const name = el.children[1];
-      const theme = paneTheme(p);
-      if (theme) {
-        const gl = document.createElement('span'); gl.className = 'glyph'; gl.textContent = theme.glyph; gl.style.color = theme.css;
-        name.append(gl);
-      }
-      name.append(document.createTextNode(p.name));
-      const a = p.assignment;
-      if (a && (a.task || a.project)) {
-        const tag = document.createElement('span'); tag.className = 'tag'; tag.textContent = a.task || a.project;
-        tag.title = a.task ? taskPathOf(a.task_id) : a.project;
-        name.append(tag);
-      }
-      name.title = (p.cwd || '') + (state.group !== 'session' ? `\n${p.session}` : '');
-      el.children[2].textContent = st; el.children[2].className = 'state s-' + (p.is_agent ? p.state : 'none');
-      el.onclick = () => select(p.id);
-      list.append(el);
+  for (const r of groups()) {
+    if (r.header !== undefined) {
+      const h = document.createElement('div'); h.className = 'session';
+      h.innerHTML = `<span></span><span></span>`;
+      h.firstChild.textContent = r.header; h.firstChild.title = r.header; h.lastChild.textContent = r.note;
+      if (r.depth) h.style.paddingLeft = `${12 + r.depth * 14}px`;
+      list.append(h);
+      continue;
     }
+    const p = r.pane;
+    state.order.push(p.id);
+    const el = document.createElement('div');
+    el.className = 'pane' + (p.id === state.selected ? ' selected' : '');
+    if (r.depth > 1) el.style.paddingLeft = `${12 + (r.depth - 1) * 14}px`;
+    el.dataset.id = p.id;
+    const dot = p.is_agent ? (DOTS[p.state] || '?') : '·';
+    let st = p.is_agent ? p.state : (p.foreground || '');
+    if (p.queued) st += ` +${p.queued}`;
+    el.innerHTML = `<span class="dot"></span><span class="name"></span><span class="state"></span>`;
+    el.children[0].textContent = dot; el.children[0].className = 'dot s-' + (p.is_agent ? p.state : 'none');
+    const name = el.children[1];
+    const theme = paneTheme(p);
+    if (theme) {
+      const gl = document.createElement('span'); gl.className = 'glyph'; gl.textContent = theme.glyph; gl.style.color = theme.css;
+      name.append(gl);
+    }
+    name.append(document.createTextNode(p.name));
+    const a = p.assignment;
+    if (a && (a.task || a.project)) {
+      const tag = document.createElement('span'); tag.className = 'tag'; tag.textContent = a.task || a.project;
+      tag.title = a.task ? taskPathOf(a.task_id) : a.project;
+      name.append(tag);
+    }
+    name.title = (p.cwd || '') + (state.group !== 'session' ? `\n${p.session}` : '');
+    el.children[2].textContent = st; el.children[2].className = 'state s-' + (p.is_agent ? p.state : 'none');
+    el.onclick = () => select(p.id);
+    list.append(el);
   }
   list.scrollTop = scroll;
 }
@@ -1054,7 +1125,8 @@ function deckCommands() {
     { label: 'go to tasks', run: () => setPage('tasks') },
     { label: 'go to captures', run: () => setPage('captures') },
   ];
-  for (const g of GROUPS) cmds.push({ label: `group by ${GROUP_NAMES[g]}`, run: () => setGroup(g) });
+  for (const g of GROUPS) cmds.push({ label: `group by ${g}`, run: () => setGroup(g) });
+  cmds.push({ label: 'group by…', run: () => { setPage('deck'); $('group-custom').focus(); } });
   cmds.push(
     { label: 'new project', run: newProject },
     { label: 'new task', desc: 'under the selected project or task', run: newTask },
@@ -1211,8 +1283,8 @@ document.addEventListener('keydown', (e) => {
   if (document.querySelector('dialog[open]') || (term && state.tab === 'live' && $('term').contains(document.activeElement))) return;
   if (e.target.matches('input, textarea, select')) return;
   if (e.ctrlKey || e.metaKey || e.altKey) return;
-  if (e.key === 'o') { setGroup(GROUPS[(GROUPS.indexOf(state.group) + 1) % GROUPS.length]); return; }
-  if (e.key === 'O') { setGroup(GROUPS[(GROUPS.indexOf(state.group) + GROUPS.length - 1) % GROUPS.length]); return; }
+  if (e.key === 'o') { cycleGroup(1); return; }
+  if (e.key === 'O') { cycleGroup(-1); return; }
   if (e.key === 'T') { setPage('tasks'); return; }
   if (e.key === 'C') { setPage('captures'); return; }
   if (e.key === 'Escape') { setPage('deck'); return; }
@@ -1230,8 +1302,9 @@ document.addEventListener('keydown', (e) => {
 
 try { state.tab = localStorage.getItem('deck.tab') || 'screen'; } catch (_) {}
 if (state.tab === 'result') state.tab = 'screen';
-try { const g = localStorage.getItem('deck.group'); if (GROUPS.includes(g)) state.group = g; } catch (_) {}
-$('group').value = state.group;
+try { const g = parseGroup(localStorage.getItem('deck.group')); if (g) state.group = g.join(' > '); } catch (_) {}
+fillGroupSelect();
+if (!GROUPS.includes(state.group)) $('group-custom').value = state.group;
 setPage(location.hash.replace('#', '') || 'deck', true);
 showTab(state.tab, true);
 refresh();

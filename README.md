@@ -156,7 +156,8 @@ The header's Deck, Tasks and Captures buttons switch pages, and the page is
 in the URL's hash (`#tasks`, `#captures`, none for the deck), so a page can
 be bookmarked or reloaded. On the deck page the buttons do what the TUI's
 keys do: New agent, New terminal, Assign, Prompt, Capture, Close, and a
-Group by select over the left list with the TUI's groupings. The tasks page
+Group by select over the left list with the TUI's presets, and a field
+beside it that takes any `a > b > c`. The tasks page
 is the TUI's: the tree of projects, tasks and subtasks with their counts,
 New project, New task, Rename, Toggle done, Theme and Delete, and the panes
 assigned to the selected row. The captures page lists the folder and shows
@@ -260,13 +261,21 @@ answer it in tuios.
 
 ### Grouping the list
 
-`o` cycles how the panes are grouped: by session, project, task, top-level
-task, cwd, harness, state and kind (agents or terminals), then round to
-session again. `O` goes the other way, and `group by …` in the palette picks
-one by name. Each group is a header row over its panes, in the project's or
-task's theme when the group is one; a task header carries the path
-`project › top task › … › task`. Panes with nothing to group by sit under
-`(none)`, last. The selection stays on the same pane across a regroup.
+A grouping is a list of levels, outermost first, written `a > b > c`. The
+levels are session, project, task, parent task (the task's parent, or the
+task itself when it is top-level), top-level task, cwd, harness, state and
+kind (agents or terminals). `o` cycles the presets: session; project;
+project > parent task; task; top-level task; harness > project > parent
+task; cwd; harness; state; kind, then round to session again. `O` goes the
+other way. The palette has `group by …` for each preset, and `group by…`
+asks for any list of levels, such as `harness > project` (`top` and
+`parent` are short for top-level task and parent task; tab completes the
+level being typed). Each group is a header row, indented one step per
+level, with the next level's headers or the panes under it; a project or
+task header is in its theme, and a task header carries the path
+`project › top task › … › task`, without the project when a project level
+sits above it. Within a level groups sort by name with `(none)` last. The
+selection stays on the same pane across a regroup.
 
 ### The tasks page
 
@@ -307,8 +316,8 @@ entry carries its category:
 - `[deck]`, listed first: assign to task…, assign to project…, clear
   assignment, new agent, new terminal, prompt, capture, close pane,
   refresh, go to deck, go to tasks, go to captures, group by each of the
-  groupings, new project, new task, new subtask of…, delete capture. Each
-  does what its key does.
+  presets, group by… for any levels, new project, new task, new subtask
+  of…, delete capture. Each does what its key does.
 - `[tuios]`: every verb the daemon lists in `list-verbs`, asked for once per
   run, with its description. Picking one asks for its parameters one field
   at a time, required ones first, with the parameter's description as the
