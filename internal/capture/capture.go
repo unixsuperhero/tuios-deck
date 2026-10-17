@@ -7,20 +7,17 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/unixsuperhero/tuios-deck/internal/store"
 )
 
-// Dir is where captures are written: $TUIOS_DECK_CAPTURES, else
-// $XDG_DATA_HOME/tuios-deck/captures, else ~/.local/share/tuios-deck/captures.
+// Dir is where captures are written: $TUIOS_DECK_CAPTURES, else the
+// captures folder under the deck's data folder (store.DataDir).
 func Dir() string {
 	if d := os.Getenv("TUIOS_DECK_CAPTURES"); d != "" {
 		return d
 	}
-	base := os.Getenv("XDG_DATA_HOME")
-	if base == "" {
-		home, _ := os.UserHomeDir()
-		base = filepath.Join(home, ".local", "share")
-	}
-	return filepath.Join(base, "tuios-deck", "captures")
+	return filepath.Join(store.DataDir(), "captures")
 }
 
 // Write saves content as <dir>/<session>-<name>-<timestamp>.txt and returns
