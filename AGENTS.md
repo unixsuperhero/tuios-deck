@@ -22,16 +22,23 @@ deck version    the module version Go stamped in
 ## Layout
 
 ```
-cmd/deck/            main.go (subcommands), update.go
+cmd/deck/            main.go (subcommands, the shared -socket -captures -data -auto-capture flags), update.go
 internal/daemon/     the JSON client: Call, Subscribe, Presence, StreamPane; typed verb wrappers in verbs.go
 internal/panes/      sessions+agents merged into one shape; activity and transcript text rendering. Both front ends read this
-internal/store/      store.go projects, tasks and assignments in one JSON file (deck.json); theme.go the 16-colour themes
-internal/ui/         model.go state, keys.go dispatch, form.go the status-line forms, commands.go daemon calls as tea.Cmd, view.go
-                     assign.go the task/project fields and assignment, tasks.go and captures.go the two other pages,
-                     grouping.go the left rail's groupings, palette.go the command palette and the verb forms
-internal/web/        server.go routes, stream.go the WebSocket bridge to stream-pane, static/index.html the page
-                     store.go the projects/tasks/assignments API, captures.go the captures API, verbs.go list-verbs and call
-internal/capture/    capture files under ~/.local/share/tuios-deck/captures; list.go reads the folder back
+internal/store/      store.go projects, tasks (status, MoveTask) and assignments in one JSON file (deck.json);
+                     theme.go the 16-colour themes and the free-colour pool; context.go the context_items table
+internal/context/    context.go Extract, Unwrap and Gather: context items from scrollback, activity, transcript, command-history;
+                     actions.go clipboard Copy, Target, Opener, Start (detached), Programs, Terminal
+internal/autocapture/ autocapture.go the turn/command captures, a goroutine beside either front end
+internal/ui/         model.go state, keys.go dispatch, commands.go daemon calls as tea.Cmd, view.go (helpLine, paneRow)
+                     form.go the form type and its keys, formbox.go the popover box and its key hints,
+                     massadd.go the outline screen (A), assign.go the task/project fields and assignment,
+                     tasks.go, captures.go and contextpage.go the other pages, contextactions.go copy/insert/open,
+                     turns.go the Turns tab, grouping.go the left rail's groupings, palette.go the command palette and the verb forms
+internal/web/        server.go routes (Handler), stream.go the WebSocket bridge to stream-pane, static/index.html the page
+                     store.go the projects/tasks/assignments API, captures.go the captures API, verbs.go list-verbs and call,
+                     context.go the context list/extract/patch/delete API, contextactions.go insert and open
+internal/capture/    capture files under ~/.local/share/tuios-deck/captures; list.go reads the folder back, with the -turn/-cmd kind
 setup/               setup.go installer; setup/omp/ the oh-my-pi extension it installs
 scripts/             e2e.sh, e2e-web.sh, e2e-setup.sh, release.sh, wscheck/ (Go WebSocket probe), omp-ext/ (bun check of the extension)
 ```
@@ -78,6 +85,11 @@ Rules the suites follow, and a new check should too:
   `not_human` once, and that cost an hour.
 - Needs `tuios` on PATH; the setup suite needs `bun` for the extension check
   and skips it otherwise.
+- The scratch folder holds the daemons' sockets, and on macOS a unix socket
+  path over 104 bytes fails. `$TMPDIR` there is already long, so give a
+  short `/tmp` path, and a different one per run when suites run side by
+  side: `SCRATCH=/tmp/deck-e2e-<name> scripts/e2e.sh`,
+  `SCRATCH=/tmp/deck-e2eweb-<name> PORT=<port> scripts/e2e-web.sh`.
 
 ## Things that are easy to get wrong
 
@@ -137,6 +149,42 @@ Rules the suites follow, and a new check should too:
   the `switch m.page` of `View`, and a `helpLine` branch. `T` and `C` set
   the page from anywhere and `esc` goes back to the deck; the tick re-reads
   the detail only on the deck page.
+- **An emptied detail with a kept scroll panics.** The view slices
+  `detail[scroll:]`, and `loadDetail` keeps the scroll while the pane and
+  the tab are the same. Whatever empties `m.detail` without changing the
+  pane or the tab (`g`, `clearResult`) resets `m.scroll` with it; `r` keeps
+  the old lines and scroll and sets `revision = 0` so the fresh read
+  replaces them.
+- **Forms are popovers over one `form` type.** A caller sets `Fields`,
+  `Validate` and `Done`; a `field` may add `Options` (the fuzzy list),
+  `Hint` or `HintFn` (worked out on every draw), `Multi` (enter is a
+  newline, `@` completes paths) and `New` ("project" or "task", which ends
+  the list with `+ add new…`). `form.OnKey` sees every key first, which is
+  how `ctrl+h`/`ctrl+l` walk a task form's parent. Taking `+ add new…` sets
+  `form.adding`; keys.go parks the form in `m.formStack`, opens the
+  mass-add form, and on its submit or `esc` puts the parked form back
+  (`resumeWith` fills the field). There is one slot: never open a third
+  form from the mass-add one.
+- **Auto-capture runs outside the Bubble Tea model on purpose.** It is a
+  goroutine started in cmd/deck with its own subscription, so it can never
+  move the selection, reset a scroll or write the status line. `deck tui`
+  gives it no logger; `deck web` logs. Keep it out of `ui.Model`.
+- **Context items hold window ids too.** Each item in `deck.json` keeps the
+  `window` it came from, so a check that a pane's assignment was pruned
+  must match the assignment key (`"<window id>": {`), never the bare id,
+  or a context item keeps it "present". Pruning drops assignments only;
+  items outlive their panes.
+- **`command-history` flattens wrapped command lines.** The daemon takes a
+  cmdline from the screen rows between the shell's marks and turns every
+  newline into a space, so a command that soft-wrapped comes back with a
+  space where the row broke, splitting a long link or path in it. The
+  extractor's `Unwrap` rejoins wrapped rows of the scrollback (a row as wide
+  as the widest is taken to continue) before it searches them; history
+  lines come as the daemon sends them. The real fix is in tuios.
+- **Agents work in clones under `.dev/work/<name>`** (ignored, so the main
+  tree's `go build ./...` never sees them), each on its own branch, and the
+  coordinator fast-forwards `main` from them. Do not edit the main tree
+  from a parallel agent, and rebase on `main` before reporting.
 
 ## Daemon protocol
 
