@@ -534,6 +534,35 @@ assert va[0]["theme"]["color"] and cap[0]["theme"]["color"]
 PY2
 b send-keys -s host -w deck Escape >/dev/null; settle
 
+echo "== a task picker offers + add new…, which opens the mass-add screen"
+select_pane 3
+b send-keys -s host -w deck a >/dev/null; settle
+b send-text -s host -w deck 'zzz'; b send-keys -s host -w deck ctrl+n >/dev/null; settle; deckcap 21-add-entry
+check "the list ends with + add new…, highlighted by ctrl+n" "$SCRATCH/out/21-add-entry.txt" '▸ + add new…'
+b send-keys -s host -w deck Tab >/dev/null; settle; deckcap 21b-mass-from-form
+check "+ add new… opens the mass-add box" "$SCRATCH/out/21b-mass-from-form.txt" '╭─ add projects and tasks ─'
+check "it is prefilled with the pane's project" "$SCRATCH/out/21b-mass-from-form.txt" '│     deck  '
+check "and the typed task under it" "$SCRATCH/out/21b-mass-from-form.txt" '│       zzz▏'
+b send-keys -s host -w deck Escape >/dev/null; settle; deckcap 21c-mass-esc
+check "esc in the mass-add box returns to the assign form unchanged" "$SCRATCH/out/21c-mass-esc.txt" '› task: zzz▏'
+b send-keys -s host -w deck ctrl+u >/dev/null
+b send-text -s host -w deck 'brand new task'; b send-keys -s host -w deck ctrl+n >/dev/null; settle
+b send-keys -s host -w deck Tab >/dev/null; settle
+b send-keys -s host -w deck ctrl+s >/dev/null; settle; deckcap 21d-resumed
+check "ctrl+s in the mass-add box returns to the assign form" "$SCRATCH/out/21d-resumed.txt" '╭─ assign extra ─'
+check "the task field holds the new task's path" "$SCRATCH/out/21d-resumed.txt" '› task: deck / brand new task▏'
+b send-keys -s host -w deck Enter >/dev/null            # task
+b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 21e-assigned   # project: implied
+check "status reports the assignment to the new task" "$SCRATCH/out/21e-assigned.txt" 'assigned extra to deck › brand new task'
+python3 - "$DATA" "$EXTRA" <<'PY2' && echo "PASS extra is assigned to the new task in the store" || { echo "FAIL extra is not assigned to brand new task"; fails=$((fails+1)); }
+import json, sys
+d = json.load(open(sys.argv[1]))
+deck = [p for p in d["projects"] if p["name"] == "deck"][0]
+t = [t for t in d["tasks"] if t["title"] == "brand new task"]
+assert len(t) == 1 and t[0]["project_id"] == deck["id"], t
+assert d["assignments"][sys.argv[2]]["task_id"] == t[0]["id"]
+PY2
+
 echo "== close a pane with confirmation"
 select_pane 1
 b send-keys -s host -w deck x >/dev/null; settle; deckcap 08-confirm

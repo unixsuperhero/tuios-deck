@@ -387,9 +387,9 @@ func (m *Model) deleteSelectedCapture() tea.Cmd {
 // field; the other half of the a form is left out.
 func (m *Model) openTargetForm(p *panes.Pane, task bool) tea.Cmd {
 	windowID, session, name := p.ID, p.Session, p.Name
-	f := field{Label: "project", Keep: true, Options: m.projectOptions}
+	f := field{Label: "project", Keep: true, Options: m.projectOptions, New: "project"}
 	if task {
-		f = field{Label: "task", Keep: true, Options: m.taskOptions}
+		f = field{Label: "task", Keep: true, Options: m.taskOptions, New: "task"}
 	}
 	resolve := func(v string) (string, string, int, string) {
 		if task {
@@ -425,7 +425,7 @@ func (m *Model) openNewTaskForm() tea.Cmd {
 	m.mode = modeForm
 	m.form = &form{
 		Title:  "new task",
-		Fields: []field{{Label: "project", Default: project, Options: m.projectOptions}, {Label: "title", Keep: true}},
+		Fields: []field{{Label: "project", Default: project, Options: m.projectOptions, New: "project"}, {Label: "title", Keep: true}},
 		Validate: func(v []string) (int, string) {
 			if v[0] == "" {
 				return 0, "a project is required (tab lists them)"
@@ -457,7 +457,7 @@ func (m *Model) openSubtaskForm() tea.Cmd {
 	m.mode = modeForm
 	m.form = &form{
 		Title:  "new subtask",
-		Fields: []field{{Label: "of task", Keep: true, Options: m.taskOptions}, {Label: "title", Keep: true}},
+		Fields: []field{{Label: "of task", Keep: true, Options: m.taskOptions, New: "task"}, {Label: "title", Keep: true}},
 		Validate: func(v []string) (int, string) {
 			if _, msg := m.findTask(v[0]); msg != "" {
 				return 0, msg

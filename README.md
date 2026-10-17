@@ -385,6 +385,15 @@ the way the palette filters. `ctrl+n` `ctrl+p` (or `↓` `↑`) move the
 highlight, `tab` takes the highlighted value, and `enter` takes it too unless
 what you typed is already one of the values.
 
+Every project or task field (new agent, new terminal, assign, the palette's
+assign, new task and new subtask entries) ends its list with `+ add new…`.
+Taking it puts the form aside and opens the mass-add screen (`A`, on the
+tasks page below) with what you typed: as a project line in a project
+field, or as a task under the selected pane's project in a task field.
+`ctrl+s` there adds the outline and brings the form back with the field set
+to the first project or task it added (a task as its path); `esc` brings the
+form back unchanged.
+
 The prompt (`p`) and the new agent's first prompt are multiline: `enter`
 starts a new line, `ctrl+s` (or `ctrl+enter` where the terminal reports it)
 sends, and a paste keeps its newlines.

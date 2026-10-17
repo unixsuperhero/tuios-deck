@@ -9,6 +9,9 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
+// addNew is the last entry of a project or task field's list.
+const addNew = "+ add new…"
+
 // listRows is how many entries of a completion list, and how many lines of
 // a multiline value, the form box shows at once.
 const listRows = 8
@@ -18,7 +21,8 @@ const listRows = 8
 // options that fuzzy-match the typed text in a list under it. A Multi field
 // holds several lines: enter inserts a newline there, and `@` completes a
 // file path under the form's cwd. Hint, when set, is
-// shown under the field while it is the current one.
+// shown under the field while it is the current one. New, "project" or
+// "task", ends the list with addNew, which opens the mass-add screen.
 type field struct {
 	Label   string
 	Value   string
@@ -27,6 +31,7 @@ type field struct {
 	Hint    string
 	Options func() []string
 	Multi   bool
+	New     string
 
 	hl int // the highlighted list entry plus one; 0 is none
 	at int // the offset of the '@' being completed plus one; 0 is none
@@ -89,6 +94,8 @@ type form struct {
 	Err      string
 	Validate func(values []string) (field int, msg string)
 	Done     func(values []string) tea.Cmd
+
+	adding int // the field whose addNew was taken, plus one; 0 is none
 
 	cwd  string              // the folder `@` completes under
 	dirs map[string][]string // the entries read so far, by folder under cwd
@@ -174,6 +181,9 @@ func (f *form) list() []string {
 	if cur.Options == nil {
 		return nil
 	}
+	if cur.New != "" {
+		return append(fuzzy(cur.Options(), cur.Value), addNew)
+	}
 	return fuzzy(cur.Options(), cur.Value)
 }
 
@@ -198,6 +208,10 @@ func (f *form) accept(list []string) {
 			return
 		}
 		cur.Value, cur.at, cur.hl = cur.Value[:cur.at-1]+dir+list[i], 0, 0
+		return
+	}
+	if list[i] == addNew {
+		f.adding, cur.hl = f.Cur+1, 0
 		return
 	}
 	cur.Value, cur.hl = list[i], 0
@@ -245,7 +259,9 @@ func (f *form) edited(typed string) {
 		}
 	}
 	cur.hl = 0
-	if cur.Value != "" {
+	// addNew is never highlighted on its own, so enter on a name that
+	// matches nothing is refused rather than opening the mass-add screen.
+	if list := f.list(); cur.Value != "" && len(list) > 0 && list[0] != addNew {
 		cur.hl = 1
 	}
 }

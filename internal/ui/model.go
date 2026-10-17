@@ -101,9 +101,12 @@ type Model struct {
 	follow     bool
 	revision   int64
 
-	mode    mode
-	form    *form
-	confirm struct {
+	mode mode
+	form *form
+	// formStack is the form suspended while the mass-add screen it opened
+	// is up; it comes back when that screen is submitted or cancelled.
+	formStack *form
+	confirm   struct {
 		Text string
 		Do   tea.Cmd
 	}

@@ -17,13 +17,24 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		switch msg.String() {
 		case "esc", "ctrl+c":
+			if m.formStack != nil {
+				m.form, m.formStack = m.formStack, nil
+				m.form.adding = 0
+				return m, nil
+			}
 			m.mode, m.form = modeNormal, nil
 			m.setStatus("cancelled")
 			return m, nil
 		}
 		done, cmd := m.form.handleKey(msg)
-		if done {
+		switch {
+		case done && m.formStack != nil:
+			m.form, m.formStack = m.formStack, nil
+		case done:
 			m.mode, m.form = modeNormal, nil
+		case m.form.adding > 0:
+			m.formStack = m.form
+			return m, m.openMassAdd(m.addPrefill(m.form))
 		}
 		return m, cmd
 

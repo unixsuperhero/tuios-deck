@@ -183,10 +183,56 @@ func (m *Model) openMassAdd(prefill string) tea.Cmd {
 	f.Done = func([]string) tea.Cmd {
 		lines, _ := m.checkOutline(f.Fields[0].Value)
 		r, err := m.applyOutline(lines)
+		m.resumeWith(r)
 		status := "added " + plural(r.projects, "project") + ", " + plural(r.tasks, "task")
 		return func() tea.Msg { return actionMsg{status: status, err: err} }
 	}
 	m.mode = modeForm
 	m.form = f
 	return nil
+}
+
+// addPrefill is the outline the mass-add screen opens with when a form's
+// addNew was taken: what was typed, as a project line for a project field,
+// or as a task under the selected pane's project for a task field.
+func (m *Model) addPrefill(f *form) string {
+	fl := f.Fields[f.adding-1]
+	typed := strings.TrimSpace(fl.Value)
+	if fl.New == "project" {
+		return typed
+	}
+	project := ""
+	if p := m.selected(); p != nil {
+		if pr, _, _ := m.store.Resolve(p.ID); pr != nil {
+			project = pr.Name
+		}
+	}
+	if project == "" {
+		if ps := m.store.Projects(); len(ps) > 0 {
+			project = ps[0].Name
+		}
+	}
+	if project == "" {
+		return typed
+	}
+	return project + "\n  " + typed
+}
+
+// resumeWith sets the field of the suspended form that opened the
+// mass-add screen to the first project or task the outline named. The
+// model puts that form back once the mass-add form is done.
+func (m *Model) resumeWith(r massResult) {
+	f := m.formStack
+	if f == nil || f.adding == 0 {
+		return
+	}
+	fl := &f.Fields[f.adding-1]
+	v := r.project
+	if fl.New == "task" {
+		v = r.task
+	}
+	if v != "" {
+		fl.Value, fl.hl = v, 0
+	}
+	f.adding = 0
 }

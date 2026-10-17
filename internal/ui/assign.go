@@ -104,8 +104,8 @@ func (m *Model) targetFields(keep bool) []field {
 		}
 	}
 	return []field{
-		{Label: "task", Keep: true, Options: m.taskOptions},
-		{Label: "project", Default: project, Keep: keep, Options: m.projectOptions},
+		{Label: "task", Keep: true, Options: m.taskOptions, New: "task"},
+		{Label: "project", Default: project, Keep: keep, Options: m.projectOptions, New: "project"},
 	}
 }
 
