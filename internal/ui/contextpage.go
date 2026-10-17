@@ -312,7 +312,7 @@ func (m *Model) handleContextKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		id, text := it.ID, shortText(it.Text)
 		m.mode = modeConfirm
-		m.confirm.Text = "delete " + it.Kind + " " + text + "? (y/N)"
+		m.confirm.Text = "delete " + it.Kind + " " + text + "? ((Y/n))"
 		m.confirm.Do = func() tea.Msg {
 			if err := m.store.DeleteContextItem(id); err != nil {
 				return actionMsg{err: err}
