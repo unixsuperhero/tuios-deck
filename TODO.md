@@ -86,8 +86,8 @@ be used to walk up in the list of options
 - [ ] able to assign notes to projects/tasks. a parent and child inherit each other's notes
 - [ ] okay, when creating and writing a prompt, i want the option to choose from certain presets and i want the ability to define new presets. prefet presets include question right i want to pre-populate a prompt with something like answer this question in less than 10 words and then you know when i enter the prompt it auto-prepends that right so that's like one example not just customizing the prompt i also probably want to customize the the project directory, right? like the the current working directory where the session is started and things like that. 
 - [ ] mass-add projects/tasks - tab and shift-tab should change indentation/nesting level
-- [ ] ability to assign a prompt to any task and start it from a modal of queued
-  prompts
+- [ ] ability to assign a prompt to any task and start it from a modal of queued prompts
+- [ ] in case it doesn't already, it needs to support attachments and skill/command auto-complete.
 
 ## Review Queue
 
