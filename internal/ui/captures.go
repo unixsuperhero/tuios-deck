@@ -123,19 +123,10 @@ func (m *Model) handleCapturesKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.loadCaptures()
 		m.setStatus(plural(len(m.caps), "capture"))
 	case "x":
-		e := m.selectedCapture()
-		if e == nil {
+		if m.selectedCapture() == nil {
 			return m, nil
 		}
-		name, dir := e.Name, m.captureDir
-		m.mode = modeConfirm
-		m.confirm.Text = "delete " + name + "? (y/N)"
-		m.confirm.Do = func() tea.Msg {
-			if err := capture.Remove(dir, name); err != nil {
-				return actionMsg{err: err}
-			}
-			return actionMsg{status: "deleted " + name}
-		}
+		m.confirmDeleteCapture()
 	case "enter":
 		e := m.selectedCapture()
 		if e == nil {
@@ -144,6 +135,20 @@ func (m *Model) handleCapturesKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, m.jumpToCapturedPane(*e)
 	}
 	return m, nil
+}
+
+// confirmDeleteCapture asks before deleting the selected capture's file.
+func (m *Model) confirmDeleteCapture() {
+	e := m.selectedCapture()
+	name, dir := e.Name, m.captureDir
+	m.mode = modeConfirm
+	m.confirm.Text = "delete " + name + "? (y/N)"
+	m.confirm.Do = func() tea.Msg {
+		if err := capture.Remove(dir, name); err != nil {
+			return actionMsg{err: err}
+		}
+		return actionMsg{status: "deleted " + name}
+	}
 }
 
 // jumpToCapturedPane goes back to the deck page with the pane the capture

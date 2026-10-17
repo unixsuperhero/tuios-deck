@@ -22,6 +22,7 @@ const (
 	modeNormal mode = iota
 	modeForm
 	modeConfirm
+	modePalette
 )
 
 // page is which view the deck shows: the deck of panes, the tasks tree or
@@ -106,6 +107,13 @@ type Model struct {
 		Do   tea.Cmd
 	}
 
+	pal        *palette // the command palette while open
+	verbs      []verb   // the daemon's list-verbs, fetched on the first open
+	verbsBusy  bool
+	optionKeys []string // list-options paths, fetched when a form needs them
+	themeNames []string // list-themes ids, likewise
+	result     *verbResult
+
 	status   string
 	statusAt time.Time
 
@@ -155,7 +163,36 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.mode == modeForm && m.form != nil {
 			m.form.paste(msg.String())
 		}
+		if m.mode == modePalette && m.pal != nil {
+			m.pal.setQuery(m.pal.Query + panes.OneLine(msg.String()))
+		}
 		return m, nil
+
+	case verbsMsg:
+		m.verbsBusy = false
+		if msg.err != nil {
+			m.setStatus("error: list-verbs: " + msg.err.Error())
+			return m, nil
+		}
+		m.verbs = msg.verbs
+		m.rebuildPalette()
+		return m, nil
+
+	case namesMsg:
+		if msg.err != nil {
+			m.setStatus("error: " + msg.kind + ": " + msg.err.Error())
+			return m, nil
+		}
+		if msg.kind == "options" {
+			m.optionKeys = msg.names
+		} else {
+			m.themeNames = msg.names
+		}
+		return m, nil
+
+	case resultMsg:
+		m.showResult(msg)
+		return m, m.refreshList()
 
 	case helloMsg:
 		if msg.err != nil {
@@ -183,7 +220,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case detailMsg:
 		m.detailBusy = false
-		if msg.key != m.detailFor {
+		if msg.key != m.detailFor || m.result != nil {
 			return m, nil // the selection moved while this one was in flight
 		}
 		if msg.err != nil {
@@ -319,6 +356,15 @@ func (m *Model) firstPane(start, dir int) int {
 func (m *Model) move(dir int) {
 	if next := m.firstPane(m.sel+dir, dir); next >= 0 {
 		m.sel = next
+		m.detail, m.detailErr, m.revision = nil, "", 0
+		m.follow = true
+	}
+}
+
+// clearResult gives the detail pane back to the selected pane.
+func (m *Model) clearResult() {
+	if m.result != nil {
+		m.result = nil
 		m.detail, m.detailErr, m.revision = nil, "", 0
 		m.follow = true
 	}

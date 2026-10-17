@@ -61,7 +61,17 @@ func (m *Model) View() tea.View {
 	case pageCaptures:
 		leftLines, rightLines = m.captureListLines(left, bodyH), m.captureDetailLines(right, bodyH)
 	}
+	// The palette lies over the lower part of the body, full width.
+	var overlay []string
+	if m.mode == modePalette && m.pal != nil {
+		overlay = m.paletteLines(m.width, bodyH)
+	}
 	for i := 0; i < bodyH; i++ {
+		if j := i - (bodyH - len(overlay)); j >= 0 {
+			b.WriteString(pad(overlay[j], m.width))
+			b.WriteByte('\n')
+			continue
+		}
 		b.WriteString(pad(leftLines[i], left))
 		b.WriteString(cBorder.Render("│"))
 		b.WriteString(pad(rightLines[i], right))
@@ -176,6 +186,9 @@ func (m *Model) listLines(width, height int) []string {
 }
 
 func (m *Model) detailLines(width, height int) []string {
+	if m.result != nil {
+		return m.resultLines(width, height)
+	}
 	lines := make([]string, 0, height)
 	var tabs []string
 	for t := tabScreen; t <= tabTranscript; t++ {
@@ -260,9 +273,19 @@ func (m *Model) helpLine() string {
 				help += "  ⇥ " + strings.Join(c, " · ") + more
 			}
 		}
+		if f.Hint != "" {
+			// The hint goes first, trimmed to leave the keys their room.
+			room := m.width - ansi.StringWidth(help) - 3
+			if room < m.width/3 {
+				room = m.width / 3
+			}
+			help = " " + ansi.Truncate(panes.OneLine(f.Hint), room, "…") + " ·" + help
+		}
 		return cDim.Render(help)
 	case modeConfirm:
 		return cDim.Render(" y confirm · any other key cancels")
+	case modePalette:
+		return cDim.Render(" type to filter · ↑/↓ pick · enter run · tab complete · esc close")
 	}
 	switch m.page {
 	case pageTasks:

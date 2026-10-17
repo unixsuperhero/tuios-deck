@@ -9,12 +9,13 @@ import (
 // field is one line of a form: a label, the text typed so far, and a default
 // used when the person leaves it empty. A field with Options completes on
 // tab: the typed prefix to the unique match, or round the matches on
-// repeated tabs.
+// repeated tabs. Hint, when set, is shown on the help line.
 type field struct {
 	Label   string
 	Value   string
 	Default string
 	Keep    bool // keep an empty value empty instead of taking the default
+	Hint    string
 	Options func() []string
 
 	matches []string // the completion cycle in progress, nil when none

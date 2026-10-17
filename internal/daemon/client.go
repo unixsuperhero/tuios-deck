@@ -112,8 +112,8 @@ func (c *Client) Call(ctx context.Context, verb string, params any, out any) err
 	if err != nil {
 		return err
 	}
-	if out == nil {
-		return nil
+	if out == nil || len(res) == 0 {
+		return nil // a verb with nothing to report leaves out untouched
 	}
 	if err := json.Unmarshal(res, out); err != nil {
 		return fmt.Errorf("%s: decode result: %w", verb, err)

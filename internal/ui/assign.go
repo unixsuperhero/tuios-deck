@@ -162,22 +162,28 @@ func (m *Model) openAssignForm() tea.Cmd {
 		},
 		Done: func(v []string) tea.Cmd {
 			taskID, projectID, _, _ := m.resolveTarget(v[0], v[1], 0, 1, true)
-			return func() tea.Msg {
-				if taskID == "" && projectID == "" {
-					if err := m.store.Unassign(windowID); err != nil {
-						return actionMsg{err: err}
-					}
-					return actionMsg{status: "unassigned " + name}
-				}
-				if err := m.store.Assign(windowID, session, taskID, projectID); err != nil {
-					return actionMsg{err: err}
-				}
-				a, _ := m.assignmentOf(windowID)
-				return actionMsg{status: "assigned " + name + " to " + a.path}
-			}
+			return m.assignPane(windowID, session, name, taskID, projectID)
 		},
 	}
 	return nil
+}
+
+// assignPane ties the pane to the task or the project, or with neither
+// drops its assignment.
+func (m *Model) assignPane(windowID, session, name, taskID, projectID string) tea.Cmd {
+	return func() tea.Msg {
+		if taskID == "" && projectID == "" {
+			if err := m.store.Unassign(windowID); err != nil {
+				return actionMsg{err: err}
+			}
+			return actionMsg{status: "unassigned " + name}
+		}
+		if err := m.store.Assign(windowID, session, taskID, projectID); err != nil {
+			return actionMsg{err: err}
+		}
+		a, _ := m.assignmentOf(windowID)
+		return actionMsg{status: "assigned " + name + " to " + a.path}
+	}
 }
 
 // assign ties a window the daemon just made to the target the form gave,

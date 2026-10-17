@@ -223,6 +223,47 @@ check "O twice is back to session" "$SCRATCH/out/07d-by-session.txt" 'grouped by
 check "session header row is back" "$SCRATCH/out/07d-by-session.txt" '▾ target'
 if grep -q ' deck  by ' "$SCRATCH/out/07d-by-session.txt"; then echo "FAIL title still names a grouping"; fails=$((fails+1)); else echo "PASS title drops the grouping by session"; fi
 
+echo "== command palette: deck commands"
+b send-text -s host -w deck ':'; settle; deckcap 07e-palette
+check "palette opens with its header" "$SCRATCH/out/07e-palette.txt" '─ command palette'
+check "palette shows its prompt" "$SCRATCH/out/07e-palette.txt" '^ > ▏'
+check "help line explains the palette keys" "$SCRATCH/out/07e-palette.txt" 'enter run · tab complete · esc close'
+check "deck commands listed first" "$SCRATCH/out/07e-palette.txt" '\[deck\] *assign to task'
+b send-text -s host -w deck 'group'; settle; deckcap 07f-filter
+check "typing filters to the group-by entries" "$SCRATCH/out/07f-filter.txt" '\[deck\] *group by session'
+check "every grouping has an entry" "$SCRATCH/out/07f-filter.txt" 'group by top-level task'
+if grep -q 'assign to task' "$SCRATCH/out/07f-filter.txt"; then echo "FAIL unmatched entries still shown"; fails=$((fails+1)); else echo "PASS unmatched entries hidden"; fi
+b send-text -s host -w deck ' by pro'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 07g-regrouped
+check "enter on group by project regroups the rail" "$SCRATCH/out/07g-regrouped.txt" 'tuios-deck.* deck  by project'
+check "status confirms the palette's regroup" "$SCRATCH/out/07g-regrouped.txt" 'grouped by project'
+if grep -q '─ command palette' "$SCRATCH/out/07g-regrouped.txt"; then echo "FAIL palette still open after enter"; fails=$((fails+1)); else echo "PASS palette closed after enter"; fi
+b send-keys -s host -w deck ctrl+p >/dev/null; settle
+b send-text -s host -w deck 'nosuchthing'; settle; deckcap 07h-nomatch
+check "an unknown query says no matches" "$SCRATCH/out/07h-nomatch.txt" 'no matches'
+b send-keys -s host -w deck Escape >/dev/null; settle; deckcap 07i-closed
+if grep -q '─ command palette' "$SCRATCH/out/07i-closed.txt"; then echo "FAIL palette still open after esc"; fails=$((fails+1)); else echo "PASS esc closes the palette"; fi
+
+echo "== command palette: a tuios verb from list-verbs"
+b send-text -s host -w deck ':'; settle
+b send-text -s host -w deck 'list-win'; settle; deckcap 07j-verb
+check "verb listed from list-verbs with its description" "$SCRATCH/out/07j-verb.txt" '\[tuios\] *list-windows *— List the windows'
+b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 07k-form
+check "form asks for the verb's session param" "$SCRATCH/out/07k-form.txt" 'list-windows · session: '
+check "param description is the help-line hint" "$SCRATCH/out/07k-form.txt" 'Session name'
+b send-text -s host -w deck 'tar'; b send-keys -s host -w deck Tab >/dev/null; settle; deckcap 07k2-complete
+check "tab completes the session name" "$SCRATCH/out/07k2-complete.txt" 'session: target'
+b send-keys -s host -w deck Enter >/dev/null
+wait_deck 'result of list-windows' 15 && echo "PASS verb result reached the detail pane" || { echo "FAIL no result of list-windows"; fails=$((fails+1)); }
+deckcap 07l-result
+check "result title names the verb and its params" "$SCRATCH/out/07l-result.txt" 'result of list-windows .*{"session":"target"}'
+check "result holds the windows array" "$SCRATCH/out/07l-result.txt" '"windows"'
+check "result names the build pane" "$SCRATCH/out/07l-result.txt" '"build"'
+check "status reports the call" "$SCRATCH/out/07l-result.txt" 'list-windows: ok'
+b send-keys -s host -w deck j >/dev/null; settle; deckcap 07m-moved
+if grep -q 'result of list-windows' "$SCRATCH/out/07m-moved.txt"; then echo "FAIL result view stayed after moving"; fails=$((fails+1)); else echo "PASS moving the selection ends the result view"; fi
+b send-text -s host -w deck 'O'; settle; deckcap 07n-session-again
+check "O is back to session for the checks that follow" "$SCRATCH/out/07n-session-again.txt" 'grouped by session'
+
 echo "== tasks page: the seeded project and task"
 b send-text -s host -w deck 'T'; settle; deckcap 10-tasks
 check "title names the tasks page" "$SCRATCH/out/10-tasks.txt" 'tuios-deck.* tasks '

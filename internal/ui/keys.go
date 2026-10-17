@@ -2,6 +2,8 @@ package ui
 
 import (
 	tea "charm.land/bubbletea/v2"
+
+	"github.com/unixsuperhero/tuios-deck/internal/panes"
 )
 
 func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -29,12 +31,17 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.setStatus("cancelled")
 			return m, nil
 		}
+
+	case modePalette:
+		return m.handlePaletteKey(msg)
 	}
 
 	// Keys every page answers.
 	switch msg.String() {
 	case "q", "ctrl+c":
 		return m, tea.Quit
+	case ":", "ctrl+p":
+		return m, m.openPalette()
 	case "T":
 		m.page = pageTasks
 		m.rebuildTasks()
@@ -50,6 +57,10 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.handleCapturesKey(msg)
 	}
 
+	switch msg.String() {
+	case "j", "down", "k", "up", "g", "home", "tab", "l", "right", "shift+tab", "h", "left", "1", "2", "3", "r", "enter":
+		m.clearResult() // moving the selection or the tab ends a verb's result view
+	}
 	switch msg.String() {
 	case "j", "down":
 		m.move(1)
@@ -116,12 +127,17 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if p == nil {
 			return m, nil
 		}
-		m.mode = modeConfirm
-		m.confirm.Text = "close " + p.Name + " in " + p.Session + "? (y/N)"
-		m.confirm.Do = m.closeWindow(p.Session, p.ID, p.Name)
-		return m, nil
+		return m, m.confirmClose(p)
 	}
 	return m, nil
+}
+
+// confirmClose asks before closing the pane.
+func (m *Model) confirmClose(p *panes.Pane) tea.Cmd {
+	m.mode = modeConfirm
+	m.confirm.Text = "close " + p.Name + " in " + p.Session + "? (y/N)"
+	m.confirm.Do = m.closeWindow(p.Session, p.ID, p.Name)
+	return nil
 }
 
 func (m *Model) openAgentForm() tea.Cmd {
