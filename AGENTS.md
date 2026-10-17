@@ -25,9 +25,13 @@ deck version    the module version Go stamped in
 cmd/deck/            main.go (subcommands), update.go
 internal/daemon/     the JSON client: Call, Subscribe, Presence, StreamPane; typed verb wrappers in verbs.go
 internal/panes/      sessions+agents merged into one shape; activity and transcript text rendering. Both front ends read this
+internal/store/      store.go projects, tasks and assignments in one JSON file (deck.json); theme.go the 16-colour themes
 internal/ui/         model.go state, keys.go dispatch, form.go the status-line forms, commands.go daemon calls as tea.Cmd, view.go
+                     assign.go the task/project fields and assignment, tasks.go and captures.go the two other pages,
+                     grouping.go the left rail's groupings, palette.go the command palette and the verb forms
 internal/web/        server.go routes, stream.go the WebSocket bridge to stream-pane, static/index.html the page
-internal/capture/    capture files under ~/.local/share/tuios-deck/captures
+                     store.go the projects/tasks/assignments API, captures.go the captures API, verbs.go list-verbs and call
+internal/capture/    capture files under ~/.local/share/tuios-deck/captures; list.go reads the folder back
 setup/               setup.go installer; setup/omp/ the oh-my-pi extension it installs
 scripts/             e2e.sh, e2e-web.sh, e2e-setup.sh, release.sh, wscheck/ (Go WebSocket probe), omp-ext/ (bun check of the extension)
 ```
@@ -100,7 +104,39 @@ Rules the suites follow, and a new check should too:
   daemon machine's folders through `/api/dirs` because a browser's own
   picker cannot name a server path. A new path field gets the same button.
 - **Colours** in the TUI are the 16 ANSI colours only, so it follows the
-  terminal's theme.
+  terminal's theme. A store theme's colour is one of their names;
+  `Theme.ANSI()` is the lipgloss index, `Theme.CSS()` the hex for the web.
+- **Assignments are pruned after two listings miss a window, not one.** A
+  window the deck just made can be missing from a listing asked for before
+  it existed, and pruning on that first miss would drop the assignment the
+  form just wrote. `pruneAssignments` in ui/assign.go keeps the first miss
+  in `m.missing` and prunes on the second.
+- **A subtask stores no project_id.** Only a top-level task carries one;
+  `store.ProjectOf` walks parents to the root and reads it there, and
+  `Resolve` does the same for an assignment. Never read `Task.ProjectID`
+  off a subtask and expect its project.
+- **The store is one JSON file, written whole and atomically** (temp file,
+  rename, 0600), guarded by a mutex because `deck web` serves requests
+  concurrently. Every mutating method takes the lock and saves before it
+  returns; a new one does the same. No partial writes, no second file.
+- **The palette's result view holds the detail pane.** While `m.result` is
+  set, `loadDetail` returns nil, so the timed re-read does not overwrite a
+  verb's result; the deck-page keys that move the selection or the tab call
+  `clearResult`, which gives the pane back. A new key that changes what the
+  detail shows must do the same.
+- **The e2e seeds `deck.json` by hand** in the store's shape and points the
+  deck at it with `TUIOS_DECK_DATA`, so a run never touches the person's
+  store. A check that needs a project or a task adds it to that seed, not
+  to the real file. Its seeded task is titled "command palette", which is
+  also the palette's header text: a grep for the palette must match the
+  `─ command palette` header, and a grep for the task must match its row,
+  or a check passes for the wrong reason.
+- **Adding a page** to the TUI: a `page` constant and its name in the
+  `String` array in model.go, a `handle<Page>Key` block that keys.go
+  dispatches to after the keys every page answers, the left/right lines in
+  the `switch m.page` of `View`, and a `helpLine` branch. `T` and `C` set
+  the page from anywhere and `esc` goes back to the deck; the tick re-reads
+  the detail only on the deck page.
 
 ## Daemon protocol
 
