@@ -42,8 +42,9 @@ type (
 		err   error
 	}
 	actionMsg struct {
-		status string
-		err    error
+		status    string
+		err       error
+		selectRow string // a project or task id the tasks page selects after the change
 	}
 	tickMsg time.Time
 )

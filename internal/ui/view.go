@@ -54,8 +54,10 @@ func (m *Model) View() tea.View {
 	b.WriteString(m.titleLine())
 	b.WriteByte('\n')
 
-	leftLines := m.listLines(left, bodyH)
-	rightLines := m.detailLines(right, bodyH)
+	leftLines, rightLines := m.listLines(left, bodyH), m.detailLines(right, bodyH)
+	if m.page == pageTasks {
+		leftLines, rightLines = m.taskListLines(left, bodyH), m.taskDetailLines(right, bodyH)
+	}
 	for i := 0; i < bodyH; i++ {
 		b.WriteString(pad(leftLines[i], left))
 		b.WriteString(cBorder.Render("│"))
@@ -79,7 +81,7 @@ func (m *Model) titleLine() string {
 			}
 		}
 	}
-	s := cTitle.Render(" tuios-deck ") + cDim.Render(m.daemonInfo+"  "+m.client.Socket)
+	s := cTitle.Render(" tuios-deck ") + cTabOn.Render(" "+m.page.String()+" ") + " " + cDim.Render(m.daemonInfo+"  "+m.client.Socket)
 	right := fmt.Sprintf("%d agents", agents)
 	if attention > 0 {
 		right = cErr.Render(fmt.Sprintf("%d need you", attention)) + "  " + right
@@ -251,7 +253,10 @@ func (m *Model) helpLine() string {
 	case modeConfirm:
 		return cDim.Render(" y confirm · any other key cancels")
 	}
-	return cDim.Render(" j/k select · 1/2/3 tab · J/K scroll · G follow · n agent · t terminal · p prompt · a assign · c capture · x close · r refresh · q quit")
+	if m.page == pageTasks {
+		return cDim.Render(" j/k select · N project · n task/subtask · e rename · s done · m colour · M glyph · a assign pane · enter go to pane · x delete · esc deck · q quit")
+	}
+	return cDim.Render(" j/k select · 1/2/3 tab · J/K scroll · G follow · n agent · t terminal · p prompt · a assign · c capture · x close · T tasks · r refresh · q quit")
 }
 
 // pad fits s to width: truncated when longer, padded with spaces when shorter.

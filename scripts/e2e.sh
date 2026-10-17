@@ -193,6 +193,65 @@ SLEEPER=$(window_id sleeper)
 wait_store "\"$SLEEPER\"" present 10 && echo "PASS store holds an assignment for sleeper" || { echo "FAIL no assignment for $SLEEPER in $DATA"; fails=$((fails+1)); }
 check "sleeper row shows the project" "$SCRATCH/out/07-agent.txt" 'sleeper *deck'
 
+echo "== tasks page: the seeded project and task"
+b send-text -s host -w deck 'T'; settle; deckcap 10-tasks
+check "title names the tasks page" "$SCRATCH/out/10-tasks.txt" 'tuios-deck.* tasks '
+check "seeded project listed with its open count" "$SCRATCH/out/10-tasks.txt" '◆ deck *1 open'
+check "seeded task listed with its pane" "$SCRATCH/out/10-tasks.txt" 'command palette *1 pane'
+check "project detail lists the panes assigned under it" "$SCRATCH/out/10-tasks.txt" 'target › extra'
+check "help line is the tasks page's" "$SCRATCH/out/10-tasks.txt" 'N project'
+
+echo "== new project, task and subtask"
+b send-text -s host -w deck 'N'; settle
+b send-text -s host -w deck 'web'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 11-project
+check "project added and selected" "$SCRATCH/out/11-project.txt" 'added project web'
+check "project detail shows its theme" "$SCRATCH/out/11-project.txt" 'theme *[a-z-]* ◆'
+b send-keys -s host -w deck n >/dev/null; settle; deckcap 11b-task-form
+check "n on a project opens a task form for it" "$SCRATCH/out/11b-task-form.txt" 'new task in web'
+b send-text -s host -w deck 'landing'; b send-keys -s host -w deck Enter >/dev/null; settle
+b send-keys -s host -w deck n >/dev/null; settle; deckcap 11c-subtask-form
+check "n on a task opens a subtask form for it" "$SCRATCH/out/11c-subtask-form.txt" 'new subtask of landing'
+b send-text -s host -w deck 'hero copy'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 12-tree
+check "task listed under the project" "$SCRATCH/out/12-tree.txt" 'landing'
+check "subtask listed under the task" "$SCRATCH/out/12-tree.txt" '    . *hero copy'
+check "subtask detail shows its path" "$SCRATCH/out/12-tree.txt" 'path *web › landing › hero copy'
+
+echo "== rename and toggle done"
+b send-keys -s host -w deck e >/dev/null; settle
+b send-keys -s host -w deck ctrl+u >/dev/null; b send-text -s host -w deck 'hero text'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 13-renamed
+check "subtask renamed" "$SCRATCH/out/13-renamed.txt" 'renamed to hero text'
+b send-keys -s host -w deck s >/dev/null; settle; deckcap 14-done
+check "subtask marked done" "$SCRATCH/out/14-done.txt" '✓ hero text'
+check "status says it is done" "$SCRATCH/out/14-done.txt" 'hero text is done'
+python3 - "$DATA" <<'PY' && echo "PASS store holds the project, task and subtask in shape" || { echo "FAIL store shape after the tasks page"; fails=$((fails+1)); }
+import json, sys
+d = json.load(open(sys.argv[1]))
+web = [p for p in d["projects"] if p["name"] == "web"][0]
+landing = [t for t in d["tasks"] if t["title"] == "landing"][0]
+hero = [t for t in d["tasks"] if t["title"] == "hero text"][0]
+assert landing["project_id"] == web["id"] and landing["parent_id"] == "", landing
+assert hero["parent_id"] == landing["id"] and hero["project_id"] == "", hero
+assert hero["status"] == "done" and landing["status"] == "open"
+assert landing["theme"]["color"] != hero["theme"]["color"]
+PY
+
+echo "== delete the subtask"
+b send-keys -s host -w deck x >/dev/null; settle; deckcap 15-confirm
+check "delete asks and names what cascades" "$SCRATCH/out/15-confirm.txt" 'delete task hero text, 0 subtasks and 0 assignments'
+b send-keys -s host -w deck y >/dev/null; settle
+wait_store '"hero text"' absent 10 && echo "PASS subtask gone from the store" || { echo "FAIL hero text still in $DATA"; fails=$((fails+1)); }
+deckcap 16-deleted
+check "selection fell back to the task" "$SCRATCH/out/16-deleted.txt" 'path *web › landing$'
+
+echo "== back to the deck, and enter jumps to an assigned pane"
+b send-keys -s host -w deck Escape >/dev/null; settle; deckcap 17-deck
+check "esc returns to the deck page" "$SCRATCH/out/17-deck.txt" 'tuios-deck.* deck '
+check "deck help line is back" "$SCRATCH/out/17-deck.txt" 'n agent'
+b send-text -s host -w deck 'T'; settle
+b send-keys -s host -w deck g >/dev/null; b send-keys -s host -w deck j >/dev/null
+b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 18-jump
+check "enter on the task selects its pane on the deck" "$SCRATCH/out/18-jump.txt" 'target › extra .*deck › command palette'
+
 echo "== close a pane with confirmation"
 select_pane 1
 b send-keys -s host -w deck x >/dev/null; settle; deckcap 08-confirm

@@ -23,6 +23,18 @@ const (
 	modeConfirm
 )
 
+// page is which view the deck shows: the deck of panes or the tasks tree.
+type page int
+
+const (
+	pageDeck page = iota
+	pageTasks
+)
+
+func (p page) String() string {
+	return [...]string{"deck", "tasks"}[p]
+}
+
 type tab int
 
 const (
@@ -50,11 +62,17 @@ type Model struct {
 
 	width, height int
 
+	page page
+
 	rows     []row
 	sel      int
 	listErr  string
 	dirty    bool
 	listBusy bool
+
+	trows  []trow // the tasks page
+	tsel   int
+	tselID string
 
 	tab        tab
 	detail     []string
@@ -203,11 +221,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else if msg.status != "" {
 			m.setStatus(msg.status)
 		}
+		if msg.selectRow != "" {
+			m.tselID = msg.selectRow
+		}
+		m.rebuildTasks()
 		return m, m.refreshList()
 
 	case tickMsg:
 		var cmds []tea.Cmd
-		if m.mode != modeConfirm {
+		if m.mode != modeConfirm && m.page == pageDeck {
 			cmds = append(cmds, m.loadDetail(false))
 		}
 		cmds = append(cmds, tick())
@@ -248,6 +270,7 @@ func (m *Model) applyList(sessions []daemon.Session, agents []daemon.Agent) {
 	} else {
 		m.sel = m.firstPane(0, 1)
 	}
+	m.rebuildTasks()
 }
 
 func (m *Model) selected() *panes.Pane {

@@ -31,9 +31,20 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 
+	// Keys every page answers.
 	switch msg.String() {
 	case "q", "ctrl+c":
 		return m, tea.Quit
+	case "T":
+		m.page = pageTasks
+		m.rebuildTasks()
+		return m, nil
+	}
+	if m.page == pageTasks {
+		return m.handleTasksKey(msg)
+	}
+
+	switch msg.String() {
 	case "j", "down":
 		m.move(1)
 		return m, m.loadDetail(true)
