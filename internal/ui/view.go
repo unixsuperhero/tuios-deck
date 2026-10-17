@@ -181,7 +181,7 @@ func (m *Model) listLines(width, height int) []string {
 // paneRow is a pane's line in the rail, indented by its depth: its state
 // dot, the project's first four letters and the task title in their theme
 // colours, the pane name, and the state flush right. A narrow rail truncates the task title first, then
-// the name. An unassigned pane shows !!!! and its name in white on red. The
+// the name. An unassigned pane shows !!!! and its name in black on red. The
 // selected row is drawn in reverse over each part's own colours, so the
 // theme colours stay visible.
 func (m *Model) paneRow(p *panes.Pane, dot, state string, depth, width int, sel bool) string {
