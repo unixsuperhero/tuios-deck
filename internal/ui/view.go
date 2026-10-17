@@ -284,7 +284,7 @@ func (m *Model) helpLine() string {
 	case modeForm:
 		return cDim.Render(" " + m.form.Title + " · the keys are in the box · esc cancel")
 	case modeConfirm:
-		return cDim.Render(" y confirm · any other key cancels")
+		return cDim.Render(" enter/y confirm · n/esc cancel")
 	case modePalette:
 		return cDim.Render(" type to filter · ↑/↓ pick · enter run · tab complete · esc close")
 	}

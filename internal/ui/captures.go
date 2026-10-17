@@ -142,7 +142,7 @@ func (m *Model) confirmDeleteCapture() {
 	e := m.selectedCapture()
 	name, dir := e.Name, m.captureDir
 	m.mode = modeConfirm
-	m.confirm.Text = "delete " + name + "? (y/N)"
+	m.confirm.Text = "delete " + name + "? (Y/n)"
 	m.confirm.Do = func() tea.Msg {
 		if err := capture.Remove(dir, name); err != nil {
 			return actionMsg{err: err}

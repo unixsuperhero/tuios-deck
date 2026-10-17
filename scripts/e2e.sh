@@ -193,8 +193,16 @@ check "capture row names the pane and its session" "$SCRATCH/out/06f-captures.tx
 check "capture content is shown on the right" "$SCRATCH/out/06f-captures.txt" 'hello-from-build'
 check "help line is the captures page's" "$SCRATCH/out/06f-captures.txt" 'x delete · r refresh'
 b send-keys -s host -w deck x >/dev/null; settle; deckcap 06g-confirm
-check "delete asks by file name" "$SCRATCH/out/06g-confirm.txt" 'delete target-build-[0-9-]*\.txt? (y/N)'
-b send-keys -s host -w deck y >/dev/null; settle; deckcap 06h-deleted
+check "delete asks by file name" "$SCRATCH/out/06g-confirm.txt" 'delete target-build-[0-9-]*\.txt? (Y/n)'
+check "help line gives the confirm keys" "$SCRATCH/out/06g-confirm.txt" 'enter/y confirm · n/esc cancel'
+b send-text -s host -w deck 'z'; settle; deckcap 06g2-stray
+check "a stray key leaves the question open" "$SCRATCH/out/06g2-stray.txt" 'delete target-build-[0-9-]*\.txt? (Y/n)'
+b send-text -s host -w deck 'n'; settle; deckcap 06g3-cancelled
+check "n cancels the delete" "$SCRATCH/out/06g3-cancelled.txt" 'cancelled'
+if ls "$SCRATCH"/captures/target-build-*.txt >/dev/null 2>&1; then echo "PASS capture file kept after n"; else echo "FAIL capture file gone after n"; fails=$((fails+1)); fi
+b send-keys -s host -w deck x >/dev/null; settle
+b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 06h-deleted
+check "enter confirms the delete" "$SCRATCH/out/06h-deleted.txt" 'deleted target-build-'
 check "status reports the deletion" "$SCRATCH/out/06h-deleted.txt" 'deleted target-build-'
 if ls "$SCRATCH"/captures/target-build-*.txt >/dev/null 2>&1; then echo "FAIL capture file still there"; fails=$((fails+1)); else echo "PASS capture file removed"; fi
 check "list is empty after the delete" "$SCRATCH/out/06h-deleted.txt" 'no captures'

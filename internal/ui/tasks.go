@@ -276,7 +276,7 @@ func (m *Model) handleTasksKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			word = "task"
 		}
 		m.mode = modeConfirm
-		m.confirm.Text = fmt.Sprintf("delete %s, %s and %s? (y/N)", row.name(), plural(tasks, word), plural(assigned, "assignment"))
+		m.confirm.Text = fmt.Sprintf("delete %s, %s and %s? (Y/n)", row.name(), plural(tasks, word), plural(assigned, "assignment"))
 		m.confirm.Do = func() tea.Msg {
 			var err error
 			if row.Project != nil {

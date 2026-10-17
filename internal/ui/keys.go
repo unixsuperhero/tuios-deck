@@ -29,14 +29,15 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	case modeConfirm:
 		switch msg.String() {
-		case "y", "Y":
+		case "enter", "y", "Y":
 			m.mode = modeNormal
 			return m, m.confirm.Do
-		default:
+		case "n", "N", "esc", "ctrl+c":
 			m.mode = modeNormal
 			m.setStatus("cancelled")
-			return m, nil
 		}
+		// Any other key does nothing, so a stray key cannot confirm or cancel.
+		return m, nil
 
 	case modePalette:
 		return m.handlePaletteKey(msg)
@@ -143,7 +144,7 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 // confirmClose asks before closing the pane.
 func (m *Model) confirmClose(p *panes.Pane) tea.Cmd {
 	m.mode = modeConfirm
-	m.confirm.Text = "close " + p.Name + " in " + p.Session + "? (y/N)"
+	m.confirm.Text = "close " + p.Name + " in " + p.Session + "? (Y/n)"
 	m.confirm.Do = m.closeWindow(p.Session, p.ID, p.Name)
 	return nil
 }
