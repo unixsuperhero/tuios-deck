@@ -208,6 +208,21 @@ SLEEPER=$(window_id sleeper)
 wait_store "\"$SLEEPER\"" present 10 && echo "PASS store holds an assignment for sleeper" || { echo "FAIL no assignment for $SLEEPER in $DATA"; fails=$((fails+1)); }
 check "sleeper row shows the project" "$SCRATCH/out/07-agent.txt" 'sleeper *deck'
 
+echo "== group the left rail with o and O"
+b send-keys -s host -w deck o >/dev/null; settle; deckcap 07b-by-project
+check "title says by project" "$SCRATCH/out/07b-by-project.txt" 'tuios-deck.* deck  by project'
+check "project header row in its glyph" "$SCRATCH/out/07b-by-project.txt" '^◆ deck '
+check "unassigned panes under (none)" "$SCRATCH/out/07b-by-project.txt" '(none)'
+check "status confirms the grouping" "$SCRATCH/out/07b-by-project.txt" 'grouped by project'
+check "selection stays on build across the regroup" "$SCRATCH/out/07b-by-project.txt" 'target › build  ◆ deck'
+b send-keys -s host -w deck o >/dev/null; settle; deckcap 07c-by-task
+check "title says by task" "$SCRATCH/out/07c-by-task.txt" 'tuios-deck.* deck  by task'
+check "task header row shows the path" "$SCRATCH/out/07c-by-task.txt" '^● deck › command palette'
+b send-text -s host -w deck 'OO'; settle; deckcap 07d-by-session
+check "O twice is back to session" "$SCRATCH/out/07d-by-session.txt" 'grouped by session'
+check "session header row is back" "$SCRATCH/out/07d-by-session.txt" '▾ target'
+if grep -q ' deck  by ' "$SCRATCH/out/07d-by-session.txt"; then echo "FAIL title still names a grouping"; fails=$((fails+1)); else echo "PASS title drops the grouping by session"; fi
+
 echo "== tasks page: the seeded project and task"
 b send-text -s host -w deck 'T'; settle; deckcap 10-tasks
 check "title names the tasks page" "$SCRATCH/out/10-tasks.txt" 'tuios-deck.* tasks '

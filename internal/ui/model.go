@@ -50,10 +50,13 @@ func (t tab) String() string {
 	return [...]string{"Screen", "Activity", "Transcript"}[t]
 }
 
-// row is a line of the left list: a session header or a pane.
+// row is a line of the left list: a group header or a pane. A header
+// grouped by session carries the session; one grouped by project or task
+// carries its theme.
 type row struct {
 	Header  string
 	Session *panes.Session
+	Theme   *store.Theme
 	Pane    *panes.Pane
 }
 
@@ -67,6 +70,8 @@ type Model struct {
 
 	page page
 
+	merged   []panes.Session // the last listing, which o regroups without a daemon call
+	grouping grouping
 	rows     []row
 	sel      int
 	listErr  string
@@ -257,33 +262,19 @@ func (m *Model) setStatus(s string) {
 	m.statusAt = time.Now()
 }
 
-// applyList rebuilds the rows from the two listings and keeps the selection on
-// the same pane where it still exists.
+// applyList keeps the two listings merged, rebuilds the rows under the
+// current grouping and keeps the selection on the same pane where it still
+// exists.
 func (m *Model) applyList(sessions []daemon.Session, agents []daemon.Agent) {
-	selected := m.selectedID()
-	merged := panes.Merge(sessions, agents)
-	var rows []row
-	newSel := -1
+	m.merged = panes.Merge(sessions, agents)
 	live := map[string]bool{}
-	for i := range merged {
-		s := &merged[i]
-		rows = append(rows, row{Header: s.Name, Session: s})
-		for j := range s.Panes {
-			p := &s.Panes[j]
-			if p.ID == selected {
-				newSel = len(rows)
-			}
+	for _, s := range m.merged {
+		for _, p := range s.Panes {
 			live[p.ID] = true
-			rows = append(rows, row{Pane: p})
 		}
 	}
-	m.rows = rows
 	m.pruneAssignments(live)
-	if newSel >= 0 {
-		m.sel = newSel
-	} else {
-		m.sel = m.firstPane(0, 1)
-	}
+	m.rebuildRows()
 	m.rebuildTasks()
 }
 
@@ -308,7 +299,9 @@ func (m *Model) selectedSession() string {
 		if r.Pane != nil {
 			return r.Pane.Session
 		}
-		return r.Header
+		if r.Session != nil {
+			return r.Header
+		}
 	}
 	return ""
 }

@@ -84,7 +84,11 @@ func (m *Model) titleLine() string {
 			}
 		}
 	}
-	s := cTitle.Render(" tuios-deck ") + cTabOn.Render(" "+m.page.String()+" ") + " " + cDim.Render(m.daemonInfo+"  "+m.client.Socket)
+	s := cTitle.Render(" tuios-deck ") + cTabOn.Render(" "+m.page.String()+" ")
+	if m.page == pageDeck && m.grouping != bySession {
+		s += " by " + m.grouping.String()
+	}
+	s += " " + cDim.Render(m.daemonInfo+"  "+m.client.Socket)
 	right := fmt.Sprintf("%d agents", agents)
 	if attention > 0 {
 		right = cErr.Render(fmt.Sprintf("%d need you", attention)) + "  " + right
@@ -120,7 +124,11 @@ func (m *Model) listLines(width, height int) []string {
 			if r.Session != nil && r.Session.Attached {
 				tag = " ·attached"
 			}
-			line = cHeader.Render(ansi.Truncate("▾ "+r.Header, width-len(tag), "…")) + cDim.Render(tag)
+			if r.Theme != nil {
+				line = themeStyle(*r.Theme).Render(r.Theme.Glyph) + " " + cHeader.Render(ansi.Truncate(r.Header, width-2, "…"))
+			} else {
+				line = cHeader.Render(ansi.Truncate("▾ "+r.Header, width-len(tag), "…")) + cDim.Render(tag)
+			}
 		} else {
 			p := r.Pane
 			dot := "·"
@@ -262,7 +270,7 @@ func (m *Model) helpLine() string {
 	case pageCaptures:
 		return cDim.Render(" j/k select · J/K scroll · G follow · enter go to pane · x delete · r refresh · T tasks · esc deck · q quit")
 	}
-	return cDim.Render(" j/k select · 1/2/3 tab · J/K scroll · G follow · n agent · t terminal · p prompt · a assign · c capture · x close · T tasks · C captures · r refresh · q quit")
+	return cDim.Render(" j/k move · 1-3 tab · J/K scroll · G follow · o group · n agent · t term · p prompt · a assign · c capture · x close · T tasks · C captures · r refresh · q quit")
 }
 
 // pad fits s to width: truncated when longer, padded with spaces when shorter.

@@ -95,6 +95,12 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "r", "enter":
 		m.detail, m.revision = nil, 0
 		return m, tea.Batch(m.refreshList(), m.loadDetail(true))
+	case "o":
+		m.cycleGrouping(1)
+		return m, nil
+	case "O":
+		m.cycleGrouping(-1)
+		return m, nil
 	case "n":
 		return m, m.openAgentForm()
 	case "t":
