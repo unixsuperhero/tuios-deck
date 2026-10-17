@@ -10,6 +10,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/unixsuperhero/tuios-deck/internal/capture"
 	"github.com/unixsuperhero/tuios-deck/internal/daemon"
 	"github.com/unixsuperhero/tuios-deck/internal/panes"
 	"github.com/unixsuperhero/tuios-deck/internal/store"
@@ -23,16 +24,18 @@ const (
 	modeConfirm
 )
 
-// page is which view the deck shows: the deck of panes or the tasks tree.
+// page is which view the deck shows: the deck of panes, the tasks tree or
+// the captures folder.
 type page int
 
 const (
 	pageDeck page = iota
 	pageTasks
+	pageCaptures
 )
 
 func (p page) String() string {
-	return [...]string{"deck", "tasks"}[p]
+	return [...]string{"deck", "tasks", "captures"}[p]
 }
 
 type tab int
@@ -73,6 +76,14 @@ type Model struct {
 	trows  []trow // the tasks page
 	tsel   int
 	tselID string
+
+	caps      []capture.Entry // the captures page
+	csel      int
+	cselName  string
+	capLines  []string
+	capErr    string
+	capScroll int
+	capFollow bool
 
 	tab        tab
 	detail     []string
@@ -225,6 +236,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.tselID = msg.selectRow
 		}
 		m.rebuildTasks()
+		if m.page == pageCaptures {
+			m.loadCaptures()
+		}
 		return m, m.refreshList()
 
 	case tickMsg:

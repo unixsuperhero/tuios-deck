@@ -133,6 +133,21 @@ b send-keys -s host -w deck c >/dev/null; settle; deckcap 06-capture
 check "capture path reported" "$SCRATCH/out/06-capture.txt" 'captured to'
 if ls "$SCRATCH"/captures/target-build-*.txt >/dev/null 2>&1 && grep -q 'hello-from-build' "$SCRATCH"/captures/target-build-*.txt; then echo "PASS capture file holds the pane"; else echo "FAIL capture file missing or empty"; fails=$((fails+1)); fi
 
+echo "== captures page: review and delete the capture"
+b send-text -s host -w deck 'C'; settle; deckcap 06f-captures
+check "title names the captures page" "$SCRATCH/out/06f-captures.txt" 'tuios-deck.* captures '
+check "capture row names the pane and its session" "$SCRATCH/out/06f-captures.txt" ' build  target '
+check "capture content is shown on the right" "$SCRATCH/out/06f-captures.txt" 'hello-from-build'
+check "help line is the captures page's" "$SCRATCH/out/06f-captures.txt" 'x delete · r refresh'
+b send-keys -s host -w deck x >/dev/null; settle; deckcap 06g-confirm
+check "delete asks by file name" "$SCRATCH/out/06g-confirm.txt" 'delete target-build-[0-9-]*\.txt? (y/N)'
+b send-keys -s host -w deck y >/dev/null; settle; deckcap 06h-deleted
+check "status reports the deletion" "$SCRATCH/out/06h-deleted.txt" 'deleted target-build-'
+if ls "$SCRATCH"/captures/target-build-*.txt >/dev/null 2>&1; then echo "FAIL capture file still there"; fails=$((fails+1)); else echo "PASS capture file removed"; fi
+check "list is empty after the delete" "$SCRATCH/out/06h-deleted.txt" 'no captures'
+b send-keys -s host -w deck Escape >/dev/null; settle; deckcap 06i-back
+check "esc returns to the deck from captures" "$SCRATCH/out/06i-back.txt" 'tuios-deck.* deck '
+
 echo "== a terminal needs a task or a project"
 b send-keys -s host -w deck t >/dev/null; settle
 b send-keys -s host -w deck Enter >/dev/null            # session

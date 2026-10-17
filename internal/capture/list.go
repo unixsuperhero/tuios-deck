@@ -67,6 +67,12 @@ func List(dir string) ([]Entry, error) {
 	return out, nil
 }
 
+// Matches says whether the entry was written from the pane called name in
+// session: the slugs Write made of them, joined, are the entry's.
+func (e Entry) Matches(session, name string) bool {
+	return slug(session)+"-"+slug(name) == e.Session+"-"+e.Pane
+}
+
 func parseName(name string) (session, pane string) {
 	base := stamp.ReplaceAllString(name, "")
 	if base == name {

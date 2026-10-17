@@ -39,9 +39,15 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.page = pageTasks
 		m.rebuildTasks()
 		return m, nil
+	case "C":
+		m.openCaptures()
+		return m, nil
 	}
 	if m.page == pageTasks {
 		return m.handleTasksKey(msg)
+	}
+	if m.page == pageCaptures {
+		return m.handleCapturesKey(msg)
 	}
 
 	switch msg.String() {

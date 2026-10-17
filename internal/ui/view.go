@@ -55,8 +55,11 @@ func (m *Model) View() tea.View {
 	b.WriteByte('\n')
 
 	leftLines, rightLines := m.listLines(left, bodyH), m.detailLines(right, bodyH)
-	if m.page == pageTasks {
+	switch m.page {
+	case pageTasks:
 		leftLines, rightLines = m.taskListLines(left, bodyH), m.taskDetailLines(right, bodyH)
+	case pageCaptures:
+		leftLines, rightLines = m.captureListLines(left, bodyH), m.captureDetailLines(right, bodyH)
 	}
 	for i := 0; i < bodyH; i++ {
 		b.WriteString(pad(leftLines[i], left))
@@ -253,10 +256,13 @@ func (m *Model) helpLine() string {
 	case modeConfirm:
 		return cDim.Render(" y confirm · any other key cancels")
 	}
-	if m.page == pageTasks {
+	switch m.page {
+	case pageTasks:
 		return cDim.Render(" j/k select · N project · n task/subtask · e rename · s done · m colour · M glyph · a assign pane · enter go to pane · x delete · esc deck · q quit")
+	case pageCaptures:
+		return cDim.Render(" j/k select · J/K scroll · G follow · enter go to pane · x delete · r refresh · T tasks · esc deck · q quit")
 	}
-	return cDim.Render(" j/k select · 1/2/3 tab · J/K scroll · G follow · n agent · t terminal · p prompt · a assign · c capture · x close · T tasks · r refresh · q quit")
+	return cDim.Render(" j/k select · 1/2/3 tab · J/K scroll · G follow · n agent · t terminal · p prompt · a assign · c capture · x close · T tasks · C captures · r refresh · q quit")
 }
 
 // pad fits s to width: truncated when longer, padded with spaces when shorter.
