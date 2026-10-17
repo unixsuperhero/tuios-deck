@@ -108,8 +108,7 @@ echo "== new terminal through the form"
 b send-keys -s host -w deck t >/dev/null; settle
 b send-keys -s host -w deck Enter >/dev/null            # session: default target
 b send-text -s host -w deck 'extra'; b send-keys -s host -w deck Enter >/dev/null
-b send-keys -s host -w deck Enter >/dev/null            # cwd default
-b send-keys -s host -w deck Enter >/dev/null            # shell
+b send-keys -s host -w deck Enter >/dev/null            # cwd default; always a shell
 a wait-for window-output -s target -w extra --pattern '.' --timeout 10000 >/dev/null 2>&1 || true
 a list-windows -s target --json > "$SCRATCH/out/a-windows.json"
 check "extra terminal opened in A" "$SCRATCH/out/a-windows.json" '"extra"'

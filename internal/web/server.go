@@ -324,12 +324,13 @@ func (s *Server) startAgent(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]any{"status": status, "result": res})
 }
 
+// newTerminal opens an interactive shell pane, the pane tuios itself opens,
+// so it stays up between the commands sent to it through prompt.
 func (s *Server) newTerminal(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Session string `json:"session"`
 		Name    string `json:"name"`
 		Cwd     string `json:"cwd"`
-		Command string `json:"command"`
 		Cols    int    `json:"cols"`
 		Rows    int    `json:"rows"`
 	}
@@ -356,7 +357,7 @@ func (s *Server) newTerminal(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	res, err := s.Client.NewWindow(ctx, in.Session, in.Name, in.Cwd, strings.Fields(in.Command))
+	res, err := s.Client.NewWindow(ctx, in.Session, in.Name, in.Cwd, nil)
 	if err != nil {
 		writeErr(w, err)
 		return

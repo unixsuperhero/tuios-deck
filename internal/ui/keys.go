@@ -135,10 +135,9 @@ func (m *Model) openTerminalForm() tea.Cmd {
 			{Label: "session", Default: session},
 			{Label: "name", Keep: true},
 			{Label: "cwd", Default: cwdDefault(p)},
-			{Label: "command (empty for a shell)", Keep: true},
 		},
 		Done: func(v []string) tea.Cmd {
-			return m.newTerminal(v[0], v[1], v[2], splitCommand(v[3]))
+			return m.newTerminal(v[0], v[1], v[2])
 		},
 	}
 	return nil

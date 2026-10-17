@@ -218,7 +218,9 @@ func (m *Model) startAgent(session, agent, name, cwd, prompt string) tea.Cmd {
 	}
 }
 
-func (m *Model) newTerminal(session, name, cwd string, command []string) tea.Cmd {
+// newTerminal opens an interactive shell pane, the same pane tuios itself
+// opens, so it stays up between the commands sent to it with p.
+func (m *Model) newTerminal(session, name, cwd string) tea.Cmd {
 	width, height := m.width, m.height
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
@@ -238,7 +240,7 @@ func (m *Model) newTerminal(session, name, cwd string, command []string) tea.Cmd
 				return actionMsg{err: err}
 			}
 		}
-		res, err := m.client.NewWindow(ctx, session, name, cwd, command)
+		res, err := m.client.NewWindow(ctx, session, name, cwd, nil)
 		if err != nil {
 			return actionMsg{err: err}
 		}

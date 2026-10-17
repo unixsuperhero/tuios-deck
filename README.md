@@ -76,7 +76,7 @@ POST   /api/panes/{session}/{id}/prompt        {"text", "is_agent"}: queue-promp
 POST   /api/panes/{session}/{id}/capture       writes the capture file, ?name=
 DELETE /api/panes/{session}/{id}               close-window
 POST   /api/agents                             start-agent: {"session","agent","name","cwd","prompt","ready_timeout"}
-POST   /api/terminals                          new-window, creating the session first: {"session","name","cwd","command"}
+POST   /api/terminals                          new-window with an interactive shell, creating the session first: {"session","name","cwd"}
 ```
 
 ## The TUI's keys
@@ -87,7 +87,7 @@ POST   /api/terminals                          new-window, creating the session 
 | `1` `2` `3`, `tab` | Screen, activity or transcript of the selected pane |
 | `J` `K`, `G` | Scroll the detail; `G` follows the newest output again |
 | `n` | Start an agent: session, agent command, name, cwd, first prompt. Waits until it is at its prompt |
-| `t` | Open a terminal: session, name, cwd, optional command. Creates the session when it does not exist |
+| `t` | Open a terminal: session, name, cwd. Always an interactive shell, the pane tuios itself opens; send commands to it with `p`. Creates the session when it does not exist |
 | `p` | Send a prompt. An agent gets it through `queue-prompt`, typed when the agent is at rest; a plain terminal gets the text and Enter |
 | `c` | Save the pane's screen and scrollback to a file |
 | `x` | Close the pane, after a confirmation |

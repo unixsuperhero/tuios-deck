@@ -127,7 +127,7 @@ dialog .hint { font-size: 12px; color: var(--muted); }
   <label>Session <input name="session" required></label>
   <label>Name <input name="name" placeholder="build"></label>
   <div class="row"><label>Working directory <input name="cwd" required></label><button type="button" data-browse="cwd">Browse…</button></div>
-  <label>Command (empty for a shell) <input name="command" placeholder="go test ./..."></label>
+  <div class="hint">Opens an interactive shell. Send commands to it with Prompt.</div>
   <div class="actions"><button type="button" data-cancel>Cancel</button><button class="primary" value="ok">Open</button></div>
 </form></dialog>
 

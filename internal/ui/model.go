@@ -6,7 +6,6 @@ package ui
 import (
 	"context"
 	"os"
-	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -325,10 +324,6 @@ func cwdDefault(p *panes.Pane) string {
 	}
 	wd, _ := os.Getwd()
 	return wd
-}
-
-func splitCommand(s string) []string {
-	return strings.Fields(s)
 }
 
 // Close releases the event stream and the presence.
