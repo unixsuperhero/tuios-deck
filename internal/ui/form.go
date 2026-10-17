@@ -1,15 +1,21 @@
 package ui
 
 import (
+	"sort"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
 )
 
+// listRows is how many entries of a completion list, and how many lines of
+// a multiline value, the form box shows at once.
+const listRows = 8
+
 // field is one line of a form: a label, the text typed so far, and a default
-// used when the person leaves it empty. A field with Options completes on
-// tab: the typed prefix to the unique match, or round the matches on
-// repeated tabs. Hint, when set, is shown on the help line.
+// used when the person leaves it empty. A field with Options shows the
+// options that fuzzy-match the typed text in a list under it. A Multi field
+// holds several lines: enter inserts a newline there. Hint, when set, is
+// shown under the field while it is the current one.
 type field struct {
 	Label   string
 	Value   string
@@ -17,9 +23,9 @@ type field struct {
 	Keep    bool // keep an empty value empty instead of taking the default
 	Hint    string
 	Options func() []string
+	Multi   bool
 
-	matches []string // the completion cycle in progress, nil when none
-	match   int
+	hl int // the highlighted list entry plus one; 0 is none
 }
 
 func (f field) result() string {
@@ -29,55 +35,49 @@ func (f field) result() string {
 	return f.Value
 }
 
-// completions is every option the typed value is a prefix of, ignoring
-// case. An option is a path like "project / task / subtask", so a prefix
-// of its last segment matches too.
-func (f field) completions() []string {
+// isOption says whether the value is one of the options, ignoring case.
+func (f field) isOption() bool {
 	if f.Options == nil {
-		return nil
+		return false
 	}
-	prefix := strings.ToLower(strings.TrimSpace(f.Value))
-	var out []string
-	for _, opt := range f.Options() {
-		lower := strings.ToLower(opt)
-		last := lower
-		if i := strings.LastIndex(lower, " / "); i >= 0 {
-			last = lower[i+3:]
-		}
-		if strings.HasPrefix(lower, prefix) || strings.HasPrefix(last, prefix) {
-			out = append(out, opt)
+	v := strings.TrimSpace(f.Value)
+	for _, o := range f.Options() {
+		if strings.EqualFold(o, v) {
+			return true
 		}
 	}
-	return out
+	return false
 }
 
-// complete is what tab does on the field: an empty value takes the default,
-// else the value is completed from the options.
-func (f *field) complete() {
-	if f.matches != nil && f.Value == f.matches[f.match] {
-		f.match = (f.match + 1) % len(f.matches)
-		f.Value = f.matches[f.match]
-		return
+// fuzzy is the options the query matches, best rank first and in their
+// listed order within a rank, the way the palette ranks. An empty query
+// keeps them all.
+func fuzzy(options []string, query string) []string {
+	q := strings.ToLower(strings.TrimSpace(query))
+	if q == "" {
+		return options
 	}
-	if f.Value == "" && f.Default != "" {
-		f.Value = f.Default
-		return
+	type scored struct {
+		rank int
+		opt  string
 	}
-	m := f.completions()
-	if len(m) == 0 {
-		return
+	var out []scored
+	for _, o := range options {
+		if r := matchRank(strings.ToLower(o), q); r >= 0 && r < 4 {
+			out = append(out, scored{r, o})
+		}
 	}
-	f.Value = m[0]
-	if len(m) == 1 {
-		f.matches = nil
-		return
+	sort.SliceStable(out, func(i, j int) bool { return out[i].rank < out[j].rank })
+	res := make([]string, len(out))
+	for i, s := range out {
+		res[i] = s.opt
 	}
-	f.matches, f.match = m, 0
+	return res
 }
 
-// form is a sequence of fields filled one at a time on the status line.
-// Validate, when set, looks at the values on submit; a message keeps the
-// form open at the field it names.
+// form is a sequence of fields, drawn as a box over the body. Validate,
+// when set, looks at the values on submit; a message keeps the form open
+// at the field it names.
 type form struct {
 	Title    string
 	Fields   []field
@@ -87,62 +87,137 @@ type form struct {
 	Done     func(values []string) tea.Cmd
 }
 
+// list is the completion list open under the current field, nil when none.
+func (f *form) list() []string {
+	cur := f.Fields[f.Cur]
+	if cur.Options == nil {
+		return nil
+	}
+	return fuzzy(cur.Options(), cur.Value)
+}
+
+// accept puts the highlighted entry, or the first, in the field. With
+// nothing highlighted an empty field takes its default instead.
+func (f *form) accept(list []string) {
+	cur := &f.Fields[f.Cur]
+	i := cur.hl - 1
+	if i < 0 {
+		if cur.Value == "" && cur.Default != "" {
+			cur.Value = cur.Default
+			return
+		}
+		i = 0
+	}
+	cur.Value, cur.hl = list[i], 0
+}
+
+// submit validates the values and, when they pass, finishes the form.
+func (f *form) submit() (bool, tea.Cmd) {
+	values := make([]string, len(f.Fields))
+	for i, fl := range f.Fields {
+		values[i] = strings.TrimSpace(fl.result())
+	}
+	if f.Validate != nil {
+		if i, msg := f.Validate(values); msg != "" {
+			f.Cur, f.Err = i, msg
+			return false, nil
+		}
+	}
+	return true, f.Done(values)
+}
+
+// edited resets the highlight after the value changed: the best match is
+// highlighted while there is text to match.
+func (f *form) edited() {
+	cur := &f.Fields[f.Cur]
+	cur.hl = 0
+	if cur.Value != "" {
+		cur.hl = 1
+	}
+}
+
 // handleKey edits the current field. It reports whether the form finished,
 // and the command the finish produced.
 func (f *form) handleKey(msg tea.KeyPressMsg) (finished bool, cmd tea.Cmd) {
 	cur := &f.Fields[f.Cur]
 	f.Err = ""
-	if msg.String() != "tab" {
-		cur.matches = nil
+	key := msg.String()
+	if list := f.list(); len(list) > 0 {
+		switch key {
+		case "ctrl+n", "down":
+			cur.hl = cur.hl%len(list) + 1
+			return false, nil
+		case "ctrl+p", "up":
+			if cur.hl <= 1 {
+				cur.hl = len(list)
+			} else {
+				cur.hl--
+			}
+			return false, nil
+		case "tab":
+			f.accept(list)
+			return false, nil
+		case "enter":
+			if cur.hl > 0 && !cur.isOption() {
+				f.accept(list)
+				return false, nil
+			}
+		}
 	}
-	switch msg.String() {
+	switch key {
+	case "ctrl+s", "ctrl+enter":
+		return f.submit()
 	case "enter":
+		if cur.Multi {
+			cur.Value += "\n"
+			return false, nil
+		}
 		if f.Cur+1 < len(f.Fields) {
 			f.Cur++
 			return false, nil
 		}
-		values := make([]string, len(f.Fields))
-		for i, fl := range f.Fields {
-			values[i] = strings.TrimSpace(fl.result())
-		}
-		if f.Validate != nil {
-			if i, msg := f.Validate(values); msg != "" {
-				f.Cur, f.Err = i, msg
-				return false, nil
-			}
-		}
-		return true, f.Done(values)
+		return f.submit()
 	case "shift+tab", "up":
 		if f.Cur > 0 {
 			f.Cur--
 		}
+		return false, nil
+	case "tab":
+		if cur.Value == "" && cur.Default != "" {
+			cur.Value = cur.Default
+		}
+		return false, nil
 	case "backspace":
-		if n := len(cur.Value); n > 0 {
-			r := []rune(cur.Value)
+		if r := []rune(cur.Value); len(r) > 0 {
 			cur.Value = string(r[:len(r)-1])
 		}
 	case "ctrl+u":
 		cur.Value = ""
 	case "ctrl+w":
 		cur.Value = strings.TrimRight(cur.Value, " ")
-		if i := strings.LastIndex(cur.Value, " "); i >= 0 {
+		if i := strings.LastIndexAny(cur.Value, " \n"); i >= 0 {
 			cur.Value = cur.Value[:i+1]
 		} else {
 			cur.Value = ""
 		}
-	case "tab":
-		cur.complete()
 	default:
-		if k := msg.Key(); k.Text != "" && k.Mod == 0 {
-			cur.Value += k.Text
+		k := msg.Key()
+		if k.Text == "" || k.Mod != 0 {
+			return false, nil
 		}
+		cur.Value += k.Text
 	}
+	f.edited()
 	return false, nil
 }
 
+// paste adds text to the current field. A Multi field keeps its newlines;
+// any other field gets them as spaces.
 func (f *form) paste(text string) {
 	text = strings.ReplaceAll(text, "\r\n", "\n")
-	text = strings.ReplaceAll(text, "\n", " ")
+	if !f.Fields[f.Cur].Multi {
+		text = strings.ReplaceAll(text, "\n", " ")
+	}
 	f.Fields[f.Cur].Value += text
-	f.Fields[f.Cur].matches = nil
+	f.edited()
 }

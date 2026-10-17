@@ -113,8 +113,10 @@ b send-keys -s host -w deck 1 >/dev/null; settle
 echo "== prompt to a plain terminal"
 select_pane 1
 b send-keys -s host -w deck p >/dev/null; settle
-b send-text -s host -w deck 'echo from-deck-prompt'
-b send-keys -s host -w deck Enter >/dev/null
+b send-text -s host -w deck 'echo from-deck-prompt'; settle; deckcap 04a-prompt-box
+check "prompt form is a box with its title" "$SCRATCH/out/04a-prompt-box.txt" '╭─ prompt ─'
+check "prompt field is multiline and submits with ctrl+s" "$SCRATCH/out/04a-prompt-box.txt" 'enter newline · ctrl+s submit'
+b send-keys -s host -w deck ctrl+s >/dev/null
 a wait-for window-output -s target -w build --pattern 'from-deck-prompt' --timeout 10000 >/dev/null \
 	&& echo "PASS prompt reached the build pane" || { echo "FAIL prompt never reached build"; fails=$((fails+1)); }
 settle; deckcap 04-after-prompt
@@ -124,7 +126,7 @@ echo "== prompt to the fake agent is queued"
 select_pane 2
 b send-keys -s host -w deck p >/dev/null; settle
 b send-text -s host -w deck 'do the thing'
-b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 05-queued
+b send-keys -s host -w deck ctrl+s >/dev/null; settle; deckcap 05-queued
 check "queue-prompt was used for the agent" "$SCRATCH/out/05-queued.txt" 'prompt \(queued\|delivering\)'
 
 echo "== automatic captures: an agent turn and a shell command"
@@ -231,7 +233,7 @@ b send-keys -s host -w deck Enter >/dev/null            # cwd
 b send-keys -s host -w deck Enter >/dev/null            # no task
 b send-keys -s host -w deck Tab >/dev/null              # project: the selected pane's, deck
 b send-keys -s host -w deck Enter >/dev/null
-b send-keys -s host -w deck Enter >/dev/null            # no prompt
+b send-keys -s host -w deck ctrl+s >/dev/null           # no prompt; the prompt field is multiline
 wait_deck 'sleeper .* is' 120 \
 	&& echo "PASS start-agent returned" || { echo "FAIL start-agent did not report"; fails=$((fails+1)); }
 settle; deckcap 07-agent
@@ -295,7 +297,8 @@ b send-text -s host -w deck ':'; settle
 b send-text -s host -w deck 'list-win'; settle; deckcap 07j-verb
 check "verb listed from list-verbs with its description" "$SCRATCH/out/07j-verb.txt" '\[tuios\] *list-windows *— List the windows'
 b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 07k-form
-check "form asks for the verb's session param" "$SCRATCH/out/07k-form.txt" 'list-windows · session: '
+check "form box is titled with the verb" "$SCRATCH/out/07k-form.txt" '╭─ list-windows ─'
+check "form asks for the verb's session param" "$SCRATCH/out/07k-form.txt" '› session: '
 check "param description is the help-line hint" "$SCRATCH/out/07k-form.txt" 'Session name'
 b send-text -s host -w deck 'tar'; b send-keys -s host -w deck Tab >/dev/null; settle; deckcap 07k2-complete
 check "tab completes the session name" "$SCRATCH/out/07k2-complete.txt" 'session: target'
@@ -403,6 +406,20 @@ b send-text -s host -w deck 'T'; settle
 b send-keys -s host -w deck g >/dev/null; b send-keys -s host -w deck j >/dev/null
 b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 18-jump
 check "enter on the task selects its pane on the deck" "$SCRATCH/out/18-jump.txt" 'target › extra .*deck › command palette'
+
+echo "== form box: fuzzy completion list"
+b send-keys -s host -w deck a >/dev/null; settle; deckcap 19-assign-box
+check "assign form box shows its title" "$SCRATCH/out/19-assign-box.txt" '╭─ assign extra ─'
+check "every field has its own line" "$SCRATCH/out/19-assign-box.txt" '  project: '
+b send-text -s host -w deck 'and'; settle; deckcap 19b-fuzzy
+check "a partial task lists the fuzzy matches, best highlighted" "$SCRATCH/out/19b-fuzzy.txt" '▸ deck / command palette'
+check "the second match is listed" "$SCRATCH/out/19b-fuzzy.txt" '      web / landing'
+b send-keys -s host -w deck ctrl+n >/dev/null; settle; deckcap 19c-next
+check "ctrl+n highlights the second match" "$SCRATCH/out/19c-next.txt" '▸ web / landing'
+b send-keys -s host -w deck Tab >/dev/null; settle; deckcap 19d-accept
+check "tab accepts the highlighted match" "$SCRATCH/out/19d-accept.txt" '› task: web / landing▏'
+b send-keys -s host -w deck Escape >/dev/null; settle; deckcap 19e-cancel
+if grep -q '╭─ assign' "$SCRATCH/out/19e-cancel.txt"; then echo "FAIL form box still open after esc"; fails=$((fails+1)); else echo "PASS esc closes the form box"; fi
 
 echo "== close a pane with confirmation"
 select_pane 1

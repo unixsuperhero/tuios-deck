@@ -336,6 +336,32 @@ takes the place of the detail pane on the deck page under a
 `result of <verb> {params}` bar and stays there, with no re-read on the
 timer, until the selection or the tab moves.
 
+### Forms
+
+A form opens as a box over the middle of the screen: its title in the top
+border, every field on its own line, the current one marked `›` with its
+hint under it, and the keys at the bottom. A refused form keeps its message
+on the status line.
+
+| Key | Does |
+| --- | --- |
+| `enter` | The next field, or submit on the last one |
+| `shift+tab` `↑` | The previous field |
+| `tab` | Take the field's default when it is empty |
+| `ctrl+s` | Submit from any field |
+| `ctrl+u` `ctrl+w` | Clear the field, delete the last word |
+| `esc` | Cancel |
+
+A field with known values (tasks, projects, sessions, windows, option keys,
+themes, accepted values) lists up to 8 of them under it, filtered as you type
+the way the palette filters. `ctrl+n` `ctrl+p` (or `↓` `↑`) move the
+highlight, `tab` takes the highlighted value, and `enter` takes it too unless
+what you typed is already one of the values.
+
+The prompt (`p`) and the new agent's first prompt are multiline: `enter`
+starts a new line, `ctrl+s` (or `ctrl+enter` where the terminal reports it)
+sends, and a paste keeps its newlines.
+
 ## Transcript needs the person's presence
 
 The transcript tab reads `agent-transcript`, which the daemon only serves to

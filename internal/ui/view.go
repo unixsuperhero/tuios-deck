@@ -64,19 +64,29 @@ func (m *Model) View() tea.View {
 		leftLines, rightLines = m.captureListLines(left, bodyH), m.captureDetailLines(right, bodyH)
 	}
 	// The palette lies over the lower part of the body, full width.
-	var overlay []string
+	var under []string
 	if m.mode == modePalette && m.pal != nil {
-		overlay = m.paletteLines(m.width, bodyH)
+		under = m.paletteLines(m.width, bodyH)
+	}
+	// A form is a box centred over the body.
+	var box []string
+	boxW, boxX, boxY := 0, 0, 0
+	if m.mode == modeForm && m.form != nil {
+		boxW = formWidth(m.width)
+		box = m.formBox(boxW, bodyH)
+		boxX, boxY = (m.width-boxW)/2, (bodyH-len(box))/2
 	}
 	for i := 0; i < bodyH; i++ {
-		if j := i - (bodyH - len(overlay)); j >= 0 {
-			b.WriteString(pad(overlay[j], m.width))
+		if j := i - (bodyH - len(under)); j >= 0 {
+			b.WriteString(pad(under[j], m.width))
 			b.WriteByte('\n')
 			continue
 		}
-		b.WriteString(pad(leftLines[i], left))
-		b.WriteString(cBorder.Render("│"))
-		b.WriteString(pad(rightLines[i], right))
+		line := pad(leftLines[i], left) + cBorder.Render("│") + pad(rightLines[i], right)
+		if j := i - boxY; j >= 0 && j < len(box) {
+			line = overlay(line, box[j], boxX, boxW)
+		}
+		b.WriteString(line)
 		b.WriteByte('\n')
 	}
 	b.WriteString(pad(m.statusLine(), m.width))
@@ -255,13 +265,7 @@ func (m *Model) detailLines(width, height int) []string {
 func (m *Model) statusLine() string {
 	switch m.mode {
 	case modeForm:
-		f := m.form.Fields[m.form.Cur]
-		prompt := cStatus.Render(m.form.Title+" · "+f.Label) + ": "
-		value := f.Value
-		if value == "" && f.Default != "" {
-			value = cDim.Render(f.Default + " (tab to take)")
-		}
-		line := prompt + value + "▏"
+		line := cStatus.Render(m.form.Title + " · " + m.form.Fields[m.form.Cur].Label)
 		if m.form.Err != "" {
 			line += "  " + cErr.Render(m.form.Err)
 		}
@@ -278,28 +282,7 @@ func (m *Model) statusLine() string {
 func (m *Model) helpLine() string {
 	switch m.mode {
 	case modeForm:
-		f := m.form.Fields[m.form.Cur]
-		help := fmt.Sprintf(" field %d/%d · enter next · tab default · shift+tab back · esc cancel", m.form.Cur+1, len(m.form.Fields))
-		if f.Options != nil {
-			help = fmt.Sprintf(" field %d/%d · enter next · tab complete · shift+tab back · esc cancel", m.form.Cur+1, len(m.form.Fields))
-			if c := f.completions(); len(c) > 0 {
-				const show = 4
-				more := ""
-				if len(c) > show {
-					more, c = fmt.Sprintf(" +%d more", len(c)-show), c[:show]
-				}
-				help += "  ⇥ " + strings.Join(c, " · ") + more
-			}
-		}
-		if f.Hint != "" {
-			// The hint goes first, trimmed to leave the keys their room.
-			room := m.width - ansi.StringWidth(help) - 3
-			if room < m.width/3 {
-				room = m.width / 3
-			}
-			help = " " + ansi.Truncate(panes.OneLine(f.Hint), room, "…") + " ·" + help
-		}
-		return cDim.Render(help)
+		return cDim.Render(" " + m.form.Title + " · the keys are in the box · esc cancel")
 	case modeConfirm:
 		return cDim.Render(" y confirm · any other key cancels")
 	case modePalette:

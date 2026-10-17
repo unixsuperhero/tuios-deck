@@ -153,7 +153,7 @@ func (m *Model) openAgentForm() tea.Cmd {
 		{Label: "cwd", Default: cwdDefault(p)},
 	}
 	fields = append(fields, m.targetFields(false)...)
-	fields = append(fields, field{Label: "first prompt", Keep: true})
+	fields = append(fields, field{Label: "first prompt", Keep: true, Multi: true})
 	m.mode = modeForm
 	m.form = &form{
 		Title:  "new agent",
@@ -215,7 +215,7 @@ func (m *Model) openPromptForm() tea.Cmd {
 	m.mode = modeForm
 	m.form = &form{
 		Title:  "prompt",
-		Fields: []field{{Label: label, Keep: true}},
+		Fields: []field{{Label: label, Keep: true, Multi: true}},
 		Done: func(v []string) tea.Cmd {
 			if v[0] == "" {
 				return nil
