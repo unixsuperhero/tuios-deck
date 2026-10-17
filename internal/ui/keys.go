@@ -77,7 +77,7 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "g", "home":
 		if i := m.firstPane(0, 1); i >= 0 {
 			m.sel = i
-			m.detail, m.revision = nil, 0
+			m.detail, m.revision, m.scroll = nil, 0, 0
 		}
 		return m, m.loadDetail(true)
 	case "tab", "l", "right":
@@ -110,7 +110,9 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.clampScroll()
 		return m, nil
 	case "r", "enter":
-		m.detail, m.revision = nil, 0
+		// Keep the lines and the scroll until the fresh read replaces them;
+		// revision 0 makes sure it does.
+		m.revision = 0
 		return m, tea.Batch(m.refreshList(), m.loadDetail(true))
 	case "o":
 		m.cycleGrouping(1)

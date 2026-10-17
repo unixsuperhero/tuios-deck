@@ -367,7 +367,7 @@ func (m *Model) clearResult() {
 	if m.result != nil {
 		m.result = nil
 		m.detail, m.detailErr, m.revision = nil, "", 0
-		m.follow = true
+		m.scroll, m.follow = 0, true
 	}
 }
 

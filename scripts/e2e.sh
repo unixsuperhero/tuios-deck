@@ -94,6 +94,8 @@ b new boot --detach --cwd "$SCRATCH" >/dev/null
 b call new-session "{\"name\":\"host\",\"width\":160,\"height\":50,\"cwd\":\"$SCRATCH\"}" >/dev/null
 b new-window -s host deck --no-focus -- env TUIOS_DECK_DATA="$DATA" "$DECK" tui --socket "$ASOCK" --captures "$SCRATCH/captures" >/dev/null
 b wait-for window-output -s host -w deck --pattern 'tuios-deck' --timeout 15000 >/dev/null
+b send-keys -s host -w deck r >/dev/null; settle; deckcap 00-r-at-start
+check "r right after start leaves the deck alive" "$SCRATCH/out/00-r-at-start.txt" 'tuios-deck'
 select_pane 1; deckcap 01-start
 check "title shows the deck" "$SCRATCH/out/01-start.txt" 'tuios-deck'
 check "session target listed" "$SCRATCH/out/01-start.txt" 'target'
@@ -437,6 +439,34 @@ b send-keys -s host -w deck Tab >/dev/null; settle; deckcap 19d-accept
 check "tab accepts the highlighted match" "$SCRATCH/out/19d-accept.txt" '› task: web / landing▏'
 b send-keys -s host -w deck Escape >/dev/null; settle; deckcap 19e-cancel
 if grep -q '╭─ assign' "$SCRATCH/out/19e-cancel.txt"; then echo "FAIL form box still open after esc"; fails=$((fails+1)); else echo "PASS esc closes the form box"; fi
+
+echo "== r refreshes every page without a panic"
+# A screen taller than the detail pane leaves the scroll past zero while it
+# follows, which is what r used to slice an emptied detail with.
+a send-text -s target -w build 'seq 1 300; echo end-of-seq | tr a-z A-Z
+'
+a wait-for window-output -s target -w build --pattern 'END-OF-SEQ' --timeout 10000 >/dev/null
+select_pane 1
+b send-keys -s host -w deck r >/dev/null; settle; deckcap 20-r-deck
+check "r on a long screen leaves the deck alive" "$SCRATCH/out/20-r-deck.txt" 'tuios-deck.* deck '
+check "r keeps the followed screen in view" "$SCRATCH/out/20-r-deck.txt" '│END-OF-SEQ'
+b send-text -s host -w deck ':'; settle
+b send-text -s host -w deck 'list-win'; b send-keys -s host -w deck Enter >/dev/null; settle
+b send-text -s host -w deck 'target'; b send-keys -s host -w deck Enter >/dev/null
+wait_deck 'result of list-windows' 15 || true
+b send-keys -s host -w deck r >/dev/null; settle; deckcap 20b-r-result
+check "r in the result view leaves the deck alive" "$SCRATCH/out/20b-r-result.txt" 'tuios-deck.* deck '
+if grep -q 'result of list-windows' "$SCRATCH/out/20b-r-result.txt"; then echo "FAIL r kept the result view"; fails=$((fails+1)); else echo "PASS r ends the result view"; fi
+b send-text -s host -w deck 'T'; settle
+b send-keys -s host -w deck r >/dev/null; settle; deckcap 20c-r-tasks
+check "r on the tasks page leaves the deck alive" "$SCRATCH/out/20c-r-tasks.txt" 'tuios-deck.* tasks '
+b send-keys -s host -w deck Escape >/dev/null; settle
+b send-keys -s host -w deck c >/dev/null; settle
+b send-text -s host -w deck 'C'; settle
+b send-keys -s host -w deck r >/dev/null; settle; deckcap 20d-r-captures
+check "r on the captures page leaves the deck alive" "$SCRATCH/out/20d-r-captures.txt" 'tuios-deck.* captures '
+check "r on the captures page reports the count" "$SCRATCH/out/20d-r-captures.txt" '1 capture'
+b send-keys -s host -w deck Escape >/dev/null; settle
 
 echo "== close a pane with confirmation"
 select_pane 1
