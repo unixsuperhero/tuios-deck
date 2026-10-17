@@ -296,7 +296,7 @@ check "status confirms the palette's regroup" "$SCRATCH/out/07g-regrouped.txt" '
 if grep -q '─ command palette' "$SCRATCH/out/07g-regrouped.txt"; then echo "FAIL palette still open after enter"; fails=$((fails+1)); else echo "PASS palette closed after enter"; fi
 b send-text -s host -w deck ':'; settle
 b send-text -s host -w deck 'group by…'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 07g2-group-form
-check "group by… opens the levels form" "$SCRATCH/out/07g2-group-form.txt" 'group by · levels: '
+check "group by… opens the levels form" "$SCRATCH/out/07g2-group-form.txt" '╭─ group by ─'
 b send-text -s host -w deck 'harness > project'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 07g3-free-text
 check "free-text grouping named in the title" "$SCRATCH/out/07g3-free-text.txt" 'tuios-deck.* deck  by harness > project'
 check "harness header at the outer level" "$SCRATCH/out/07g3-free-text.txt" '^▾ claude-code'
