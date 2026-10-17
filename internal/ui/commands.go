@@ -188,7 +188,9 @@ func (m *Model) presence() tea.Cmd {
 	}
 }
 
-func (m *Model) startAgent(session, agent, name, cwd, prompt string) tea.Cmd {
+// startAgent opens an agent pane and, once the daemon names the window,
+// assigns it to the task or project the form gave.
+func (m *Model) startAgent(session, agent, name, cwd, prompt, taskID, projectID string) tea.Cmd {
 	m.setStatus("starting " + agent + " in " + session + " (waits for its prompt)")
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 150*time.Second)
@@ -214,13 +216,17 @@ func (m *Model) startAgent(session, agent, name, cwd, prompt string) tea.Cmd {
 				s += " (" + res.PromptNote + ")"
 			}
 		}
-		return actionMsg{status: s}
+		if res.Session == "" {
+			res.Session = session
+		}
+		return m.assign(res.WindowID, res.Session, taskID, projectID, s)
 	}
 }
 
 // newTerminal opens an interactive shell pane, the same pane tuios itself
-// opens, so it stays up between the commands sent to it with p.
-func (m *Model) newTerminal(session, name, cwd string) tea.Cmd {
+// opens, so it stays up between the commands sent to it with p. The new
+// window is assigned to the task or project the form gave.
+func (m *Model) newTerminal(session, name, cwd, taskID, projectID string) tea.Cmd {
 	width, height := m.width, m.height
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
@@ -244,7 +250,7 @@ func (m *Model) newTerminal(session, name, cwd string) tea.Cmd {
 		if err != nil {
 			return actionMsg{err: err}
 		}
-		return actionMsg{status: "opened " + res.Name + " (" + panes.ShortID(res.WindowID) + ") in " + session}
+		return m.assign(res.WindowID, session, taskID, projectID, "opened "+res.Name+" ("+panes.ShortID(res.WindowID)+") in "+session)
 	}
 }
 

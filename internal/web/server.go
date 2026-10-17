@@ -23,6 +23,7 @@ import (
 	"github.com/unixsuperhero/tuios-deck/internal/capture"
 	"github.com/unixsuperhero/tuios-deck/internal/daemon"
 	"github.com/unixsuperhero/tuios-deck/internal/panes"
+	"github.com/unixsuperhero/tuios-deck/internal/store"
 )
 
 //go:embed static
@@ -30,9 +31,10 @@ var static embed.FS
 
 const callTimeout = 10 * time.Second
 
-// Server holds the daemon client and the presence.
+// Server holds the daemon client, the store and the presence.
 type Server struct {
 	Client     *daemon.Client
+	Store      *store.Store
 	Version    string
 	CaptureDir string
 

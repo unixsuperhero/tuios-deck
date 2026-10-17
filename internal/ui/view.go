@@ -132,12 +132,24 @@ func (m *Model) listLines(width, height int) []string {
 			if p.Queued > 0 {
 				state += fmt.Sprintf(" +%d", p.Queued)
 			}
-			name := ansi.Truncate(p.Name, width-4-ansi.StringWidth(state)-1, "…")
-			fill := width - 4 - ansi.StringWidth(name) - ansi.StringWidth(state)
+			// The assignment's glyph sits before the name in its theme
+			// colour; the task title follows the name when it has room.
+			glyph, title := " ", ""
+			if a, ok := m.assignmentOf(p.ID); ok {
+				glyph, title = a.style.Render(a.glyph), a.short
+			}
+			name := ansi.Truncate(p.Name, width-6-ansi.StringWidth(state)-1, "…")
+			room := width - 6 - ansi.StringWidth(name) - ansi.StringWidth(state) - 2
+			if title != "" && room >= 4 {
+				title = " " + cDim.Render(ansi.Truncate(title, room-1, "…"))
+			} else {
+				title = ""
+			}
+			fill := width - 6 - ansi.StringWidth(name) - ansi.StringWidth(title) - ansi.StringWidth(state)
 			if fill < 1 {
 				fill = 1
 			}
-			line = "  " + stateStyle(p.State).Render(dot) + " " + name + strings.Repeat(" ", fill) + stateStyle(p.State).Render(state)
+			line = "  " + stateStyle(p.State).Render(dot) + " " + glyph + " " + name + title + strings.Repeat(" ", fill) + stateStyle(p.State).Render(state)
 			if i == m.sel {
 				line = cSel.Render(ansi.Strip(pad(line, width)))
 			}
@@ -164,6 +176,9 @@ func (m *Model) detailLines(width, height int) []string {
 	bar := strings.Join(tabs, " ")
 	if p := m.selected(); p != nil {
 		info := p.Session + " › " + p.Name
+		if a, ok := m.assignmentOf(p.ID); ok {
+			info += "  " + a.style.Render(a.glyph) + " " + a.path
+		}
 		if p.IsAgent && p.Message != "" {
 			info += "  " + cDim.Render(panes.OneLine(p.Message))
 		}
@@ -202,7 +217,11 @@ func (m *Model) statusLine() string {
 		if value == "" && f.Default != "" {
 			value = cDim.Render(f.Default + " (tab to take)")
 		}
-		return prompt + value + "▏"
+		line := prompt + value + "▏"
+		if m.form.Err != "" {
+			line += "  " + cErr.Render(m.form.Err)
+		}
+		return line
 	case modeConfirm:
 		return cStatus.Render(m.confirm.Text)
 	}
@@ -215,11 +234,24 @@ func (m *Model) statusLine() string {
 func (m *Model) helpLine() string {
 	switch m.mode {
 	case modeForm:
-		return cDim.Render(fmt.Sprintf(" field %d/%d · enter next · tab default · shift+tab back · esc cancel", m.form.Cur+1, len(m.form.Fields)))
+		f := m.form.Fields[m.form.Cur]
+		help := fmt.Sprintf(" field %d/%d · enter next · tab default · shift+tab back · esc cancel", m.form.Cur+1, len(m.form.Fields))
+		if f.Options != nil {
+			help = fmt.Sprintf(" field %d/%d · enter next · tab complete · shift+tab back · esc cancel", m.form.Cur+1, len(m.form.Fields))
+			if c := f.completions(); len(c) > 0 {
+				const show = 4
+				more := ""
+				if len(c) > show {
+					more, c = fmt.Sprintf(" +%d more", len(c)-show), c[:show]
+				}
+				help += "  ⇥ " + strings.Join(c, " · ") + more
+			}
+		}
+		return cDim.Render(help)
 	case modeConfirm:
 		return cDim.Render(" y confirm · any other key cancels")
 	}
-	return cDim.Render(" j/k select · 1/2/3 tab · J/K scroll · G follow · n agent · t terminal · p prompt · c capture · x close · r refresh · q quit")
+	return cDim.Render(" j/k select · 1/2/3 tab · J/K scroll · G follow · n agent · t terminal · p prompt · a assign · c capture · x close · r refresh · q quit")
 }
 
 // pad fits s to width: truncated when longer, padded with spaces when shorter.

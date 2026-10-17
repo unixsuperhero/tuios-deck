@@ -18,6 +18,7 @@ import (
 
 	"github.com/unixsuperhero/tuios-deck/internal/capture"
 	"github.com/unixsuperhero/tuios-deck/internal/daemon"
+	"github.com/unixsuperhero/tuios-deck/internal/store"
 	"github.com/unixsuperhero/tuios-deck/internal/ui"
 	"github.com/unixsuperhero/tuios-deck/internal/web"
 	"github.com/unixsuperhero/tuios-deck/setup"
@@ -89,14 +90,18 @@ func main() {
 type common struct {
 	socket   string
 	captures string
+	data     string
 }
 
 func (c *common) bind(fs *flag.FlagSet) {
 	fs.StringVar(&c.socket, "socket", "", "daemon socket (default $TUIOS_SOCKET or the per-user runtime folder)")
 	fs.StringVar(&c.captures, "captures", "", "folder for saved captures (default "+capture.Dir()+")")
+	fs.StringVar(&c.data, "data", store.DefaultPath(), "file holding projects, tasks and pane assignments")
 }
 
-func (c *common) resolve() (*daemon.Client, string) {
+// resolve is the daemon client, the captures folder and the opened store
+// the flags name. A store that cannot be read is an error.
+func (c *common) resolve() (*daemon.Client, string, *store.Store, error) {
 	client := &daemon.Client{Socket: c.socket}
 	if client.Socket == "" {
 		client.Socket = daemon.DefaultSocket()
@@ -105,7 +110,11 @@ func (c *common) resolve() (*daemon.Client, string) {
 	if dir == "" {
 		dir = capture.Dir()
 	}
-	return client, dir
+	st, err := store.Open(c.data)
+	if err != nil {
+		return nil, "", nil, fmt.Errorf("store: %w", err)
+	}
+	return client, dir, st, nil
 }
 
 func runTUI(args []string) error {
@@ -113,10 +122,13 @@ func runTUI(args []string) error {
 	var c common
 	c.bind(fs)
 	fs.Parse(args)
-	client, dir := c.resolve()
-	m := ui.New(client, version, dir)
+	client, dir, st, err := c.resolve()
+	if err != nil {
+		return err
+	}
+	m := ui.New(client, st, version, dir)
 	defer m.Close()
-	_, err := tea.NewProgram(m).Run()
+	_, err = tea.NewProgram(m).Run()
 	return err
 }
 
@@ -135,11 +147,14 @@ func runWeb(args []string) error {
 	if ip := net.ParseIP(host); (ip == nil || !ip.IsLoopback()) && host != "localhost" && !*allowRemote {
 		return fmt.Errorf("--listen is not loopback and there is no password; pass --allow-remote to serve it anyway")
 	}
-	client, dir := c.resolve()
+	client, dir, st, err := c.resolve()
+	if err != nil {
+		return err
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
-	s := &web.Server{Client: client, Version: version, CaptureDir: dir}
+	s := &web.Server{Client: client, Store: st, Version: version, CaptureDir: dir}
 	s.HoldPresence(ctx)
 	srv := &http.Server{Addr: *listen, Handler: s.Handler(), ReadHeaderTimeout: 10 * time.Second}
 	go func() {

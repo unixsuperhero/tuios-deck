@@ -12,6 +12,7 @@ import (
 
 	"github.com/unixsuperhero/tuios-deck/internal/daemon"
 	"github.com/unixsuperhero/tuios-deck/internal/panes"
+	"github.com/unixsuperhero/tuios-deck/internal/store"
 )
 
 type mode int
@@ -44,6 +45,7 @@ type row struct {
 // Model is the deck's Bubble Tea model.
 type Model struct {
 	client  *daemon.Client
+	store   *store.Store
 	version string
 
 	width, height int
@@ -83,12 +85,16 @@ type Model struct {
 
 	captureDir string
 	daemonInfo string
+
+	missing map[string]bool // assigned windows the last listing did not hold
 }
 
-// New builds a deck for one daemon socket.
-func New(client *daemon.Client, version, captureDir string) *Model {
+// New builds a deck for one daemon socket, with the store that holds the
+// projects, tasks and pane assignments.
+func New(client *daemon.Client, st *store.Store, version, captureDir string) *Model {
 	return &Model{
 		client:     client,
+		store:      st,
 		version:    version,
 		captureDir: captureDir,
 		follow:     true,
@@ -222,6 +228,7 @@ func (m *Model) applyList(sessions []daemon.Session, agents []daemon.Agent) {
 	merged := panes.Merge(sessions, agents)
 	var rows []row
 	newSel := -1
+	live := map[string]bool{}
 	for i := range merged {
 		s := &merged[i]
 		rows = append(rows, row{Header: s.Name, Session: s})
@@ -230,10 +237,12 @@ func (m *Model) applyList(sessions []daemon.Session, agents []daemon.Agent) {
 			if p.ID == selected {
 				newSel = len(rows)
 			}
+			live[p.ID] = true
 			rows = append(rows, row{Pane: p})
 		}
 	}
 	m.rows = rows
+	m.pruneAssignments(live)
 	if newSel >= 0 {
 		m.sel = newSel
 	} else {

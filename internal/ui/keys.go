@@ -84,6 +84,8 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, m.openTerminalForm()
 	case "p":
 		return m, m.openPromptForm()
+	case "a":
+		return m, m.openAssignForm()
 	case "c":
 		return m, m.captureToFile()
 	case "x":
@@ -105,18 +107,25 @@ func (m *Model) openAgentForm() tea.Cmd {
 	if session == "" {
 		session = "deck"
 	}
+	fields := []field{
+		{Label: "session", Default: session},
+		{Label: "agent", Default: "claude"},
+		{Label: "name", Keep: true},
+		{Label: "cwd", Default: cwdDefault(p)},
+	}
+	fields = append(fields, m.targetFields(false)...)
+	fields = append(fields, field{Label: "first prompt", Keep: true})
 	m.mode = modeForm
 	m.form = &form{
-		Title: "new agent",
-		Fields: []field{
-			{Label: "session", Default: session},
-			{Label: "agent", Default: "claude"},
-			{Label: "name", Keep: true},
-			{Label: "cwd", Default: cwdDefault(p)},
-			{Label: "first prompt", Keep: true},
+		Title:  "new agent",
+		Fields: fields,
+		Validate: func(v []string) (int, string) {
+			_, _, f, msg := m.resolveTarget(v[4], v[5], 4, 5, false)
+			return f, msg
 		},
 		Done: func(v []string) tea.Cmd {
-			return m.startAgent(v[0], v[1], v[2], v[3], v[4])
+			taskID, projectID, _, _ := m.resolveTarget(v[4], v[5], 4, 5, false)
+			return m.startAgent(v[0], v[1], v[2], v[3], v[6], taskID, projectID)
 		},
 	}
 	return nil
@@ -128,16 +137,23 @@ func (m *Model) openTerminalForm() tea.Cmd {
 	if session == "" {
 		session = "deck"
 	}
+	fields := []field{
+		{Label: "session", Default: session},
+		{Label: "name", Keep: true},
+		{Label: "cwd", Default: cwdDefault(p)},
+	}
+	fields = append(fields, m.targetFields(false)...)
 	m.mode = modeForm
 	m.form = &form{
-		Title: "new terminal",
-		Fields: []field{
-			{Label: "session", Default: session},
-			{Label: "name", Keep: true},
-			{Label: "cwd", Default: cwdDefault(p)},
+		Title:  "new terminal",
+		Fields: fields,
+		Validate: func(v []string) (int, string) {
+			_, _, f, msg := m.resolveTarget(v[3], v[4], 3, 4, false)
+			return f, msg
 		},
 		Done: func(v []string) tea.Cmd {
-			return m.newTerminal(v[0], v[1], v[2])
+			taskID, projectID, _, _ := m.resolveTarget(v[3], v[4], 3, 4, false)
+			return m.newTerminal(v[0], v[1], v[2], taskID, projectID)
 		},
 	}
 	return nil
