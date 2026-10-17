@@ -198,6 +198,49 @@ curl -s "$base/api/assignments" > "$SCRATCH/out/assignments-cascade.json"
 check "assignments gone with the project" "$SCRATCH/out/assignments-cascade.json" '"assignments":{}'
 grep -q '"version": 1' "$SCRATCH/deck.json" && echo "PASS store written under the scratch folder" || { echo "FAIL store file"; fails=$((fails+1)); }
 
+echo "== new items take random colours from the unassigned pool"
+# Creates a project and tasks past the point where every colour is held.
+# The first N items, N the colours free beforehand, must all differ; a
+# done task frees its colour, which the next item must then take.
+python3 -I - "$base" <<'PY'
+import json, sys, urllib.request
+base = sys.argv[1]
+def call(method, path, body=None):
+    req = urllib.request.Request(base + path, method=method, data=json.dumps(body).encode() if body is not None else None, headers={"Content-Type": "application/json"})
+    return json.load(urllib.request.urlopen(req))
+fails = 0
+def check(name, ok):
+    global fails
+    print(("PASS " if ok else "FAIL ") + name)
+    fails += 0 if ok else 1
+palette = [c["name"] for c in call("GET", "/api/palette")["colors"]]
+usable = [c for c in palette if c not in ("black", "bright-black")]
+held = {p["theme"]["color"] for p in call("GET", "/api/projects")["projects"] if p["status"] == "open"}
+held |= {t["theme"]["color"] for t in call("GET", "/api/tasks")["tasks"] if t["status"] == "open"}
+n = len([c for c in usable if c not in held])
+p = call("POST", "/api/projects", {"name": "poolproj"})["project"]
+colours, tasks = [p["theme"]["color"]], []
+for i in range(len(usable) + 2):
+    t = call("POST", "/api/tasks", {"project_id": p["id"], "title": "pool %d" % i})["task"]
+    tasks.append(t)
+    colours.append(t["theme"]["color"])
+check("every new colour is a palette name, never a black", all(c in usable for c in colours))
+check("the first %d items got %d distinct colours" % (n, n), len(set(colours[:n])) == n)
+check("past the pool items still get a colour", len(colours) > len(usable) and all(colours))
+check("new items keep their glyphs", p["theme"]["glyph"] == "◆" and all(t["theme"]["glyph"] == "●" for t in tasks))
+freed = tasks[0]["theme"]["color"]
+same = [t for t in tasks if t["theme"]["color"] == freed]
+for t in same:
+    call("PATCH", "/api/tasks/" + t["id"], {"status": "done"})
+if freed == p["theme"]["color"]:
+    call("PATCH", "/api/projects/" + p["id"], {"status": "skipped"})
+t = call("POST", "/api/tasks", {"project_id": p["id"], "title": "after done"})["task"]
+check("a done task's colour is free again and the only free one is taken", t["theme"]["color"] == freed)
+call("DELETE", "/api/projects/" + p["id"])
+sys.exit(fails)
+PY
+fails=$((fails+$?))
+
 echo "== palette, verbs and call"
 curl -s "$base/api/palette" > "$SCRATCH/out/palette.json"
 check "palette lists blue with its css" "$SCRATCH/out/palette.json" '{"css":"#0000ee","name":"blue"}'

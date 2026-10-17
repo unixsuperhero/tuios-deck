@@ -1,6 +1,9 @@
 package store
 
-import "strconv"
+import (
+	"math/rand/v2"
+	"strconv"
+)
 
 // Theme is the colour and glyph a project or task is drawn with. Color is
 // one of the 16 ANSI colour names from Palette; Glyph is one grapheme.
@@ -55,10 +58,22 @@ func (t Theme) CSS() string {
 	return hexes[i]
 }
 
-// NextTheme is the theme a new project or task gets when none is given: the
-// next colour round-robin over the palette, skipping the two blacks, with
-// the task glyph. Which colour comes next follows from how many projects
-// and tasks the store holds, so it needs no counter of its own.
+// usable is the palette without black and bright-black, which are never
+// given out on their own.
+func usable() []string {
+	var out []string
+	for _, c := range palette {
+		if c != "black" && c != "bright-black" {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+// NextTheme is the theme a new project or task gets when none is given: a
+// colour picked at random from the free ones, with the task glyph. When
+// every colour is held it is picked at random from all of them but the
+// blacks.
 func (s *Store) NextTheme() Theme {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -66,8 +81,44 @@ func (s *Store) NextTheme() Theme {
 }
 
 func (s *Store) nextTheme() Theme {
-	usable := palette[1:8]
-	usable = append(append([]string{}, usable...), palette[9:]...)
-	n := len(s.projects) + len(s.tasks)
-	return Theme{Color: usable[n%len(usable)], Glyph: "●"}
+	pool := s.freeColors(nil)
+	if len(pool) == 0 {
+		pool = usable()
+	}
+	return Theme{Color: pool[rand.IntN(len(pool))], Glyph: "●"}
+}
+
+// FreeColors is the palette colours, blacks aside, that no open project or
+// task holds, in palette order. A done or skipped item holds nothing. The
+// items named in except do not count, so a row can ask which colours it
+// could move to.
+func (s *Store) FreeColors(except ...string) []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	skip := map[string]bool{}
+	for _, id := range except {
+		skip[id] = true
+	}
+	return s.freeColors(skip)
+}
+
+func (s *Store) freeColors(except map[string]bool) []string {
+	held := map[string]bool{}
+	for _, p := range s.projects {
+		if !IsFinal(p.Status) && !except[p.ID] {
+			held[p.Theme.Color] = true
+		}
+	}
+	for _, t := range s.tasks {
+		if !IsFinal(t.Status) && !except[t.ID] {
+			held[t.Theme.Color] = true
+		}
+	}
+	var out []string
+	for _, c := range usable() {
+		if !held[c] {
+			out = append(out, c)
+		}
+	}
+	return out
 }

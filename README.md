@@ -99,9 +99,11 @@ A project holds top-level tasks; a task holds subtasks, to any depth, in
 the same table. A subtask stores no project of its own: its project is its
 root task's. Every project and every task has its own theme, one of the 16
 ANSI colours and one glyph, drawn before its name in the list, on the tasks
-page and on the web page. A new one takes the next colour of the palette
-round-robin, with `◆` for a project and `●` for a task, until you change
-it.
+page and on the web page. A new one takes a colour at random from the
+free ones, those no open project or task holds (a done or skipped one
+holds none), with `◆` for a project and `●` for a task, until you change
+it. When every colour is held it takes any of them; black and bright-black
+are never given out on their own.
 
 Every agent and terminal the deck starts is assigned to a task or, failing
 that, to a project: the `n` and `t` forms ask for one after the cwd, with
@@ -288,7 +290,7 @@ selection stays on the same pane across a regroup.
 | `n` | New task under the selected project, or a new subtask under the selected task |
 | `e` | Rename the project or task |
 | `s` | Cycle the task's or project's status: open, done, skipped, open |
-| `m` | The next colour of the palette for the row's theme |
+| `m` | The next colour for the row's theme: the free ones first, then the rest of the palette |
 | `M` | Set the row's glyph |
 | `a` | Assign the pane selected on the deck page to the row |
 | `enter` | Back to the deck with the first pane assigned to the row selected |

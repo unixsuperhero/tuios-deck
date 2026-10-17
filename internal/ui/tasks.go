@@ -196,15 +196,25 @@ func statusMark(st string) string {
 	return " "
 }
 
-// nextColor is the palette colour after c, wrapping round.
-func nextColor(c string) string {
-	pal := store.Palette()
-	for i, n := range pal {
-		if n == c {
-			return pal[(i+1)%len(pal)]
+// nextColor is the colour after c in a cycle that runs through the free
+// colours first, then the rest of the palette, and wraps round.
+func nextColor(c string, free []string) string {
+	order := append([]string{}, free...)
+	isFree := map[string]bool{}
+	for _, f := range free {
+		isFree[f] = true
+	}
+	for _, n := range store.Palette() {
+		if !isFree[n] {
+			order = append(order, n)
 		}
 	}
-	return pal[0]
+	for i, n := range order {
+		if n == c {
+			return order[(i+1)%len(order)]
+		}
+	}
+	return order[0]
 }
 
 func (m *Model) handleTasksKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -246,13 +256,14 @@ func (m *Model) handleTasksKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if r == nil {
 			return m, nil
 		}
+		free := m.store.FreeColors(r.id())
 		if r.Project != nil {
 			th := r.Project.Theme
-			th.Color = nextColor(th.Color)
+			th.Color = nextColor(th.Color, free)
 			return m, m.storeChange(m.store.SetProjectTheme(r.Project.ID, th), r.Project.Name+" is "+th.Color)
 		}
 		th := r.Task.Theme
-		th.Color = nextColor(th.Color)
+		th.Color = nextColor(th.Color, free)
 		return m, m.storeChange(m.store.SetTaskTheme(r.Task.ID, th), r.Task.Title+" is "+th.Color)
 	case "x":
 		if r == nil {

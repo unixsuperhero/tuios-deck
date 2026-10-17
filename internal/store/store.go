@@ -205,7 +205,7 @@ func (s *Store) taskIndex(id string) int {
 }
 
 // AddProject creates a project. The name must be non-empty and unique,
-// ignoring case. With no theme it takes the next palette colour and the
+// ignoring case. With no theme it takes a random free colour and the
 // project glyph.
 func (s *Store) AddProject(name string, theme *Theme) (Project, error) {
 	s.mu.Lock()
@@ -301,7 +301,7 @@ func (s *Store) DeleteProject(id string) error {
 
 // AddTask creates a task. With a parentID it is a subtask and projectID is
 // ignored; without one projectID names the project it belongs to. With no
-// theme it takes the next palette colour.
+// theme it takes a random free colour.
 func (s *Store) AddTask(projectID, parentID, title string, theme *Theme) (Task, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -384,7 +384,7 @@ func (s *Store) SetTaskStatus(id, status string) error {
 var Statuses = []string{"open", "done", "skipped"}
 
 // IsFinal says whether a status is finished with: done or skipped. A final
-// item no longer counts as open.
+// item no longer counts as open and no longer holds its theme colour.
 func IsFinal(status string) bool { return status == "done" || status == "skipped" }
 
 func checkStatus(status string) error {

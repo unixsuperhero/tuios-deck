@@ -978,7 +978,7 @@ function renderTaskInfo() {
 async function newProject() {
   $('name-title').textContent = 'New project';
   $('name-label').firstChild.textContent = 'Name ';
-  $('name-hint').textContent = 'Gets the next palette colour; change it with Theme.';
+  $('name-hint').textContent = 'Gets a random free colour; change it with Theme.';
   $('name-ok').textContent = 'Create';
   const v = await dialog('dlg-name');
   if (!v) return;

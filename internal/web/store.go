@@ -44,8 +44,8 @@ func mergeTheme(base store.Theme, in themeIn) (store.Theme, error) {
 	return base, nil
 }
 
-// newTheme is the theme for a new project or task: the store's next palette
-// colour and the given glyph, with whatever the request set over it. Nil
+// newTheme is the theme for a new project or task: a random free colour
+// from the store and the given glyph, with whatever the request set over it. Nil
 // when the request set nothing, so the store picks.
 func (s *Server) newTheme(in *themeIn, glyph string) (*store.Theme, error) {
 	if in == nil {

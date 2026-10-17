@@ -377,6 +377,22 @@ python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if [p fo
 	&& echo "PASS store holds the project as skipped" || { echo "FAIL web is not skipped in $DATA"; fails=$((fails+1)); }
 b send-keys -s host -w deck s >/dev/null; settle; deckcap 16d-project-open
 check "a third s opens the project again" "$SCRATCH/out/16d-project-open.txt" 'web is open'
+python3 - "$DATA" <<'PY' && echo "PASS the new project's colour is a palette name, not a black" || { echo "FAIL web's colour is not a usable palette name"; fails=$((fails+1)); }
+import json, sys
+d = json.load(open(sys.argv[1]))
+web = [p for p in d["projects"] if p["name"] == "web"][0]
+assert web["theme"]["color"] in "red green yellow blue magenta cyan white bright-red bright-green bright-yellow bright-blue bright-magenta bright-cyan bright-white".split(), web
+PY
+b send-keys -s host -w deck m >/dev/null; settle; deckcap 16e-colour
+check "m reports the project's new colour" "$SCRATCH/out/16e-colour.txt" 'web is [a-z-]*'
+python3 - "$DATA" <<'PY' && echo "PASS m moved the project to a colour no other open item holds" || { echo "FAIL m picked a held colour"; fails=$((fails+1)); }
+import json, sys
+d = json.load(open(sys.argv[1]))
+web = [p for p in d["projects"] if p["name"] == "web"][0]
+held = {p["theme"]["color"] for p in d["projects"] if p["status"] == "open" and p is not web}
+held |= {t["theme"]["color"] for t in d["tasks"] if t["status"] == "open"}
+assert web["theme"]["color"] not in held, (web, held)
+PY
 
 echo "== back to the deck, and enter jumps to an assigned pane"
 b send-keys -s host -w deck Escape >/dev/null; settle; deckcap 17-deck
