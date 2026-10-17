@@ -177,10 +177,14 @@ scripts/e2e.sh && scripts/e2e-web.sh && scripts/e2e-setup.sh
 ## Releasing
 
 ```sh
-scripts/release.sh v0.2.0
+scripts/release.sh            # bumps the patch:  v0.3.9 → v0.3.10
+scripts/release.sh minor      # v0.3.9 → v0.4.0
+scripts/release.sh major      # v0.3.9 → v1.0.0
+scripts/release.sh v0.5.0     # exactly this version
+scripts/release.sh minor --dry-run   # show the version, change nothing
 ```
 
-It checks the tree is clean and on an up-to-date `main`, builds and vets,
+With no tag yet, a bare run tags v0.0.1 and `minor` tags v0.1.0. It checks the tree is clean and on an up-to-date `main`, builds and vets,
 tags, pushes `main` and the tag, then asks proxy.golang.org for the new
 version so `deck update` sees it at once. Nothing else is needed: the Go
 module proxy and pkg.go.dev fetch from GitHub on request, and `@latest` is

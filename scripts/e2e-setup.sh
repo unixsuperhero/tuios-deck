@@ -44,6 +44,20 @@ d uninstall > "$SCRATCH/out/uninstall-2.txt" 2>&1; check "uninstall leaves a for
 [ -e "$EXT" ] && echo "PASS foreign file kept" || { echo "FAIL foreign file removed"; fails=$((fails+1)); }
 d install --force > "$SCRATCH/out/install-5.txt" 2>&1; check "install --force replaces it" "$SCRATCH/out/install-5.txt" "replaced a foreign file"
 
+echo "== release.sh bump maths, in a scratch repository"
+R="$SCRATCH/repo"; mkdir -p "$R/scripts"; cp "$here/scripts/release.sh" "$R/scripts/release.sh"
+( cd "$R" && git init -q && git -c user.name=t -c user.email=t@t commit -q --allow-empty -m init \
+  && git tag v0.3.9 && git tag v0.10.2 && git tag v0.3.10 \
+  && for b in "" patch minor major v2.0.0; do echo "$b: $(bash scripts/release.sh $b --dry-run | sed -n 's/^next:  *//p')"; done ) > "$SCRATCH/out/bumps.txt" 2>&1
+cat "$SCRATCH/out/bumps.txt"
+check "bare run bumps the patch of the newest tag" "$SCRATCH/out/bumps.txt" "^: v0.10.3$"
+check "patch bumps the patch" "$SCRATCH/out/bumps.txt" "^patch: v0.10.3$"
+check "minor bumps the minor" "$SCRATCH/out/bumps.txt" "^minor: v0.11.0$"
+check "major bumps the major" "$SCRATCH/out/bumps.txt" "^major: v1.0.0$"
+check "an explicit version is taken as is" "$SCRATCH/out/bumps.txt" "^v2.0.0: v2.0.0$"
+( cd "$R" && git tag -d v0.3.9 v0.10.2 v0.3.10 >/dev/null && bash scripts/release.sh --dry-run ) > "$SCRATCH/out/bump-none.txt" 2>&1
+check "no tag yet starts at v0.0.1" "$SCRATCH/out/bump-none.txt" "^next:  *v0.0.1$"
+
 echo "== the extension under bun, with a fake pi and a fake tuios"
 if command -v bun >/dev/null; then
 	export FAKE_TUIOS_LOG="$SCRATCH/out/fake-tuios.log"; : > "$FAKE_TUIOS_LOG"

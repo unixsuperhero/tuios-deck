@@ -1,18 +1,54 @@
 #!/usr/bin/env bash
-# Cuts a release: checks the tree, runs the build and vet, tags the commit,
-# pushes main and the tag, then asks the Go module proxy for the new version
-# so `deck update` and `go install ...@latest` see it at once instead of
-# after the proxy's cache window.
+# Cuts a release: works out the next version, checks the tree, builds and
+# vets, tags the commit, pushes main and the tag, then asks the Go module
+# proxy for the new version so `deck update` and `go install ...@latest`
+# see it at once instead of after the proxy's cache window.
 #
-#   scripts/release.sh v0.2.0
+#   scripts/release.sh            # bump the patch:  v0.3.9 → v0.3.10
+#   scripts/release.sh patch      # the same
+#   scripts/release.sh minor      # v0.3.9 → v0.4.0
+#   scripts/release.sh major      # v0.3.9 → v1.0.0
+#   scripts/release.sh v0.5.0     # exactly this version
+#   scripts/release.sh minor --dry-run   # print the version it would tag, change nothing
+#
+# The first release of a repository with no tag starts from v0.0.0, so a
+# bare run tags v0.0.1 and `minor` tags v0.1.0.
 #
 # There is no version to edit in the source: `deck version` reads the module
 # version Go stamps into a binary installed from a tag.
 set -euo pipefail
-tag=${1:-}
 module=github.com/unixsuperhero/tuios-deck
-[[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "usage: scripts/release.sh vX.Y.Z" >&2; exit 2; }
+bump=patch; tag=""; dry=0
+for arg in "$@"; do
+	case "$arg" in
+		patch|minor|major) bump=$arg ;;
+		v[0-9]*.[0-9]*.[0-9]*) tag=$arg ;;
+		--dry-run|-n) dry=1 ;;
+		-h|--help) sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+		*) echo "usage: scripts/release.sh [patch|minor|major|vX.Y.Z] [--dry-run]" >&2; exit 2 ;;
+	esac
+done
 cd "$(dirname "$0")/.."
+
+# The newest tag by semantic version, not by date.
+current=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' | sort -t. -k1.2,1n -k2,2n -k3,3n | tail -1)
+current=${current:-v0.0.0}
+if [ -z "$tag" ]; then
+	IFS=. read -r major minor patch <<< "${current#v}"
+	case "$bump" in
+		major) tag="v$((major + 1)).0.0" ;;
+		minor) tag="v$major.$((minor + 1)).0" ;;
+		patch) tag="v$major.$minor.$((patch + 1))" ;;
+	esac
+fi
+[[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "not a version: $tag" >&2; exit 2; }
+echo "current: $current"
+echo "next:    $tag"
+if [ "$dry" = 1 ]; then
+	echo "dry run: nothing tagged or pushed"
+	exit 0
+fi
+
 [ -z "$(git status --porcelain)" ] || { echo "the tree is not clean; commit first" >&2; exit 1; }
 [ "$(git branch --show-current)" = main ] || { echo "release from main" >&2; exit 1; }
 git rev-parse -q --verify "refs/tags/$tag" >/dev/null && { echo "$tag exists" >&2; exit 1; }
