@@ -60,6 +60,20 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /api/panes/{session}/{id}", s.closePane)
 	mux.HandleFunc("POST /api/agents", s.startAgent)
 	mux.HandleFunc("POST /api/terminals", s.newTerminal)
+	mux.HandleFunc("GET /api/projects", s.listProjects)
+	mux.HandleFunc("POST /api/projects", s.createProject)
+	mux.HandleFunc("PATCH /api/projects/{id}", s.patchProject)
+	mux.HandleFunc("DELETE /api/projects/{id}", s.deleteProject)
+	mux.HandleFunc("GET /api/tasks", s.listTasks)
+	mux.HandleFunc("POST /api/tasks", s.createTask)
+	mux.HandleFunc("PATCH /api/tasks/{id}", s.patchTask)
+	mux.HandleFunc("DELETE /api/tasks/{id}", s.deleteTask)
+	mux.HandleFunc("GET /api/assignments", s.listAssignments)
+	mux.HandleFunc("PUT /api/panes/{session}/{id}/assignment", s.putAssignment)
+	mux.HandleFunc("DELETE /api/panes/{session}/{id}/assignment", s.deleteAssignment)
+	mux.HandleFunc("GET /api/captures", s.captures)
+	mux.HandleFunc("GET /api/captures/{name}", s.readCapture)
+	mux.HandleFunc("DELETE /api/captures/{name}", s.deleteCapture)
 	return mux
 }
 
@@ -139,9 +153,35 @@ func (s *Server) state(w http.ResponseWriter, r *http.Request) {
 	transcripts := s.nonce != ""
 	s.mu.Unlock()
 	writeJSON(w, 200, map[string]any{
-		"daemon": info, "socket": s.Client.Socket, "sessions": sessions,
+		"daemon": info, "socket": s.Client.Socket, "sessions": s.decorate(sessions),
 		"transcripts": transcripts, "capture_dir": s.CaptureDir,
+		"projects": s.projectsJSON(), "tasks": s.tasksJSON(""),
 	})
+}
+
+// paneView is a pane with what it is assigned to, by name, so the page
+// draws a row without a second request.
+type paneView struct {
+	panes.Pane
+	Assignment map[string]any `json:"assignment"`
+}
+
+type sessionView struct {
+	panes.Session
+	Panes []paneView `json:"panes"`
+}
+
+// decorate adds each pane's assignment to the listing.
+func (s *Server) decorate(sessions []panes.Session) []sessionView {
+	out := make([]sessionView, 0, len(sessions))
+	for _, se := range sessions {
+		v := sessionView{Session: se, Panes: make([]paneView, 0, len(se.Panes))}
+		for _, p := range se.Panes {
+			v.Panes = append(v.Panes, paneView{Pane: p, Assignment: s.assignmentJSON(p.ID)})
+		}
+		out = append(out, v)
+	}
+	return out
 }
 
 // events relays the daemon's event stream as server-sent events.
@@ -300,16 +340,27 @@ func (s *Server) closePane(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]any{"status": "closed"})
 }
 
+// startAgent opens an agent pane and, when the request names a task or a
+// project, assigns it. The target is resolved before the daemon is asked,
+// so a bad one leaves no stray pane.
 func (s *Server) startAgent(w http.ResponseWriter, r *http.Request) {
-	var in daemon.StartAgentParams
+	var in struct {
+		daemon.StartAgentParams
+		target
+	}
 	if err := readJSON(r, &in); err != nil || strings.TrimSpace(in.Agent) == "" {
 		writeJSON(w, 400, map[string]any{"error": "agent is required"})
+		return
+	}
+	taskID, projectID, err := s.resolveNew(in.target)
+	if err != nil {
+		badRequest(w, err.Error())
 		return
 	}
 	in.Focus = false
 	ctx, cancel := context.WithTimeout(r.Context(), 150*time.Second)
 	defer cancel()
-	res, err := s.Client.StartAgent(ctx, in)
+	res, err := s.Client.StartAgent(ctx, in.StartAgentParams)
 	if err != nil {
 		writeErr(w, err)
 		return
@@ -323,7 +374,21 @@ func (s *Server) startAgent(w http.ResponseWriter, r *http.Request) {
 	if res.PromptStatus != "" {
 		status += "; prompt " + res.PromptStatus
 	}
-	writeJSON(w, 200, map[string]any{"status": status, "result": res})
+	status = s.assignNew(res.WindowID, res.Session, taskID, projectID, status)
+	writeJSON(w, 200, map[string]any{"status": status, "result": res, "assignment": s.assignmentJSON(res.WindowID)})
+}
+
+// resolveNew is the target of a new pane. The rule is the TUI's: a task or
+// a project is required, and a task implies its project. Until the page
+// sends these fields, a request that leaves every one of them out, rather
+// than sending them empty, is the old request and makes an unassigned pane;
+// that is the pre-page compatibility behaviour, not an exception to the
+// rule.
+func (s *Server) resolveNew(t target) (taskID, projectID string, err error) {
+	if !t.given() {
+		return "", "", nil
+	}
+	return s.resolveTarget(t)
 }
 
 // newTerminal opens an interactive shell pane, the pane tuios itself opens,
@@ -335,9 +400,15 @@ func (s *Server) newTerminal(w http.ResponseWriter, r *http.Request) {
 		Cwd     string `json:"cwd"`
 		Cols    int    `json:"cols"`
 		Rows    int    `json:"rows"`
+		target
 	}
 	if err := readJSON(r, &in); err != nil || in.Session == "" {
 		writeJSON(w, 400, map[string]any{"error": "session is required"})
+		return
+	}
+	taskID, projectID, err := s.resolveNew(in.target)
+	if err != nil {
+		badRequest(w, err.Error())
 		return
 	}
 	ctx, cancel := callCtx(r)
@@ -364,7 +435,8 @@ func (s *Server) newTerminal(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
-	writeJSON(w, 200, map[string]any{"status": "opened " + res.Name + " (" + panes.ShortID(res.WindowID) + ") in " + in.Session, "result": res})
+	status := s.assignNew(res.WindowID, in.Session, taskID, projectID, "opened "+res.Name+" ("+panes.ShortID(res.WindowID)+") in "+in.Session)
+	writeJSON(w, 200, map[string]any{"status": status, "result": res, "assignment": s.assignmentJSON(res.WindowID)})
 }
 
 // dirs lists the folders under a path for the directory picker. The browser

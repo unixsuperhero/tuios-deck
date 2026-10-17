@@ -45,7 +45,7 @@ if lsof -nP -iTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1; then
 	echo "FAIL port $PORT is already in use; a stale deck-web? (lsof -nP -iTCP:$PORT)"; exit 1
 fi
 echo "== deck-web, outside every pane of A"
-(unset TUIOS_ENV TUIOS_SESSION TUIOS_PANE_ID TUIOS_PANE_TOKEN TUIOS_SOCKET; exec "$DECK" web --listen "127.0.0.1:$PORT" --socket "$ASOCK" --captures "$SCRATCH/captures" > "$SCRATCH/out/web.log" 2>&1) &
+(unset TUIOS_ENV TUIOS_SESSION TUIOS_PANE_ID TUIOS_PANE_TOKEN TUIOS_SOCKET; export TUIOS_DECK_DATA="$SCRATCH/deck.json"; exec "$DECK" web --listen "127.0.0.1:$PORT" --socket "$ASOCK" --captures "$SCRATCH/captures" > "$SCRATCH/out/web.log" 2>&1) &
 webpid=$!
 for i in $(seq 1 50); do curl -sf "$base/api/state" > "$SCRATCH/out/state.json" 2>/dev/null && break; sleep 0.2; done
 check "state lists the session" "$SCRATCH/out/state.json" '"name":"target"'
@@ -92,6 +92,81 @@ curl -s -X DELETE "$base/api/panes/target/$BUILD" > "$SCRATCH/out/close.json"
 check "close pane" "$SCRATCH/out/close.json" '"status":"closed"'
 a list-windows -s target --json > "$SCRATCH/out/windows-after.json"
 if grep -q '"build"' "$SCRATCH/out/windows-after.json"; then echo "FAIL build still open"; fails=$((fails+1)); else echo "PASS build is gone"; fi
+
+echo "== projects, tasks, assignments"
+field() { python3 -I -c 'import json,sys; d=json.load(open(sys.argv[1]))
+for k in sys.argv[2:]: d=d[int(k)] if isinstance(d,list) else d[k]
+print(d)' "$@"; }
+curl -s -X POST -H "$J" -d '{"name":"deckproj","theme":{"color":"blue"}}' "$base/api/projects" > "$SCRATCH/out/project.json"
+check "create project" "$SCRATCH/out/project.json" '"name":"deckproj"'
+check "project theme has css" "$SCRATCH/out/project.json" '"css":"#0000ee"'
+PID=$(field "$SCRATCH/out/project.json" project id)
+curl -s -X POST -H "$J" -d "{\"project_id\":\"$PID\",\"title\":\"palette\"}" "$base/api/tasks" > "$SCRATCH/out/task.json"
+check "create task" "$SCRATCH/out/task.json" '"path":"deckproj / palette"'
+TID=$(field "$SCRATCH/out/task.json" task id)
+curl -s -X POST -H "$J" -d "{\"parent_id\":\"$TID\",\"title\":\"autocomplete\"}" "$base/api/tasks" > "$SCRATCH/out/subtask.json"
+check "subtask has parent_id" "$SCRATCH/out/subtask.json" "\"parent_id\":\"$TID\""
+check "subtask project_id resolved through its root" "$SCRATCH/out/subtask.json" "\"project_id\":\"$PID\""
+check "subtask own_project_id is empty" "$SCRATCH/out/subtask.json" '"own_project_id":""'
+check "subtask path and depth" "$SCRATCH/out/subtask.json" '"path":"deckproj / palette / autocomplete"'
+check "subtask depth" "$SCRATCH/out/subtask.json" '"depth":1'
+SID=$(field "$SCRATCH/out/subtask.json" task id)
+curl -s -X PATCH -H "$J" -d '{"status":"done"}' "$base/api/tasks/$SID" > "$SCRATCH/out/task-patch.json"
+check "PATCH task status" "$SCRATCH/out/task-patch.json" '"status":"done"'
+curl -s -X PATCH -H "$J" -d '{"status":"maybe"}' "$base/api/tasks/$SID" > "$SCRATCH/out/task-patch-bad.json"
+check "PATCH bad status refused" "$SCRATCH/out/task-patch-bad.json" '"error":"status'
+curl -s "$base/api/tasks?project=$PID" > "$SCRATCH/out/tasks.json"
+check "tasks filtered by project" "$SCRATCH/out/tasks.json" '"title":"autocomplete"'
+curl -s "$base/api/state" > "$SCRATCH/out/state-store.json"
+check "state carries projects" "$SCRATCH/out/state-store.json" '"projects":\[{.*"name":"deckproj"'
+check "state carries tasks" "$SCRATCH/out/state-store.json" '"tasks":\[{.*"title":"palette"'
+curl -s -X POST -H "$J" -d "{\"session\":\"target\",\"name\":\"tasked\",\"cwd\":\"$SCRATCH\",\"task\":\"autocomplete\"}" "$base/api/terminals" > "$SCRATCH/out/terminal-task.json"
+check "new terminal assigned to a task by title" "$SCRATCH/out/terminal-task.json" 'deckproj › palette › autocomplete'
+TASKED=$(field "$SCRATCH/out/terminal-task.json" result window_id)
+curl -s -X POST -H "$J" -d "{\"session\":\"target\",\"name\":\"untargeted\",\"cwd\":\"$SCRATCH\",\"task\":\"\",\"project\":\"\"}" "$base/api/terminals" > "$SCRATCH/out/terminal-empty.json"
+check "new terminal with empty target refused" "$SCRATCH/out/terminal-empty.json" 'a task or a project is required'
+curl -s "$base/api/state" > "$SCRATCH/out/state-assigned.json"
+python3 -I -c 'import json,sys; d=json.load(open(sys.argv[1]))
+print(json.dumps([p["assignment"] for s in d["sessions"] for p in s["panes"] if p["id"]==sys.argv[2]]))' "$SCRATCH/out/state-assigned.json" "$TASKED" > "$SCRATCH/out/pane-assignment.json"
+check "state pane shows its task" "$SCRATCH/out/pane-assignment.json" '"task": "autocomplete"'
+check "state pane shows its project" "$SCRATCH/out/pane-assignment.json" '"project": "deckproj"'
+check "state pane shows its top task" "$SCRATCH/out/pane-assignment.json" '"top": "palette"'
+curl -s -X PUT -H "$J" -d '{"project":"deckproj"}' "$base/api/panes/target/$TASKED/assignment" > "$SCRATCH/out/assign.json"
+check "PUT assignment to a project" "$SCRATCH/out/assign.json" '"project":"deckproj"'
+check "PUT assignment to a project drops the task" "$SCRATCH/out/assign.json" '"task_id":""'
+curl -s -X PUT -H "$J" -d '{}' "$base/api/panes/target/$TASKED/assignment" > "$SCRATCH/out/assign-bad.json"
+check "PUT assignment without target refused" "$SCRATCH/out/assign-bad.json" 'a task or a project is required'
+curl -s "$base/api/assignments" > "$SCRATCH/out/assignments.json"
+check "assignments lists the pane" "$SCRATCH/out/assignments.json" "\"$TASKED\":{\"project_id\":\"$PID\",\"resolved\":{\"project\":\"deckproj\""
+curl -s -X DELETE "$base/api/panes/target/$TASKED/assignment" > "$SCRATCH/out/unassign.json"
+check "DELETE assignment" "$SCRATCH/out/unassign.json" '"status":"unassigned"'
+curl -s "$base/api/assignments" > "$SCRATCH/out/assignments-after.json"
+if grep -q "$TASKED" "$SCRATCH/out/assignments-after.json"; then echo "FAIL assignment still listed"; fails=$((fails+1)); else echo "PASS assignment is gone"; fi
+
+echo "== captures api"
+curl -s "$base/api/captures" > "$SCRATCH/out/captures.json"
+check "captures lists the file" "$SCRATCH/out/captures.json" '"name":"target-build-'
+check "captures parsed the session" "$SCRATCH/out/captures.json" '"session":"target","pane":"build"'
+CAP=$(field "$SCRATCH/out/captures.json" captures 0 name)
+curl -s "$base/api/captures/$CAP" > "$SCRATCH/out/capture-read.json"
+check "capture content" "$SCRATCH/out/capture-read.json" 'hello-from-build'
+curl -s "$base/api/captures/a%2Fb.txt" > "$SCRATCH/out/capture-bad.json"
+check "capture name with a separator refused" "$SCRATCH/out/capture-bad.json" 'bare file name'
+curl -s -X DELETE "$base/api/captures/$CAP" > "$SCRATCH/out/capture-delete.json"
+check "capture deleted" "$SCRATCH/out/capture-delete.json" '"status":"deleted '
+if [ -e "$SCRATCH/captures/$CAP" ]; then echo "FAIL capture file still there"; fails=$((fails+1)); else echo "PASS capture file is gone"; fi
+
+echo "== delete project cascades"
+curl -s -X PUT -H "$J" -d "{\"task_id\":\"$SID\"}" "$base/api/panes/target/$TASKED/assignment" > "$SCRATCH/out/assign2.json"
+check "PUT assignment by task_id" "$SCRATCH/out/assign2.json" '"task":"autocomplete"'
+curl -s -X DELETE "$base/api/projects/$PID" > "$SCRATCH/out/project-delete.json"
+check "DELETE project reports its tasks" "$SCRATCH/out/project-delete.json" '"tasks":2'
+check "DELETE project reports its assignments" "$SCRATCH/out/project-delete.json" '"assignments":1'
+curl -s "$base/api/tasks" > "$SCRATCH/out/tasks-after.json"
+check "tasks gone with the project" "$SCRATCH/out/tasks-after.json" '"tasks":\[\]'
+curl -s "$base/api/assignments" > "$SCRATCH/out/assignments-cascade.json"
+check "assignments gone with the project" "$SCRATCH/out/assignments-cascade.json" '"assignments":{}'
+grep -q '"version": 1' "$SCRATCH/deck.json" && echo "PASS store written under the scratch folder" || { echo "FAIL store file"; fails=$((fails+1)); }
 
 echo "== websocket pane stream"
 EXTRA=$(a list-windows -s target --json | python3 -c 'import json,sys; print([w["window_id"] for w in json.load(sys.stdin)["windows"] if w["title"]=="extra"][0])')
