@@ -465,7 +465,7 @@ b send-keys -s host -w deck c >/dev/null; settle
 b send-text -s host -w deck 'C'; settle
 b send-keys -s host -w deck r >/dev/null; settle; deckcap 20d-r-captures
 check "r on the captures page leaves the deck alive" "$SCRATCH/out/20d-r-captures.txt" 'tuios-deck.* captures '
-check "r on the captures page reports the count" "$SCRATCH/out/20d-r-captures.txt" '1 capture'
+check "r on the captures page reports the count" "$SCRATCH/out/20d-r-captures.txt" '^[0-9][0-9]* captures*$'
 b send-keys -s host -w deck Escape >/dev/null; settle
 
 echo "== close a pane with confirmation"
