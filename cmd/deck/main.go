@@ -16,6 +16,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/unixsuperhero/tuios-deck/internal/autocapture"
 	"github.com/unixsuperhero/tuios-deck/internal/capture"
 	"github.com/unixsuperhero/tuios-deck/internal/daemon"
 	"github.com/unixsuperhero/tuios-deck/internal/store"
@@ -88,15 +89,25 @@ func main() {
 
 // common holds the flags every daemon-facing command takes.
 type common struct {
-	socket   string
-	captures string
-	data     string
+	socket      string
+	captures    string
+	data        string
+	autoCapture bool
 }
 
 func (c *common) bind(fs *flag.FlagSet) {
 	fs.StringVar(&c.socket, "socket", "", "daemon socket (default $TUIOS_SOCKET or the per-user runtime folder)")
 	fs.StringVar(&c.captures, "captures", "", "folder for saved captures (default "+capture.Dir()+")")
 	fs.StringVar(&c.data, "data", store.DefaultPath(), "file holding projects, tasks and pane assignments")
+	fs.BoolVar(&c.autoCapture, "auto-capture", true, "capture a pane when an agent turn or a shell command ends")
+}
+
+// startAutoCapture runs the automatic captures in their own goroutine when
+// the flag asks for them, apart from any front end's state.
+func (c *common) startAutoCapture(ctx context.Context, client *daemon.Client, dir string, log func(string)) {
+	if c.autoCapture {
+		go autocapture.Run(ctx, client, dir, log)
+	}
 }
 
 // resolve is the daemon client, the captures folder and the opened store
@@ -126,6 +137,9 @@ func runTUI(args []string) error {
 	if err != nil {
 		return err
 	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	c.startAutoCapture(ctx, client, dir, nil)
 	m := ui.New(client, st, version, dir)
 	defer m.Close()
 	_, err = tea.NewProgram(m).Run()
@@ -156,6 +170,7 @@ func runWeb(args []string) error {
 
 	s := &web.Server{Client: client, Store: st, Version: version, CaptureDir: dir}
 	s.HoldPresence(ctx)
+	c.startAutoCapture(ctx, client, dir, func(msg string) { web.Log.Print(msg) })
 	srv := &http.Server{Addr: *listen, Handler: s.Handler(), ReadHeaderTimeout: 10 * time.Second}
 	go func() {
 		<-ctx.Done()

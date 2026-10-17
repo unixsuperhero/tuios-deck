@@ -1016,7 +1016,7 @@ function renderCaptures() {
     const el = document.createElement('div'); el.className = 'caprow' + (c.name === state.capSel ? ' selected' : '');
     const name = document.createElement('span'); name.className = 'cname'; name.textContent = c.name; name.title = c.path;
     const sz = document.createElement('span'); sz.className = 'cmeta'; sz.style.gridColumn = ''; sz.textContent = size(c.size);
-    const meta = document.createElement('span'); meta.className = 'cmeta'; meta.textContent = `${c.session} › ${c.pane} · ${new Date(c.modified).toLocaleString()}`;
+    const meta = document.createElement('span'); meta.className = 'cmeta'; meta.textContent = `${c.session} › ${c.pane}${c.kind ? ' · ' + c.kind : ''} · ${new Date(c.modified).toLocaleString()}`;
     el.append(name, sz, meta);
     el.onclick = () => selectCapture(c.name);
     list.append(el);

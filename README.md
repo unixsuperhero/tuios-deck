@@ -55,7 +55,15 @@ go build -o deck ./cmd/deck
 ./deck web --listen 127.0.0.1:9000 --socket /path/to/tuios.sock
 ./deck tui --data ~/deck.json  # projects, tasks and assignments; web takes it too
 ./deck setup                 # the files the deck needs on this machine
+./deck tui -auto-capture=false  # no automatic captures; web takes it too
 ```
+
+Both `deck tui` and `deck web` capture a pane on their own when an agent's
+turn ends (working to idle, needs_input, done or errored) and when a shell
+command finishes under shell integration, as
+`<session>-<name>-<stamp>-turn.txt` or `-cmd.txt` in the captures folder. A
+window is captured at most once every two seconds, and not again while its
+screen is unchanged.
 
 ## Setting up a machine
 
@@ -207,7 +215,7 @@ DELETE /api/tasks/{id}                         with its subtasks and their assig
 GET    /api/assignments                        {window id: {session, task_id, project_id, resolved: {project, task, top}}}
 PUT    /api/panes/{session}/{id}/assignment    a target; names resolve the way the TUI's forms do
 DELETE /api/panes/{session}/{id}/assignment    drop it
-GET    /api/captures                           the folder, newest first: {name, path, size, modified, session, pane}
+GET    /api/captures                           the folder, newest first: {name, path, size, modified, session, pane, kind}
 GET    /api/captures/{name}                    {"name", "content", "lines"}
 DELETE /api/captures/{name}                    remove the file
 GET    /api/palette                            the 16 colour names with their CSS hex

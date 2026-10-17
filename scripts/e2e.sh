@@ -127,6 +127,38 @@ b send-text -s host -w deck 'do the thing'
 b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 05-queued
 check "queue-prompt was used for the agent" "$SCRATCH/out/05-queued.txt" 'prompt \(queued\|delivering\)'
 
+echo "== automatic captures: an agent turn and a shell command"
+# A capture file is written by the deck itself, so there is no daemon
+# condition to wait on; poll the folder like wait_deck polls the screen.
+wait_file() { # glob, seconds
+	local i
+	for ((i=0; i<$2; i++)); do
+		compgen -G "$1" >/dev/null && return 0
+		sleep 1
+	done
+	return 1
+}
+a set-agent-state working -s target -w fake >/dev/null
+a wait-for agent-state -s target -w fake --until working --timeout 10000 >/dev/null
+a set-agent-state idle -s target -w fake -m "fake agent at rest" >/dev/null
+wait_file "$SCRATCH/captures/target-fake-*-turn.txt" 15 \
+	&& echo "PASS a turn end wrote target-fake-*-turn.txt" || { echo "FAIL no turn capture for fake"; fails=$((fails+1)); }
+# command-finished needs the build pane's shell to mark commands (OSC 133).
+# When the daemon saw no command finish there, the cmd path is not testable.
+if a list-windows -s target --json | python3 -c 'import json,sys; sys.exit(0 if [w for w in json.load(sys.stdin)["windows"] if w["title"]=="build" and w.get("command_seq",0)>0] else 1)'; then
+	wait_file "$SCRATCH/captures/target-build-*-cmd.txt" 15 \
+		&& echo "PASS a finished command wrote target-build-*-cmd.txt" || { echo "FAIL no cmd capture for build"; fails=$((fails+1)); }
+	grep -q 'from-deck-prompt' "$SCRATCH"/captures/target-build-*-cmd.txt 2>/dev/null \
+		&& echo "PASS cmd capture holds the command's output" || { echo "FAIL cmd capture lacks from-deck-prompt"; fails=$((fails+1)); }
+else
+	echo "SKIP build's shell marks no commands, so command-finished is not tested"
+fi
+b send-text -s host -w deck 'C'; settle; deckcap 05b-auto-captures
+check "captures page shows the turn capture's kind" "$SCRATCH/out/05b-auto-captures.txt" ' fake  target turn '
+b send-keys -s host -w deck Escape >/dev/null; settle
+# The page checks below are about a capture taken by hand.
+rm -f "$SCRATCH"/captures/*-turn.txt "$SCRATCH"/captures/*-cmd.txt
+
 echo "== capture to file"
 select_pane 1
 b send-keys -s host -w deck c >/dev/null; settle; deckcap 06-capture

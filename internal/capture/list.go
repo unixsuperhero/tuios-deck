@@ -10,10 +10,11 @@ import (
 	"time"
 )
 
-// Entry is one capture file in the folder. Session and Pane are read back
-// from the name Write gives a file, best effort: slugs may hold dashes, so
-// the first dash-separated part is taken as the session and the rest, up
-// to the timestamp, as the pane name.
+// Entry is one capture file in the folder. Session, Pane and Kind are read
+// back from the name Write or WriteKind gives a file, best effort: slugs may
+// hold dashes, so the first dash-separated part is taken as the session, the
+// rest up to the timestamp as the pane name, and a word after the timestamp
+// as the kind ("turn", "cmd"; empty for a capture taken by hand).
 type Entry struct {
 	Name     string    `json:"name"`
 	Path     string    `json:"path"`
@@ -21,12 +22,13 @@ type Entry struct {
 	Modified time.Time `json:"modified"`
 	Session  string    `json:"session"`
 	Pane     string    `json:"pane"`
+	Kind     string    `json:"kind"`
 }
 
 // ErrName is the error for a capture name that is not a bare file name.
 var ErrName = errors.New("capture name must be a bare file name")
 
-var stamp = regexp.MustCompile(`-(\d{8})-(\d{6})\.txt$`)
+var stamp = regexp.MustCompile(`-(\d{8})-(\d{6})(?:-([a-z0-9]+))?\.txt$`)
 
 // ValidName says whether name is a bare file name under the folder: no
 // separators, no "..", not empty.
@@ -55,7 +57,7 @@ func List(dir string) ([]Entry, error) {
 			continue
 		}
 		entry := Entry{Name: e.Name(), Path: filepath.Join(dir, e.Name()), Size: info.Size(), Modified: info.ModTime()}
-		entry.Session, entry.Pane = parseName(e.Name())
+		entry.Session, entry.Pane, entry.Kind = parseName(e.Name())
 		out = append(out, entry)
 	}
 	sort.SliceStable(out, func(i, j int) bool {
@@ -73,13 +75,18 @@ func (e Entry) Matches(session, name string) bool {
 	return slug(session)+"-"+slug(name) == e.Session+"-"+e.Pane
 }
 
-func parseName(name string) (session, pane string) {
-	base := stamp.ReplaceAllString(name, "")
-	if base == name {
+func parseName(name string) (session, pane, kind string) {
+	base := name
+	if m := stamp.FindStringSubmatchIndex(name); m != nil {
+		base = name[:m[0]]
+		if m[6] >= 0 {
+			kind = name[m[6]:m[7]]
+		}
+	} else {
 		base = strings.TrimSuffix(name, ".txt")
 	}
 	session, pane, _ = strings.Cut(base, "-")
-	return session, pane
+	return session, pane, kind
 }
 
 // Read is the content of the capture called name in dir.

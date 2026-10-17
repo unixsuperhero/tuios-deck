@@ -189,7 +189,8 @@ func captureSize(n int64) string {
 }
 
 // captureListLines draws the files of the captures page, newest first:
-// the pane name, its session, when it was written and how big it is.
+// the pane name, its session and the kind of an automatic capture, when it
+// was written and how big it is.
 func (m *Model) captureListLines(width, height int) []string {
 	lines := make([]string, 0, height)
 	if m.capErr != "" && len(m.caps) == 0 {
@@ -205,7 +206,11 @@ func (m *Model) captureListLines(width, height int) []string {
 	for i := start; i < len(m.caps) && len(lines) < height; i++ {
 		e := m.caps[i]
 		right := captureTime(e.Modified) + " " + cDim.Render(pad(captureSize(e.Size), 6))
-		session := cDim.Render(e.Session)
+		session := e.Session
+		if e.Kind != "" {
+			session += " " + e.Kind
+		}
+		session = cDim.Render(session)
 		room := width - 1 - ansi.StringWidth(right) - 2 - ansi.StringWidth(session) - 1
 		if room < 4 {
 			room = 4
