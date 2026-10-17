@@ -248,6 +248,16 @@ func (s *Server) resolveTarget(t target) (taskID, projectID string, err error) {
 	return "", "", errors.New("a task or a project is required")
 }
 
+// palette is the 16 colour names a theme may take, with their CSS hex, in
+// palette order.
+func (s *Server) palette(w http.ResponseWriter, r *http.Request) {
+	colors := []map[string]string{}
+	for _, name := range store.Palette() {
+		colors = append(colors, map[string]string{"name": name, "css": store.Theme{Color: name}.CSS()})
+	}
+	writeJSON(w, 200, map[string]any{"colors": colors})
+}
+
 // projects
 
 func (s *Server) listProjects(w http.ResponseWriter, r *http.Request) {

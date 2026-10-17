@@ -168,6 +168,23 @@ curl -s "$base/api/assignments" > "$SCRATCH/out/assignments-cascade.json"
 check "assignments gone with the project" "$SCRATCH/out/assignments-cascade.json" '"assignments":{}'
 grep -q '"version": 1' "$SCRATCH/deck.json" && echo "PASS store written under the scratch folder" || { echo "FAIL store file"; fails=$((fails+1)); }
 
+echo "== palette, verbs and call"
+curl -s "$base/api/palette" > "$SCRATCH/out/palette.json"
+check "palette lists blue with its css" "$SCRATCH/out/palette.json" '{"css":"#0000ee","name":"blue"}'
+curl -s "$base/api/verbs" > "$SCRATCH/out/verbs.json"
+check "verbs lists list-sessions" "$SCRATCH/out/verbs.json" '"verb":"list-sessions"'
+check "verbs carries param schemas" "$SCRATCH/out/verbs.json" '"params":\['
+curl -s -X POST -H "$J" -d '{"verb":"list-sessions","params":{}}' "$base/api/call" > "$SCRATCH/out/call.json"
+check "call list-sessions returns the session" "$SCRATCH/out/call.json" '"result":{.*"name":"target"'
+curl -s -X POST -H "$J" -d '{"verb":"no-such-verb","params":{}}' "$base/api/call" > "$SCRATCH/out/call-unknown.json"
+check "call refuses an unknown verb" "$SCRATCH/out/call-unknown.json" '"code":"unknown_verb"'
+curl -s -X POST -H "$J" -d '{"verb":"list-windows","params":{"session":"nowhere"}}' "$base/api/call" > "$SCRATCH/out/call-daemon-err.json"
+check "call passes the daemon error through" "$SCRATCH/out/call-daemon-err.json" '"code":"session_not_found"'
+for id in page-deck page-tasks page-captures dlg-palette; do
+	check "page has #$id" "$SCRATCH/out/index.html" "id=\"$id\""
+done
+check "page has the group select" "$SCRATCH/out/index.html" 'id="group"'
+
 echo "== websocket pane stream"
 EXTRA=$(a list-windows -s target --json | python3 -c 'import json,sys; print([w["window_id"] for w in json.load(sys.stdin)["windows"] if w["title"]=="extra"][0])')
 (cd "$here" && GOWORK=off go run ./scripts/wscheck "ws://127.0.0.1:$PORT/api/panes/target/$EXTRA/stream?cols=100&rows=30" ws-marker-7) | tee "$SCRATCH/out/ws.txt"

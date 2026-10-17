@@ -38,9 +38,10 @@ type Server struct {
 	Version    string
 	CaptureDir string
 
-	mu       sync.Mutex
-	nonce    string
-	nonceErr string
+	mu        sync.Mutex
+	nonce     string
+	nonceErr  string
+	verbCache *verbList
 }
 
 // Handler builds the routes.
@@ -74,6 +75,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/captures", s.captures)
 	mux.HandleFunc("GET /api/captures/{name}", s.readCapture)
 	mux.HandleFunc("DELETE /api/captures/{name}", s.deleteCapture)
+	mux.HandleFunc("GET /api/palette", s.palette)
+	mux.HandleFunc("GET /api/verbs", s.listVerbs)
+	mux.HandleFunc("POST /api/call", s.call)
 	return mux
 }
 
