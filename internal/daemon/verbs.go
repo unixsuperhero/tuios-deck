@@ -36,6 +36,26 @@ func (c *Client) ListSessions(ctx context.Context) ([]Session, error) {
 	return out.Sessions, err
 }
 
+// WindowCwd is the working folder list-windows reports for one window, or
+// "" when the window is not in the session.
+func (c *Client) WindowCwd(ctx context.Context, session, window string) (string, error) {
+	var out struct {
+		Windows []struct {
+			ID  string `json:"window_id"`
+			Cwd string `json:"cwd"`
+		} `json:"windows"`
+	}
+	if err := c.Call(ctx, "list-windows", map[string]any{"session": session}, &out); err != nil {
+		return "", err
+	}
+	for _, w := range out.Windows {
+		if w.ID == window {
+			return w.Cwd, nil
+		}
+	}
+	return "", nil
+}
+
 // Agent is one row of list-agents.
 type Agent struct {
 	Session      string `json:"session"`

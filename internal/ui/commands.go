@@ -29,6 +29,9 @@ type (
 		lines    []string
 		revision int64
 		err      error
+		turns    []turn // the Turns tab's rows, when isTurns
+		isTurns  bool
+		empty    string // what the Turns tab says when it has no rows
 	}
 	eventMsg        daemon.Event
 	eventsClosedMsg struct{}
@@ -102,6 +105,7 @@ func (m *Model) loadDetail(force bool) tea.Cmd {
 	if m.detailFor != key {
 		m.detailFor = key
 		m.scroll, m.follow = 0, true
+		m.turns, m.turnSel, m.expanded = nil, 0, map[string]bool{}
 		force = true
 	}
 	if m.detailBusy && !force {
@@ -110,6 +114,9 @@ func (m *Model) loadDetail(force bool) tea.Cmd {
 	m.detailBusy = true
 	tab, session, id, nonce := m.tab, p.Session, p.ID, m.nonce
 	nonceErr := m.nonceErr
+	if tab == tabTurns {
+		return m.loadTurns(key, session, id, p.Cwd, p.IsAgent, nonce)
+	}
 	lines := m.detailHeight() * 4
 	if lines < 200 {
 		lines = 200

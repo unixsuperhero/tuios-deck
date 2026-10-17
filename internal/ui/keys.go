@@ -84,11 +84,11 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 
 	switch msg.String() {
-	case "h", "left":
-		m.focusMain = false
-		return m, nil
-	case "l", "right":
-		m.focusMain = true
+	case "h", "left", "l", "right":
+		m.focusMain = msg.String() == "l" || msg.String() == "right"
+		if m.tab == tabTurns && m.result == nil && m.detail != nil {
+			m.renderTurns() // the focused row's highlight follows the focus
+		}
 		return m, nil
 	}
 	if m.focusMain {
@@ -97,7 +97,7 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 	switch msg.String() {
-	case "j", "down", "k", "up", "g", "home", "tab", "]", "shift+tab", "[", "1", "2", "3", "r", "enter":
+	case "j", "down", "k", "up", "g", "home", "tab", "]", "shift+tab", "[", "1", "2", "3", "4", "r", "enter":
 		m.clearResult() // moving the selection or the tab ends a verb's result view
 	}
 	switch msg.String() {
@@ -117,7 +117,7 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, m.setTab((m.tab + 1) % numTabs)
 	case "shift+tab", "[":
 		return m, m.setTab((m.tab + numTabs - 1) % numTabs)
-	case "1", "2", "3":
+	case "1", "2", "3", "4":
 		return m, m.setTab(tab(msg.String()[0] - '1'))
 	case "J", "ctrl+d", "pgdown":
 		m.scrollBy(m.detailHeight() / 2)
@@ -166,6 +166,11 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 // area has focus: j/k and the rest scroll the detail, and the rail's
 // selection stays where it is. It reports whether it took the key.
 func (m *Model) handleMainKey(msg tea.KeyPressMsg) (bool, tea.Cmd) {
+	if m.tab == tabTurns && m.result == nil {
+		if handled, cmd := m.handleTurnsKey(msg); handled {
+			return true, cmd
+		}
+	}
 	switch msg.String() {
 	case "j", "down":
 		m.scrollBy(1)
@@ -176,8 +181,7 @@ func (m *Model) handleMainKey(msg tea.KeyPressMsg) (bool, tea.Cmd) {
 		m.scroll = 0
 		m.clampScroll()
 	case "enter":
-		// The accordion tab acts on its focused row; the other tabs have
-		// nothing to act on.
+		// Only the Turns tab has rows to act on; it answered above.
 	default:
 		return false, nil
 	}

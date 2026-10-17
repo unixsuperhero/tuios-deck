@@ -46,11 +46,12 @@ const (
 	tabScreen tab = iota
 	tabActivity
 	tabTranscript
+	tabTurns
 	numTabs
 )
 
 func (t tab) String() string {
-	return [...]string{"Screen", "Activity", "Transcript"}[t]
+	return [...]string{"Screen", "Activity", "Transcript", "Turns"}[t]
 }
 
 // row is a line of the left list: a group header or a pane. A header
@@ -106,6 +107,12 @@ type Model struct {
 	follow     bool
 	revision   int64
 
+	turns      []turn          // the Turns tab's rows, which the detail's lines are drawn from
+	turnSel    int             // the focused row
+	turnLine   []int           // the detail line each row starts on
+	turnsEmpty string          // what the tab says when there are no rows
+	expanded   map[string]bool // the expanded rows, by id, kept across re-reads
+
 	mode mode
 	form *form
 	// formStack is the form suspended while the mass-add screen it opened
@@ -149,6 +156,7 @@ func New(client *daemon.Client, st *store.Store, version, captureDir string) *Mo
 		version:    version,
 		captureDir: captureDir,
 		follow:     true,
+		expanded:   map[string]bool{},
 		status:     "connecting to " + client.Socket,
 	}
 }
@@ -163,6 +171,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
+		if m.tab == tabTurns && m.turns != nil {
+			m.renderTurns()
+		}
 		return m, m.loadDetail(true)
 
 	case tea.KeyPressMsg:
@@ -234,6 +245,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if msg.err != nil {
 			m.detailErr = msg.err.Error()
+		} else if msg.isTurns {
+			m.detailErr = ""
+			m.applyTurns(msg.turns, msg.empty)
 		} else {
 			m.detailErr = ""
 			if msg.revision == 0 || msg.revision != m.revision {

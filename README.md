@@ -18,14 +18,14 @@ same panes you see in `tuios attach`.
 
 ```
  tuios-deck tuios 1.4.0  /run/user/1000/tuios/tuios.sock         1 need you  3 agents
-▾ work                   │ 1 Screen   2 Activity   3 Transcript   work › reviewer
+▾ work                   │ 1 Screen   2 Activity   3 Transcript   4 Turns   work › reviewer
   ◐ reviewer     working │you> review the diff on this branch
   ● tests    needs_input │→ Bash go test ./...
   · build                │  ok Bash
 ▾ deck                   │■ turn ended
   ○ helper          idle │
 captured to ~/.local/share/tuios-deck/captures/work-build-20261017-133455.txt
- j/k move · l main area · [/] or 1-3 tab · J/K scroll · G follow · o group · n agent · t term · p prompt · a assign · c capture · x close · T tasks · C captures · r refresh · q quit
+ j/k move · l main area · [/] or 1-4 tab · J/K scroll · G follow · o group · n agent · t term · p prompt · a assign · c capture · x close · T tasks · C captures · r refresh · q quit
 ```
 
 ## Install
@@ -243,7 +243,7 @@ on the deck, the grouping when it is not by session.
 | --- | --- |
 | `h` `l` (`←` `→`) | Move the focus to the list on the left, or to the main area on the right |
 | `j` `k` `g` | Select a pane; with the main area focused, scroll the detail a line, or to the top, and the selection stays |
-| `1` `2` `3`, `[` `]`, `tab` `shift+tab` | Screen, activity or transcript of the selected pane |
+| `1` `2` `3` `4`, `[` `]`, `tab` `shift+tab` | Screen, activity, transcript or turns of the selected pane |
 | `J` `K`, `G` | Scroll the detail half a page; `G` follows the newest output again |
 | `o` `O` | Group the list the next way, or the previous one (below) |
 | `n` | Start an agent: session, agent command, name, cwd, task or project, first prompt. Waits until it is at its prompt |
@@ -256,6 +256,19 @@ on the deck, the grouping when it is not by session.
 | `T` `C` | The tasks page, the captures page |
 | `:` `ctrl+p` | The command palette |
 | `q` | Quit; the panes stay |
+
+The Turns tab is an accordion: one row per prompt the person gave an
+agent, and one per command a pane's shell ran, oldest first, the two kinds
+interleaved by time behind `you>` and `$`. A prompt row expands to the whole
+prompt and the agent's reply text up to the next prompt, read from the
+transcript when the deck holds the person's presence, and otherwise from the
+agent's activity, which has the prompts and the end of each turn. A command
+row shows its exit code, duration and command line, and expands to its
+working directory and exit; the daemon keeps no output for a command, so the
+Screen tab has that. With the main area focused on it, `j` `k` move between
+rows, `enter` or `space` expands one, `y` copies the prompt or the command
+line through OSC 52, `g` goes to the first row and `G` follows the newest.
+A re-read keeps the expanded rows and the focused one.
 
 The focused area is marked: the selected pane is in reverse video while
 the list has focus and keeps a dim `▸` while the main area has it, when the

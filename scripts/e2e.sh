@@ -726,6 +726,33 @@ check "h returns the focus to the rail" "$SCRATCH/out/21d-rail.txt" 'j/k move ·
 b send-keys -s host -w deck j >/dev/null; settle; deckcap 21e-rail-j
 check "j on the rail moves the selection again" "$SCRATCH/out/21e-rail-j.txt" 'target › fake'
 
+echo "== the Turns tab: a shell's commands and an agent's prompts"
+select_pane 1
+b send-keys -s host -w deck 4 >/dev/null; settle; deckcap 22a-turns-build
+check "the tab bar names the Turns tab" "$SCRATCH/out/22a-turns-build.txt" '4 Turns'
+check "a row for the build pane's first command, exit 0" "$SCRATCH/out/22a-turns-build.txt" '\$ exit 0 .*echo hello-from-build'
+b send-keys -s host -w deck l >/dev/null; b send-keys -s host -w deck k --repeat 20 >/dev/null
+b send-keys -s host -w deck j >/dev/null; b send-keys -s host -w deck k >/dev/null; settle; deckcap 22b-turns-main
+check "the help line names the accordion keys" "$SCRATCH/out/22b-turns-main.txt" 'j/k row · enter/space expand · y copy'
+b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 22c-turns-expanded
+check "enter expands the first command row" "$SCRATCH/out/22c-turns-expanded.txt" '▾ [0-9:]* \$ exit 0 .*echo hello-from-build'
+check "the expanded command shows its cwd" "$SCRATCH/out/22c-turns-expanded.txt" 'cwd  .*deck-e2e'
+check "the expanded command shows its exit" "$SCRATCH/out/22c-turns-expanded.txt" 'exit 0 after'
+b send-keys -s host -w deck y >/dev/null; settle; deckcap 22d-turns-copy
+check "y copies the command line" "$SCRATCH/out/22d-turns-copy.txt" 'copied echo hello-from-build with OSC 52'
+b send-keys -s host -w deck space >/dev/null; settle; deckcap 22e-turns-collapsed
+check "space collapses the row again" "$SCRATCH/out/22e-turns-collapsed.txt" '▸ [0-9:]* \$ exit 0 .*echo hello-from-build'
+b send-keys -s host -w deck h >/dev/null
+select_pane 2; deckcap 22f-turns-fake
+# The suite queued "do the thing" for the fake agent, which never takes it
+# from the queue, so no prompt reaches its activity or a transcript.
+if grep -q 'you> do the thing' "$SCRATCH/out/22f-turns-fake.txt"; then
+	echo "PASS the fake agent's Turns tab lists the queued prompt"
+else
+	check "the fake agent's Turns tab says it has no prompts" "$SCRATCH/out/22f-turns-fake.txt" '(no prompts in the'
+fi
+b send-keys -s host -w deck 1 >/dev/null; settle
+
 echo "== close a pane with confirmation"
 select_pane 1
 b send-keys -s host -w deck x >/dev/null; settle; deckcap 08-confirm
