@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -239,7 +240,7 @@ func (m *Model) handleTasksKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "n":
 		return m, m.openTaskForm()
 	case "e":
-		return m, m.openRenameForm()
+		return m, m.openEditForm()
 	case "M":
 		return m, m.openGlyphForm()
 	case "s":
@@ -424,46 +425,256 @@ func (m *Model) openTaskForm() tea.Cmd {
 	return nil
 }
 
-func (m *Model) openRenameForm() tea.Cmd {
+// topLevel is the parent entry that stands for a project's top level.
+func topLevel(project string) string { return "(top level of " + project + ")" }
+
+// parentOptions is a top-level entry for every project, then every task's
+// path but those in skip, for a parent field.
+func (m *Model) parentOptions(skip map[string]bool) []string {
+	var out []string
+	for _, p := range m.store.Projects() {
+		out = append(out, topLevel(p.Name))
+	}
+	var paths []string
+	for _, t := range m.store.Tasks() {
+		if !skip[t.ID] {
+			paths = append(paths, m.taskPath(t))
+		}
+	}
+	sort.Strings(paths)
+	return append(out, paths...)
+}
+
+// parentEntry is the parent field's text for where a task sits: its
+// parent's path, or its project's top-level entry.
+func (m *Model) parentEntry(t store.Task) string {
+	if t.ParentID != "" {
+		if p := m.store.Task(t.ParentID); p != nil {
+			return m.taskPath(*p)
+		}
+	}
+	if p := m.store.Project(m.store.ProjectOf(t.ID)); p != nil {
+		return topLevel(p.Name)
+	}
+	return ""
+}
+
+// resolveParent turns a parent field's text into a parent task id, or a
+// project id for a project's top level.
+func (m *Model) resolveParent(text string) (parentID, projectID, msg string) {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return "", "", "a parent is required (tab lists them)"
+	}
+	low := strings.ToLower(text)
+	if strings.HasPrefix(low, "(top level of ") && strings.HasSuffix(low, ")") {
+		name := text[len("(top level of ") : len(text)-1]
+		p := m.store.ProjectByName(name)
+		if p == nil {
+			return "", "", "no project " + name
+		}
+		return "", p.ID, ""
+	}
+	t, msg := m.findTask(text)
+	if msg != "" {
+		return "", "", msg
+	}
+	return t.ID, "", ""
+}
+
+// colorOptions is the palette with the colours free for the row first.
+func (m *Model) colorOptions(id string) func() []string {
+	return func() []string {
+		free := m.store.FreeColors(id)
+		out := append([]string{}, free...)
+		isFree := map[string]bool{}
+		for _, c := range free {
+			isFree[c] = true
+		}
+		for _, c := range store.Palette() {
+			if !isFree[c] {
+				out = append(out, c)
+			}
+		}
+		return out
+	}
+}
+
+func statusOptions() []string { return store.Statuses }
+
+// checkTheme refuses a colour outside the palette or a glyph that is not
+// one character, naming the field at colourField or colourField+1.
+func checkTheme(color, glyph string, colourField int) (int, string) {
+	if colorIndexOf(color) < 0 {
+		return colourField, "no colour " + color + " (tab lists them)"
+	}
+	if glyph == "" {
+		return colourField + 1, "glyph is empty"
+	}
+	if first, _ := ansi.FirstGraphemeCluster(glyph, ansi.GraphemeWidth); first != glyph {
+		return colourField + 1, "one character only"
+	}
+	return 0, ""
+}
+
+func colorIndexOf(name string) int {
+	for i, c := range store.Palette() {
+		if c == name {
+			return i
+		}
+	}
+	return -1
+}
+
+func checkStatusField(st string, i int) (int, string) {
+	for _, s := range store.Statuses {
+		if s == st {
+			return 0, ""
+		}
+	}
+	return i, "status is open, done or skipped"
+}
+
+// openEditForm edits the selected row in one form: a task's title, parent,
+// status, colour and glyph, or a project's name, status, colour and glyph.
+// Only what changed is written, and the status says what that was.
+func (m *Model) openEditForm() tea.Cmd {
 	r := m.selectedRow()
 	if r == nil {
 		return nil
 	}
-	row := *r
-	label, current := "title", ""
-	if row.Project != nil {
-		label, current = "name", row.Project.Name
-	} else {
-		current = row.Task.Title
+	if r.Project != nil {
+		return m.openProjectEditForm(*r.Project)
 	}
+	t := *r.Task
+	skip := m.subtree(t.ID)
+	parent := m.parentEntry(t)
 	m.mode = modeForm
 	m.form = &form{
-		Title:  "rename " + row.name(),
-		Fields: []field{{Label: label, Default: current}},
+		Title: "edit task " + t.Title,
+		Fields: []field{
+			{Label: "title", Default: t.Title},
+			{Label: "parent", Default: parent, Options: func() []string { return m.parentOptions(skip) }},
+			{Label: "status", Default: t.Status, Options: statusOptions},
+			{Label: "colour", Default: t.Theme.Color, Options: m.colorOptions(t.ID)},
+			{Label: "glyph", Default: t.Theme.Glyph},
+		},
 		Validate: func(v []string) (int, string) {
-			if row.Project != nil {
-				if p := m.store.ProjectByName(v[0]); p != nil && p.ID != row.Project.ID {
-					return 0, "project " + v[0] + " exists"
-				}
+			parentID, _, msg := m.resolveParent(v[1])
+			if msg != "" {
+				return 1, msg
 			}
-			return 0, ""
+			if skip[parentID] {
+				return 1, "a task cannot move under itself or one of its subtasks"
+			}
+			if i, msg := checkStatusField(v[2], 2); msg != "" {
+				return i, msg
+			}
+			return checkTheme(v[3], v[4], 3)
 		},
 		Done: func(v []string) tea.Cmd {
+			parentID, projectID, _ := m.resolveParent(v[1])
 			return func() tea.Msg {
-				var err error
-				if row.Project != nil {
-					err = m.store.RenameProject(row.Project.ID, v[0])
-				} else {
-					err = m.store.RenameTask(row.Task.ID, v[0])
+				var did []string
+				if v[0] != t.Title {
+					if err := m.store.RenameTask(t.ID, v[0]); err != nil {
+						return actionMsg{err: err}
+					}
+					did = append(did, "renamed to "+v[0])
 				}
-				if err != nil {
-					return actionMsg{err: err}
+				if v[1] != parent {
+					if err := m.store.MoveTask(t.ID, parentID, projectID); err != nil {
+						return actionMsg{err: err}
+					}
+					if parentID != "" {
+						did = append(did, "moved under "+m.taskPath(*m.store.Task(parentID)))
+					} else {
+						did = append(did, "moved to the top level of "+m.store.Project(projectID).Name)
+					}
 				}
-				return actionMsg{status: "renamed to " + v[0]}
+				if v[2] != t.Status {
+					if err := m.store.SetTaskStatus(t.ID, v[2]); err != nil {
+						return actionMsg{err: err}
+					}
+					did = append(did, "status "+v[2])
+				}
+				if th := (store.Theme{Color: v[3], Glyph: v[4]}); th != t.Theme {
+					if err := m.store.SetTaskTheme(t.ID, th); err != nil {
+						return actionMsg{err: err}
+					}
+					did = append(did, themeChange(t.Theme, th)...)
+				}
+				return actionMsg{status: edited(v[0], did), selectRow: t.ID}
 			}
 		},
 	}
 	return nil
+}
+
+func (m *Model) openProjectEditForm(p store.Project) tea.Cmd {
+	m.mode = modeForm
+	m.form = &form{
+		Title: "edit project " + p.Name,
+		Fields: []field{
+			{Label: "name", Default: p.Name},
+			{Label: "status", Default: p.Status, Options: statusOptions},
+			{Label: "colour", Default: p.Theme.Color, Options: m.colorOptions(p.ID)},
+			{Label: "glyph", Default: p.Theme.Glyph},
+		},
+		Validate: func(v []string) (int, string) {
+			if o := m.store.ProjectByName(v[0]); o != nil && o.ID != p.ID {
+				return 0, "project " + v[0] + " exists"
+			}
+			if i, msg := checkStatusField(v[1], 1); msg != "" {
+				return i, msg
+			}
+			return checkTheme(v[2], v[3], 2)
+		},
+		Done: func(v []string) tea.Cmd {
+			return func() tea.Msg {
+				var did []string
+				if v[0] != p.Name {
+					if err := m.store.RenameProject(p.ID, v[0]); err != nil {
+						return actionMsg{err: err}
+					}
+					did = append(did, "renamed to "+v[0])
+				}
+				if v[1] != p.Status {
+					if err := m.store.SetProjectStatus(p.ID, v[1]); err != nil {
+						return actionMsg{err: err}
+					}
+					did = append(did, "status "+v[1])
+				}
+				if th := (store.Theme{Color: v[2], Glyph: v[3]}); th != p.Theme {
+					if err := m.store.SetProjectTheme(p.ID, th); err != nil {
+						return actionMsg{err: err}
+					}
+					did = append(did, themeChange(p.Theme, th)...)
+				}
+				return actionMsg{status: edited(v[0], did), selectRow: p.ID}
+			}
+		},
+	}
+	return nil
+}
+
+func themeChange(was, now store.Theme) []string {
+	var did []string
+	if now.Color != was.Color {
+		did = append(did, "colour "+now.Color)
+	}
+	if now.Glyph != was.Glyph {
+		did = append(did, "glyph "+now.Glyph)
+	}
+	return did
+}
+
+// edited is the status after an edit: what changed, or that nothing did.
+func edited(name string, did []string) string {
+	if len(did) == 0 {
+		return name + ": nothing changed"
+	}
+	return name + ": " + strings.Join(did, ", ")
 }
 
 // openGlyphForm sets the glyph of the selected row's theme: one grapheme.

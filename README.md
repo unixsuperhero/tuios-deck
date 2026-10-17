@@ -215,7 +215,7 @@ PATCH  /api/projects/{id}                      {"name"}, {"status": "open"|"done
 DELETE /api/projects/{id}                      with its tasks and their assignments; the answer counts them
 GET    /api/tasks?project=                     {"tasks": [{id, parent_id, project_id, title, path, depth, theme, status, panes, …}]}
 POST   /api/tasks                              {"project_id", "title"} for a top-level task; {"parent_id", "title"} for a subtask; "theme"?
-PATCH  /api/tasks/{id}                         {"title"}, {"status": "open"|"done"|"skipped"}, {"theme": {…}}
+PATCH  /api/tasks/{id}                         {"title"}, {"status": "open"|"done"|"skipped"}, {"theme": {…}}; a move: {"parent_id"} or {"parent": path} under a task, {"project_id"} or {"project": name} to a project's top level
 DELETE /api/tasks/{id}                         with its subtasks and their assignments
 GET    /api/assignments                        {window id: {session, task_id, project_id, resolved: {project, task, top}}}
 PUT    /api/panes/{session}/{id}/assignment    a target; names resolve the way the TUI's forms do
@@ -289,7 +289,7 @@ selection stays on the same pane across a regroup.
 | `N` | New project: its name |
 | `n` | New task under the selected project, or a new subtask under the selected task |
 | `A` | Add many projects, tasks and subtasks at once from an outline (below); `A` works on every page |
-| `e` | Rename the project or task |
+| `e` | Edit the row in one form: a task's title, parent, status, colour and glyph; a project's name, status, colour and glyph. The parent lists `(top level of <project>)` for every project and every task but the row and its subtasks, so a task moves within its project or to another, subtasks and all. Only what changed is written, and the status line says what that was |
 | `s` | Cycle the task's or project's status: open, done, skipped, open |
 | `m` | The next colour for the row's theme: the free ones first, then the rest of the palette |
 | `M` | Set the row's glyph |

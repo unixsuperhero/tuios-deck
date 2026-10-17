@@ -129,6 +129,19 @@ check "GET project shows it skipped" "$SCRATCH/out/projects-skipped.json" '"stat
 curl -s -X PATCH -H "$J" -d '{"status":"later"}' "$base/api/projects/$PID" > "$SCRATCH/out/project-skip-bad.json"
 check "PATCH bad project status refused" "$SCRATCH/out/project-skip-bad.json" '"error":"status'
 curl -s -X PATCH -H "$J" -d '{"status":"open"}' "$base/api/projects/$PID" > /dev/null
+curl -s -X POST -H "$J" -d "{\"project_id\":\"$PID\",\"title\":\"docs\"}" "$base/api/tasks" > "$SCRATCH/out/task-docs.json"
+DID=$(field "$SCRATCH/out/task-docs.json" task id)
+curl -s -X PATCH -H "$J" -d "{\"parent_id\":\"$DID\"}" "$base/api/tasks/$SID" > "$SCRATCH/out/task-move.json"
+check "PATCH parent_id moves the subtask" "$SCRATCH/out/task-move.json" "\"parent_id\":\"$DID\""
+check "the moved subtask's path follows" "$SCRATCH/out/task-move.json" '"path":"deckproj / docs / autocomplete"'
+curl -s -X PATCH -H "$J" -d '{"parent":"deckproj / docs / autocomplete"}' "$base/api/tasks/$DID" > "$SCRATCH/out/task-cycle.json"
+check "PATCH refuses a move under the task's own subtask" "$SCRATCH/out/task-cycle.json" '"error":"a task cannot move under itself'
+curl -s -X PATCH -H "$J" -d '{"parent_id":"","project":"deckproj"}' "$base/api/tasks/$SID" > "$SCRATCH/out/task-top.json"
+check "PATCH project moves a subtask to the top level" "$SCRATCH/out/task-top.json" '"parent_id":"","path":"deckproj / autocomplete"'
+check "a top-level task carries its own project_id" "$SCRATCH/out/task-top.json" "\"own_project_id\":\"$PID\""
+curl -s -X PATCH -H "$J" -d '{"parent":"palette"}' "$base/api/tasks/$SID" > "$SCRATCH/out/task-back.json"
+check "PATCH parent by path moves it back under palette" "$SCRATCH/out/task-back.json" '"path":"deckproj / palette / autocomplete"'
+curl -s -X DELETE "$base/api/tasks/$DID" > /dev/null
 curl -s "$base/api/tasks?project=$PID" > "$SCRATCH/out/tasks.json"
 check "tasks filtered by project" "$SCRATCH/out/tasks.json" '"title":"autocomplete"'
 curl -s "$base/api/state" > "$SCRATCH/out/state-store.json"

@@ -395,13 +395,28 @@ func (s *Server) patchTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var in struct {
-		Title  *string  `json:"title"`
-		Status *string  `json:"status"`
-		Theme  *themeIn `json:"theme"`
+		Title     *string  `json:"title"`
+		Status    *string  `json:"status"`
+		Theme     *themeIn `json:"theme"`
+		ParentID  *string  `json:"parent_id"`
+		Parent    *string  `json:"parent"`
+		ProjectID *string  `json:"project_id"`
+		Project   *string  `json:"project"`
 	}
 	if err := readJSON(r, &in); err != nil {
 		badRequest(w, "bad json: "+err.Error())
 		return
+	}
+	if in.ParentID != nil || in.Parent != nil || in.ProjectID != nil || in.Project != nil {
+		parentID, projectID, err := s.moveTarget(id, in.ParentID, in.Parent, in.ProjectID, in.Project)
+		if err != nil {
+			badRequest(w, err.Error())
+			return
+		}
+		if err := s.Store.MoveTask(id, parentID, projectID); err != nil {
+			storeErr(w, err)
+			return
+		}
 	}
 	if in.Title != nil {
 		if err := s.Store.RenameTask(id, *in.Title); err != nil {
@@ -428,6 +443,31 @@ func (s *Server) patchTask(w http.ResponseWriter, r *http.Request) {
 	}
 	byTask, _ := s.paneCounts()
 	writeJSON(w, 200, map[string]any{"status": "updated", "task": s.taskJSON(*s.Store.Task(id), byTask[id])})
+}
+
+// moveTarget turns a PATCH's parent fields into MoveTask's arguments. A
+// parent, by id or by path, wins; without one the task goes to the top level
+// of the project named, or of its own project when none is.
+func (s *Server) moveTarget(id string, parentID, parent, projectID, project *string) (string, string, error) {
+	switch {
+	case str(parentID) != "":
+		return str(parentID), "", nil
+	case str(parent) != "":
+		t, err := s.findTask(str(parent))
+		if err != nil {
+			return "", "", err
+		}
+		return t.ID, "", nil
+	case str(projectID) != "":
+		return "", str(projectID), nil
+	case str(project) != "":
+		p := s.Store.ProjectByName(str(project))
+		if p == nil {
+			return "", "", fmt.Errorf("no project %s", str(project))
+		}
+		return "", p.ID, nil
+	}
+	return "", s.Store.ProjectOf(id), nil
 }
 
 func (s *Server) deleteTask(w http.ResponseWriter, r *http.Request) {

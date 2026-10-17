@@ -376,9 +376,12 @@ check "task listed under the project" "$SCRATCH/out/12-tree.txt" 'landing'
 check "subtask listed under the task" "$SCRATCH/out/12-tree.txt" '    . *hero copy'
 check "subtask detail shows its path" "$SCRATCH/out/12-tree.txt" 'path *web › landing › hero copy'
 
-echo "== rename and toggle done"
-b send-keys -s host -w deck e >/dev/null; settle
-b send-keys -s host -w deck ctrl+u >/dev/null; b send-text -s host -w deck 'hero text'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 13-renamed
+echo "== rename through the edit form and toggle done"
+b send-keys -s host -w deck e >/dev/null; settle; deckcap 13a-edit-form
+check "e opens the edit form for the task" "$SCRATCH/out/13a-edit-form.txt" '╭─ edit task hero copy ─'
+check "edit form offers the parent, current one by default" "$SCRATCH/out/13a-edit-form.txt" '  parent: web / landing'
+check "edit form offers status, colour and glyph" "$SCRATCH/out/13a-edit-form.txt" '  status: open'
+b send-keys -s host -w deck ctrl+u >/dev/null; b send-text -s host -w deck 'hero text'; b send-keys -s host -w deck ctrl+s >/dev/null; settle; deckcap 13-renamed
 check "subtask renamed" "$SCRATCH/out/13-renamed.txt" 'renamed to hero text'
 b send-keys -s host -w deck s >/dev/null; settle; deckcap 14-done
 check "subtask marked done" "$SCRATCH/out/14-done.txt" '✓ hero text'
@@ -436,6 +439,65 @@ held = {p["theme"]["color"] for p in d["projects"] if p["status"] == "open" and 
 held |= {t["theme"]["color"] for t in d["tasks"] if t["status"] == "open"}
 assert web["theme"]["color"] not in held, (web, held)
 PY
+
+echo "== edit a task: move it and set its status in one form"
+b send-keys -s host -w deck n >/dev/null; b send-text -s host -w deck 'docs'; b send-keys -s host -w deck Enter >/dev/null; settle
+b send-keys -s host -w deck n >/dev/null; b send-text -s host -w deck 'api ref'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 20a-api-ref
+check "api ref is a subtask of docs" "$SCRATCH/out/20a-api-ref.txt" 'path *web › docs › api ref'
+b send-keys -s host -w deck e >/dev/null; settle
+b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 20b-parent-list   # title kept
+check "parent field lists the top-level entries" "$SCRATCH/out/20b-parent-list.txt" '(top level of deck)'
+if grep -q 'web / docs / api ref' "$SCRATCH/out/20b-parent-list.txt"; then echo "FAIL the parent list offers the task itself"; fails=$((fails+1)); else echo "PASS the parent list leaves out the task itself"; fi
+b send-text -s host -w deck 'web / landing'; b send-keys -s host -w deck Enter >/dev/null
+b send-text -s host -w deck 'done'; b send-keys -s host -w deck ctrl+s >/dev/null; settle; deckcap 20c-moved
+check "status reports the move and the status" "$SCRATCH/out/20c-moved.txt" 'api ref: moved under web / landing, status done'
+check "selection stays on the edited task" "$SCRATCH/out/20c-moved.txt" 'path *web › landing › api ref'
+python3 - "$SCRATCH/out/20c-moved.txt" <<'PY2' && echo "PASS the tree redraws api ref under landing" || { echo "FAIL api ref is not drawn under landing"; fails=$((fails+1)); }
+import sys
+lines = open(sys.argv[1]).read().splitlines()
+at = lambda pat: next(i for i, l in enumerate(lines) if pat in l)
+assert at(" landing") < at("✓ api ref") < at(" docs"), lines
+PY2
+python3 - "$DATA" <<'PY2' && echo "PASS store holds api ref under landing, done" || { echo "FAIL api ref's parent or status in the store"; fails=$((fails+1)); }
+import json, sys
+d = json.load(open(sys.argv[1]))
+landing = [t for t in d["tasks"] if t["title"] == "landing"][0]
+api = [t for t in d["tasks"] if t["title"] == "api ref"][0]
+assert api["parent_id"] == landing["id"] and api["project_id"] == "" and api["status"] == "done", api
+PY2
+b send-keys -s host -w deck e >/dev/null; settle
+b send-keys -s host -w deck Enter >/dev/null
+b send-text -s host -w deck '(top level of deck)'; b send-keys -s host -w deck ctrl+s >/dev/null; settle; deckcap 20d-top
+check "status reports the move to a project's top level" "$SCRATCH/out/20d-top.txt" 'api ref: moved to the top level of deck'
+check "api ref is top-level in deck" "$SCRATCH/out/20d-top.txt" 'path *deck › api ref'
+python3 - "$DATA" <<'PY2' && echo "PASS store holds api ref at the top level of deck" || { echo "FAIL api ref is not top-level in deck"; fails=$((fails+1)); }
+import json, sys
+d = json.load(open(sys.argv[1]))
+api = [t for t in d["tasks"] if t["title"] == "api ref"][0]
+assert api["parent_id"] == "" and api["project_id"] == "p_e2e001", api
+PY2
+b send-keys -s host -w deck n >/dev/null; b send-text -s host -w deck 'child'; b send-keys -s host -w deck Enter >/dev/null; settle
+b send-keys -s host -w deck k >/dev/null; b send-keys -s host -w deck e >/dev/null; settle
+b send-keys -s host -w deck Enter >/dev/null
+b send-text -s host -w deck 'deck / api ref / child'; b send-keys -s host -w deck ctrl+s >/dev/null; settle; deckcap 20e-cycle
+check "moving a task under its own subtask is refused" "$SCRATCH/out/20e-cycle.txt" 'cannot move under itself or one of its subtasks'
+b send-keys -s host -w deck Escape >/dev/null; settle
+python3 - "$DATA" <<'PY2' && echo "PASS the refused move left the store alone" || { echo "FAIL the cycle reached the store"; fails=$((fails+1)); }
+import json, sys
+d = json.load(open(sys.argv[1]))
+api = [t for t in d["tasks"] if t["title"] == "api ref"][0]
+assert api["parent_id"] == "" and api["project_id"] == "p_e2e001", api
+PY2
+b send-keys -s host -w deck x >/dev/null; b send-keys -s host -w deck y >/dev/null
+wait_store '"api ref"' absent 10 && echo "PASS api ref cleaned up" || { echo "FAIL api ref still in $DATA"; fails=$((fails+1)); }
+
+echo "== edit a project: name and status in one form"
+b send-keys -s host -w deck g >/dev/null; b send-keys -s host -w deck e >/dev/null; settle; deckcap 20f-project-form
+check "e on a project opens its edit form" "$SCRATCH/out/20f-project-form.txt" '╭─ edit project deck ─'
+b send-keys -s host -w deck Enter >/dev/null; b send-text -s host -w deck 'done'; b send-keys -s host -w deck ctrl+s >/dev/null; settle; deckcap 20g-project-edited
+check "status reports the project's change" "$SCRATCH/out/20g-project-edited.txt" 'deck: status done'
+b send-keys -s host -w deck s >/dev/null; settle   # skipped
+b send-keys -s host -w deck s >/dev/null; settle   # open again for the checks that follow
 
 echo "== back to the deck, and enter jumps to an assigned pane"
 b send-keys -s host -w deck Escape >/dev/null; settle; deckcap 17-deck

@@ -350,6 +350,41 @@ func (s *Store) RenameTask(id, title string) error {
 	return s.save()
 }
 
+// MoveTask puts a task under another task, in the same project or another,
+// or with no newParentID at the top level of newProjectID. A task cannot go
+// under itself or one of its own subtasks. The subtasks come along, since
+// their project is their root's.
+func (s *Store) MoveTask(id, newParentID, newProjectID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	i := s.taskIndex(id)
+	if i < 0 {
+		return fmt.Errorf("no task %s", id)
+	}
+	if newParentID != "" {
+		if s.taskIndex(newParentID) < 0 {
+			return fmt.Errorf("no task %s", newParentID)
+		}
+		under := map[string]bool{}
+		s.collect(id, under)
+		if under[newParentID] {
+			return errors.New("a task cannot move under itself or one of its subtasks")
+		}
+		newProjectID = ""
+	} else {
+		if newProjectID == "" {
+			return errors.New("a top-level task needs a project")
+		}
+		if s.projectIndex(newProjectID) < 0 {
+			return fmt.Errorf("no project %s", newProjectID)
+		}
+	}
+	s.tasks[i].ParentID = newParentID
+	s.tasks[i].ProjectID = newProjectID
+	s.tasks[i].Updated = now()
+	return s.save()
+}
+
 // SetTaskTheme changes a task's theme.
 func (s *Store) SetTaskTheme(id string, theme Theme) error {
 	s.mu.Lock()
