@@ -22,10 +22,23 @@ captured to ~/.local/share/tuios-deck/captures/work-build-20261017-133455.txt
  j/k select · 1/2/3 tab · J/K scroll · G follow · n agent · t terminal · p prompt · c capture · x close · r refresh · q quit
 ```
 
-## Build
+## Install
 
 Needs Go 1.26 and a running tuios daemon (`tuios start-server`, or any
 session).
+
+```sh
+go install github.com/unixsuperhero/tuios-deck/cmd/deck@latest
+deck update          # later: install the newest published version the same way
+deck update --check  # only say what is running and what is published
+deck version
+```
+
+`deck update` runs `go install` for you and reports where the binary landed
+(`$GOBIN`, else `$GOPATH/bin`). `deck version` shows the module version Go
+stamped into the binary, so a release needs no version number in the source.
+
+## Build from the repository
 
 ```sh
 go build -o deck ./cmd/deck
@@ -160,6 +173,18 @@ with a fake pi and a fake tuios. Every check keeps what it saw under
 go build -o .dev/deck ./cmd/deck
 scripts/e2e.sh && scripts/e2e-web.sh && scripts/e2e-setup.sh
 ```
+
+## Releasing
+
+```sh
+scripts/release.sh v0.2.0
+```
+
+It checks the tree is clean and on an up-to-date `main`, builds and vets,
+tags, pushes `main` and the tag, then asks proxy.golang.org for the new
+version so `deck update` sees it at once. Nothing else is needed: the Go
+module proxy and pkg.go.dev fetch from GitHub on request, and `@latest` is
+the newest tag, or the newest commit on `main` while there are no tags.
 
 ## Layout
 

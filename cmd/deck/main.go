@@ -34,6 +34,7 @@ Commands:
   tui       The dashboard in this terminal
   web       The dashboard as a web page (default http://127.0.0.1:8787)
   setup     Install, check or remove the files the deck needs on this machine
+  update    Install the latest published deck with go install (or a given version)
   version   Print the version
 
 Run "deck <command> -h" for the flags of a command.
@@ -68,8 +69,10 @@ func main() {
 		err = runWeb(args)
 	case "setup":
 		err = runSetup(args)
+	case "update":
+		err = runUpdate(args)
 	case "version", "--version", "-v":
-		fmt.Println("deck", version)
+		fmt.Println("deck", buildVersion())
 	case "help", "--help", "-h":
 		fmt.Print(usage)
 	default:

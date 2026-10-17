@@ -20,6 +20,10 @@ check "no subcommand prints help and exits 2" "$SCRATCH/out/noargs.txt" "exit=2"
 check "help names the commands" "$SCRATCH/out/noargs.txt" "setup"
 d > "$SCRATCH/out/setup-noargs.txt" 2>&1; echo "exit=$?" >> "$SCRATCH/out/setup-noargs.txt"
 check "setup alone prints its help" "$SCRATCH/out/setup-noargs.txt" "omp-activity"
+"$DECK" version > "$SCRATCH/out/version.txt" 2>&1
+check "version names a build" "$SCRATCH/out/version.txt" "^deck \(v\|dev\)"
+"$DECK" update -h > "$SCRATCH/out/update-help.txt" 2>&1
+check "update -h names the module" "$SCRATCH/out/update-help.txt" "go install github.com/unixsuperhero/tuios-deck/cmd/deck@latest"
 
 echo "== install lifecycle in a scratch HOME"
 d status > "$SCRATCH/out/status-1.txt" 2>&1; check "status: missing" "$SCRATCH/out/status-1.txt" "omp-activity   missing"
