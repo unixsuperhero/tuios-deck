@@ -1,13 +1,14 @@
 # tuios-deck
 
-A terminal dashboard over the [tuios](https://tuios.dev) daemon. It lists
-every terminal and agent the daemon holds, starts new ones with a first
-prompt, queues prompts, follows each pane's screen, activity and transcript,
-and saves captures to files.
+A dashboard over the [tuios](https://tuios.dev) daemon, as a terminal program
+(`deck`) and as a web page (`deck-web`). Both list every terminal and agent
+the daemon holds, start new ones with a first prompt, queue prompts, follow
+each pane's screen, activity and transcript, and save captures to files. The
+web page also shows a pane live, in xterm.js, and types into it.
 
-It owns no PTYs. Everything goes through the daemon's JSON verb protocol on
-its unix socket, so the panes persist when the deck quits and are the same
-panes you see in `tuios attach`.
+Neither owns a PTY. Everything goes through the daemon's JSON verb protocol
+on its unix socket, so the panes persist when the deck quits and are the
+same panes you see in `tuios attach`.
 
 ```
  tuios-deck tuios 1.4.0  /run/user/1000/tuios/tuios.sock         1 need you  3 agents
@@ -28,11 +29,57 @@ session).
 
 ```sh
 go build -o deck ./cmd/deck
+go build -o deck-web ./cmd/deck-web
 ./deck                       # $TUIOS_SOCKET, or the per-user runtime folder
 ./deck --socket /path/to/tuios.sock --captures ./captures
+./deck-web                   # http://127.0.0.1:8787
+./deck-web --listen 127.0.0.1:9000 --socket /path/to/tuios.sock
 ```
 
-## Keys
+## The web page
+
+`deck-web` serves one page and a JSON API. The left list and the state
+badges follow the daemon's event stream; the detail re-reads every two
+seconds without touching the list, the selection, an open dialog or a
+scroll position that is not at the bottom.
+
+| Tab | Shows |
+| --- | --- |
+| Live | The pane in xterm.js through `stream-pane`: snapshot, output and resizes in, keys and a size lease out. Typing goes to the pane |
+| Screen | The last lines of the pane's screen and scrollback as text |
+| Activity | Prompts, tool calls, commands and finished turns from the agent's hooks |
+| Transcript | The conversation, when the server holds the person's presence (below) |
+
+The buttons do what the TUI's keys do: New agent, New terminal, Prompt,
+Capture, Close. `j` `k` move the selection and `1` to `4` switch tabs when
+the focus is not in the terminal or a field. The working directory fields
+have a Browse button that walks the folders of the machine the daemon runs
+on, through the server, since a browser's own picker cannot name a path
+there.
+
+There is no password. `deck-web` listens on loopback and refuses any other
+address unless `--allow-remote` is given; put it behind something that
+authenticates before doing that. xterm.js loads from jsdelivr, so the Live
+tab needs the browser to reach the internet once.
+
+### The API
+
+```
+GET    /api/state                              sessions, panes, daemon, whether transcripts work
+GET    /api/events                             server-sent events relayed from subscribe
+GET    /api/dirs?path=                         folders under a path, for the picker
+GET    /api/panes/{session}/{id}/screen        capture-pane, recent, ?lines=
+GET    /api/panes/{session}/{id}/activity      agent-activity as lines plus the recap
+GET    /api/panes/{session}/{id}/transcript    agent-transcript as lines
+GET    /api/panes/{session}/{id}/stream        WebSocket: one text reply line, then stream-pane frames both ways
+POST   /api/panes/{session}/{id}/prompt        {"text", "is_agent"}: queue-prompt, or send-text with Enter
+POST   /api/panes/{session}/{id}/capture       writes the capture file, ?name=
+DELETE /api/panes/{session}/{id}               close-window
+POST   /api/agents                             start-agent: {"session","agent","name","cwd","prompt","ready_timeout"}
+POST   /api/terminals                          new-window, creating the session first: {"session","name","cwd","command"}
+```
+
+## The TUI's keys
 
 | Key | Does |
 | --- | --- |
@@ -58,9 +105,10 @@ answer it in tuios.
 
 The transcript tab reads `agent-transcript`, which the daemon only serves to
 the person, through `attach-presence`. The daemon refuses that call from a
-process inside one of its own panes. Run the deck from a terminal outside
-tuios, or inside a pane of a different daemon, to read transcripts. Screen
-and activity work from anywhere.
+process inside one of its own panes. Run `deck` or `deck-web` from a
+terminal outside tuios, or inside a pane of a different daemon, to read
+transcripts. Screen and activity work from anywhere. `deck-web` asks again
+when the daemon drops the presence, as it does across a restart.
 
 ## Captures
 
@@ -70,19 +118,26 @@ else `$XDG_DATA_HOME/tuios-deck/captures`, else
 
 ## Tests
 
-`scripts/e2e.sh` runs the deck against two throwaway daemons under a scratch
+`scripts/e2e.sh` runs the TUI against two throwaway daemons under a scratch
 folder: one holds the panes it manages, the other runs the deck in a pane and
-drives it with `send-keys`. Every check writes the deck's screen to
-`$SCRATCH/out` and prints PASS or FAIL.
+drives it with `send-keys`. `scripts/e2e-web.sh` runs `deck-web` against a
+throwaway daemon and checks the API with curl, the event stream, and the
+WebSocket pane stream with `scripts/wscheck`. Every check keeps what it saw
+under `$SCRATCH/out` and prints PASS or FAIL.
 
 ```sh
 go build -o .dev/deck ./cmd/deck && scripts/e2e.sh
+go build -o .dev/deck-web ./cmd/deck-web && scripts/e2e-web.sh
 ```
 
 ## Layout
 
 - `internal/daemon`: the JSON client (`Call`, `Subscribe`, `Presence`) and
   typed wrappers for the verbs the deck uses.
+- `internal/panes`: the merged view of sessions and agents, and the text
+  rendering of activity and transcripts, shared by both front ends.
 - `internal/ui`: the Bubble Tea model, keys, forms, daemon commands and view.
+- `internal/web`: the HTTP API, the event relay, the WebSocket bridge and
+  the embedded page in `static/index.html`.
 - `internal/capture`: capture files.
-- `cmd/deck`: the binary.
+- `cmd/deck` and `cmd/deck-web`: the binaries.

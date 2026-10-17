@@ -157,6 +157,9 @@ type StartAgentParams struct {
 	Cwd     string `json:"cwd,omitempty"`
 	Prompt  string `json:"prompt,omitempty"`
 	Focus   bool   `json:"focus"`
+	// ReadyTimeout is how long to wait for the agent's prompt, in
+	// milliseconds. Zero takes the daemon's default of two minutes.
+	ReadyTimeout int `json:"ready_timeout,omitempty"`
 }
 
 // StartAgentResult is what start-agent reports once the agent is ready or not.

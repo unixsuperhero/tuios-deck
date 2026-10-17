@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/unixsuperhero/tuios-deck/internal/capture"
 	"github.com/unixsuperhero/tuios-deck/internal/daemon"
+	"github.com/unixsuperhero/tuios-deck/internal/panes"
 )
 
 type (
@@ -123,7 +125,7 @@ func (m *Model) loadDetail(force bool) tea.Cmd {
 			if err != nil {
 				return detailMsg{key: key, err: err}
 			}
-			return detailMsg{key: key, lines: renderActivity(a)}
+			return detailMsg{key: key, lines: panes.ActivityLines(a)}
 		default:
 			if nonce == "" {
 				msg := "transcript needs the person's presence, which the daemon refused"
@@ -134,9 +136,13 @@ func (m *Model) loadDetail(force bool) tea.Cmd {
 			}
 			t, err := m.client.Transcript(ctx, session, id, nonce, 400)
 			if err != nil {
+				var derr *daemon.Error
+				if errors.As(err, &derr) && derr.Code == "no_transcript" {
+					return detailMsg{key: key, lines: []string{"(this pane is not joined to an agent transcript)", "", derr.Message}}
+				}
 				return detailMsg{key: key, err: err}
 			}
-			return detailMsg{key: key, lines: renderTranscript(t)}
+			return detailMsg{key: key, lines: panes.TranscriptLines(t)}
 		}
 	}
 }
@@ -174,7 +180,10 @@ func (m *Model) presence() tea.Cmd {
 	ctx, cancel := context.WithCancel(context.Background())
 	m.presenceCtx = cancel
 	return func() tea.Msg {
-		nonce, err := m.client.Presence(ctx)
+		nonce, lost, err := m.client.Presence(ctx)
+		if err == nil {
+			go func() { <-lost }() // the connection closes itself; nothing to do here
+		}
 		return presenceMsg{nonce, err}
 	}
 }
@@ -190,7 +199,7 @@ func (m *Model) startAgent(session, agent, name, cwd, prompt string) tea.Cmd {
 		if err != nil {
 			return actionMsg{err: err}
 		}
-		s := res.Name + " (" + shortID(res.WindowID) + ")"
+		s := res.Name + " (" + panes.ShortID(res.WindowID) + ")"
 		if res.Ready {
 			s += " is ready: " + res.State
 		} else {
@@ -233,7 +242,7 @@ func (m *Model) newTerminal(session, name, cwd string, command []string) tea.Cmd
 		if err != nil {
 			return actionMsg{err: err}
 		}
-		return actionMsg{status: "opened " + res.Name + " (" + shortID(res.WindowID) + ") in " + session}
+		return actionMsg{status: "opened " + res.Name + " (" + panes.ShortID(res.WindowID) + ") in " + session}
 	}
 }
 
@@ -288,89 +297,4 @@ func (m *Model) closeWindow(session, id, name string) tea.Cmd {
 		}
 		return actionMsg{status: "closed " + name}
 	}
-}
-
-func renderActivity(a daemon.Activity) []string {
-	var out []string
-	r := a.Recap
-	out = append(out, fmt.Sprintf("state %s · turns %d · commands %d · files %d", r.State, r.Turns, r.Commands, r.FilesTotal))
-	if r.LastSaid != "" {
-		out = append(out, "last said: "+oneLine(r.LastSaid))
-	}
-	if len(r.Files) > 0 {
-		out = append(out, "files: "+strings.Join(r.Files, ", "))
-	}
-	out = append(out, "")
-	if len(a.Entries) == 0 {
-		out = append(out, "(no activity yet: the pane reports no hook events)")
-	}
-	for _, e := range a.Entries {
-		ts := time.Unix(0, e.At).Format("15:04:05")
-		var line string
-		switch e.Kind {
-		case "prompt":
-			line = "you> " + oneLine(e.Text)
-		case "tool":
-			line = "→ " + e.Tool + " " + oneLine(e.Target)
-		case "tool_done":
-			line = "  ok " + e.Tool
-		case "tool_failed":
-			line = "  FAILED " + e.Tool + " " + oneLine(e.Text)
-		case "turn_end":
-			line = "■ turn ended " + oneLine(e.Text)
-		case "command":
-			line = "$ " + oneLine(e.Target)
-			if e.Exit != nil {
-				line += fmt.Sprintf(" (exit %d)", *e.Exit)
-			}
-		default:
-			line = e.Kind + " " + oneLine(e.Text)
-		}
-		out = append(out, ts+" "+line)
-	}
-	return out
-}
-
-func renderTranscript(t daemon.Transcript) []string {
-	var out []string
-	for _, e := range t.Entries {
-		ts := time.UnixMilli(e.At).Format("15:04:05")
-		switch e.Kind {
-		case "tool_call":
-			out = append(out, fmt.Sprintf("%s → %s %s", ts, e.Tool, oneLine(e.Target)))
-		case "tool_result":
-			if e.Status == "error" {
-				out = append(out, fmt.Sprintf("%s   FAILED %s", ts, oneLine(e.Text)))
-			}
-		case "thinking":
-			continue
-		default:
-			prefix := e.Role + ">"
-			if e.Role == "user" {
-				prefix = "you>"
-			}
-			first := true
-			for _, l := range strings.Split(strings.TrimRight(e.Text, "\n"), "\n") {
-				if first {
-					out = append(out, ts+" "+prefix+" "+l)
-					first = false
-				} else {
-					out = append(out, "         "+l)
-				}
-			}
-			out = append(out, "")
-		}
-	}
-	if len(out) == 0 {
-		out = append(out, "(empty transcript for harness "+t.Harness+")")
-	}
-	return out
-}
-
-func oneLine(s string) string {
-	s = strings.ReplaceAll(strings.TrimSpace(s), "\n", " ")
-	if len(s) > 200 {
-		s = s[:200] + "…"
-	}
-	return s
 }

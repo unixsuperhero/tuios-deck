@@ -7,6 +7,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+
+	"github.com/unixsuperhero/tuios-deck/internal/panes"
 )
 
 var (
@@ -163,7 +165,7 @@ func (m *Model) detailLines(width, height int) []string {
 	if p := m.selected(); p != nil {
 		info := p.Session + " › " + p.Name
 		if p.IsAgent && p.Message != "" {
-			info += "  " + cDim.Render(oneLine(p.Message))
+			info += "  " + cDim.Render(panes.OneLine(p.Message))
 		}
 		bar += "  " + ansi.Truncate(info, width-ansi.StringWidth(bar)-2, "…")
 	}

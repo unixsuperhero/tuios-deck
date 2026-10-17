@@ -1,0 +1,481 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>tuios deck</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css">
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --fg: #1b1f24; --muted: #6b7280; --line: #e3e6ea;
+  --accent: #2563eb; --sel: #e8efff; --hover: #f0f2f5;
+  --working: #b45309; --needs: #dc2626; --idle: #059669; --done: #2563eb; --err: #dc2626;
+  --term-bg: #0f1115;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1115; --panel: #161a21; --fg: #e6e8eb; --muted: #8b93a1; --line: #262c36;
+    --accent: #7aa2ff; --sel: #1f2a44; --hover: #1b2029;
+    --working: #f59e0b; --needs: #f87171; --idle: #34d399; --done: #7aa2ff; --err: #f87171;
+  }
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--fg); font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; display: grid; grid-template-rows: auto 1fr auto; }
+button { font: inherit; color: inherit; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px; cursor: pointer; }
+button:hover { background: var(--hover); }
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+button:disabled { opacity: .5; cursor: default; }
+input, textarea { font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; width: 100%; }
+textarea { min-height: 90px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+header { display: flex; align-items: center; gap: 12px; padding: 8px 16px; border-bottom: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; }
+header h1 { font-size: 15px; margin: 0; }
+header .meta { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+header .badge { font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); }
+header .badge.needs { color: var(--needs); border-color: var(--needs); }
+main { display: grid; grid-template-columns: 300px 1fr; min-height: 0; }
+@media (max-width: 760px) { main { grid-template-columns: 1fr; grid-template-rows: 40vh 1fr; } }
+aside { border-right: 1px solid var(--line); overflow: auto; background: var(--panel); }
+.session { padding: 8px 12px 4px; font-weight: 600; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; display: flex; justify-content: space-between; }
+.pane { display: grid; grid-template-columns: 14px 1fr auto; gap: 8px; align-items: center; padding: 6px 12px; cursor: pointer; border-left: 3px solid transparent; }
+.pane:hover { background: var(--hover); }
+.pane.selected { background: var(--sel); border-left-color: var(--accent); }
+.pane .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pane .state { font-size: 12px; color: var(--muted); }
+.dot { font-size: 12px; text-align: center; }
+.s-working { color: var(--working); } .s-needs_input, .s-errored { color: var(--needs); } .s-idle { color: var(--idle); } .s-done { color: var(--done); }
+section { display: grid; grid-template-rows: auto 1fr; min-height: 0; }
+.toolbar { display: flex; gap: 8px; align-items: center; padding: 8px 16px; border-bottom: 1px solid var(--line); flex-wrap: wrap; background: var(--panel); }
+.toolbar .tabs { display: flex; gap: 2px; margin-right: auto; }
+.toolbar .tabs button { border-radius: 6px 6px 0 0; border-bottom: none; }
+.toolbar .tabs button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.toolbar .who { color: var(--muted); font-size: 12px; margin-right: 8px; max-width: 40ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.detail { min-height: 0; position: relative; }
+pre.text { margin: 0; height: 100%; overflow: auto; padding: 12px 16px; font: 12.5px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; word-break: break-word; }
+#live { height: 100%; padding: 8px; background: var(--term-bg); display: none; }
+#live.on { display: block; }
+#term { height: 100%; }
+.live-note { position: absolute; left: 16px; bottom: 8px; font-size: 12px; color: #cbd5e1; background: rgba(0,0,0,.55); padding: 2px 8px; border-radius: 4px; pointer-events: none; }
+footer { display: flex; gap: 12px; padding: 6px 16px; border-top: 1px solid var(--line); background: var(--panel); font-size: 13px; }
+footer .status { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+footer .status.err { color: var(--err); }
+footer .events { color: var(--muted); font-size: 12px; }
+.empty { color: var(--muted); padding: 24px 16px; }
+dialog { background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 10px; padding: 0; width: min(560px, 92vw); }
+dialog::backdrop { background: rgba(0,0,0,.4); }
+dialog form { padding: 16px; display: grid; gap: 10px; }
+dialog h2 { margin: 0 0 4px; font-size: 15px; }
+dialog label { display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
+dialog .row { display: flex; gap: 6px; align-items: end; }
+dialog .row label { flex: 1; }
+dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+dialog .hint { font-size: 12px; color: var(--muted); }
+#dirlist { max-height: 40vh; overflow: auto; border: 1px solid var(--line); border-radius: 6px; }
+#dirlist div { padding: 5px 10px; cursor: pointer; font-family: ui-monospace, Menlo, monospace; font-size: 13px; }
+#dirlist div:hover { background: var(--hover); }
+#dirpath { font-family: ui-monospace, Menlo, monospace; font-size: 13px; word-break: break-all; }
+</style>
+</head>
+<body>
+<header>
+  <h1>tuios deck</h1>
+  <span class="meta" id="meta">connecting…</span>
+  <span class="badge needs" id="needs" hidden></span>
+  <span class="badge" id="agents">0 agents</span>
+  <button id="btn-agent" class="primary">New agent</button>
+  <button id="btn-term">New terminal</button>
+</header>
+<main>
+  <aside id="list"><div class="empty">loading…</div></aside>
+  <section>
+    <div class="toolbar">
+      <div class="tabs">
+        <button data-tab="live">Live</button>
+        <button data-tab="screen">Screen</button>
+        <button data-tab="activity">Activity</button>
+        <button data-tab="transcript">Transcript</button>
+      </div>
+      <span class="who" id="who"></span>
+      <button id="btn-prompt">Prompt</button>
+      <button id="btn-capture">Capture</button>
+      <button id="btn-close">Close</button>
+    </div>
+    <div class="detail">
+      <div id="live"><div id="term"></div><div class="live-note" id="livenote" hidden></div></div>
+      <pre class="text" id="text"><span class="empty">select a pane</span></pre>
+    </div>
+  </section>
+</main>
+<footer>
+  <span class="status" id="status"></span>
+  <span class="events" id="events">events: connecting</span>
+</footer>
+
+<dialog id="dlg-agent"><form method="dialog">
+  <h2>New agent</h2>
+  <label>Session <input name="session" required></label>
+  <label>Agent command <input name="agent" value="claude" required placeholder="claude, codex, gemini, or any program"></label>
+  <label>Name <input name="name" placeholder="reviewer"></label>
+  <div class="row"><label>Working directory <input name="cwd" required></label><button type="button" data-browse="cwd">Browse…</button></div>
+  <label>First prompt (optional) <textarea name="prompt"></textarea></label>
+  <div class="hint">Waits until the agent is at its prompt, which can take a minute.</div>
+  <div class="actions"><button type="button" data-cancel>Cancel</button><button class="primary" value="ok">Start</button></div>
+</form></dialog>
+
+<dialog id="dlg-term"><form method="dialog">
+  <h2>New terminal</h2>
+  <label>Session <input name="session" required></label>
+  <label>Name <input name="name" placeholder="build"></label>
+  <div class="row"><label>Working directory <input name="cwd" required></label><button type="button" data-browse="cwd">Browse…</button></div>
+  <label>Command (empty for a shell) <input name="command" placeholder="go test ./..."></label>
+  <div class="actions"><button type="button" data-cancel>Cancel</button><button class="primary" value="ok">Open</button></div>
+</form></dialog>
+
+<dialog id="dlg-prompt"><form method="dialog">
+  <h2 id="prompt-title">Prompt</h2>
+  <label>Text <textarea name="text" required></textarea></label>
+  <div class="hint" id="prompt-hint"></div>
+  <div class="actions"><button type="button" data-cancel>Cancel</button><button class="primary" value="ok">Send</button></div>
+</form></dialog>
+
+<dialog id="dlg-confirm"><form method="dialog">
+  <h2 id="confirm-title">Close?</h2>
+  <div class="actions"><button type="button" data-cancel>Cancel</button><button class="primary" value="ok">Close pane</button></div>
+</form></dialog>
+
+<dialog id="dlg-dir"><form method="dialog">
+  <h2>Choose a folder</h2>
+  <div id="dirpath"></div>
+  <div id="dirlist"></div>
+  <div class="actions"><button type="button" data-cancel>Cancel</button><button class="primary" value="ok">Use this folder</button></div>
+</form></dialog>
+
+<script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js"></script>
+<script>
+(() => {
+const $ = (id) => document.getElementById(id);
+const DOTS = { working: '◐', needs_input: '●', errored: '✗', idle: '○', done: '✓' };
+const state = {
+  sessions: [], panes: {}, selected: null, tab: 'screen', transcripts: false,
+  detailKey: '', detailText: '', pollTimer: null, refreshTimer: null, lastStatusErr: false,
+};
+
+// ---------------------------------------------------------------- API
+async function api(path, opts = {}) {
+  const r = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...opts });
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(body.error || r.statusText);
+  return body;
+}
+function setStatus(text, isErr = false) {
+  const el = $('status'); el.textContent = text; el.classList.toggle('err', isErr);
+}
+
+// ---------------------------------------------------------------- list
+async function refresh() {
+  try {
+    const st = await api('/api/state');
+    state.sessions = st.sessions || [];
+    state.transcripts = !!st.transcripts;
+    state.panes = {};
+    let agents = 0, needs = 0;
+    for (const s of state.sessions) for (const p of s.panes || []) {
+      state.panes[p.id] = p;
+      if (p.is_agent) { agents++; if (p.needs_you) needs++; }
+    }
+    $('meta').textContent = `${st.daemon?.daemon_version ? 'tuios ' + st.daemon.daemon_version : ''}  ${st.socket}`;
+    $('agents').textContent = `${agents} agent${agents === 1 ? '' : 's'}`;
+    $('needs').hidden = needs === 0; $('needs').textContent = `${needs} need you`;
+    if (state.selected && !state.panes[state.selected]) { state.selected = null; closeLive(); }
+    renderList();
+    renderWho();
+    if (!state.selected) { const first = Object.keys(state.panes)[0]; if (first) select(first); }
+  } catch (e) { setStatus('daemon: ' + e.message, true); }
+}
+// Coalesce bursts of events into one listing.
+function scheduleRefresh() {
+  clearTimeout(state.refreshTimer);
+  state.refreshTimer = setTimeout(refresh, 150);
+}
+function renderList() {
+  const list = $('list');
+  const scroll = list.scrollTop;
+  list.replaceChildren();
+  if (!state.sessions.length) { list.innerHTML = '<div class="empty">no sessions yet: start an agent or open a terminal</div>'; return; }
+  for (const s of state.sessions) {
+    const h = document.createElement('div'); h.className = 'session';
+    h.innerHTML = `<span></span><span></span>`;
+    h.firstChild.textContent = s.name; h.lastChild.textContent = s.attached ? 'attached' : '';
+    list.append(h);
+    for (const p of s.panes || []) {
+      const el = document.createElement('div');
+      el.className = 'pane' + (p.id === state.selected ? ' selected' : '');
+      el.dataset.id = p.id;
+      const dot = p.is_agent ? (DOTS[p.state] || '?') : '·';
+      let st = p.is_agent ? p.state : (p.foreground || '');
+      if (p.queued) st += ` +${p.queued}`;
+      el.innerHTML = `<span class="dot"></span><span class="name"></span><span class="state"></span>`;
+      el.children[0].textContent = dot; el.children[0].className = 'dot s-' + (p.is_agent ? p.state : 'none');
+      el.children[1].textContent = p.name; el.children[1].title = p.cwd || '';
+      el.children[2].textContent = st; el.children[2].className = 'state s-' + (p.is_agent ? p.state : 'none');
+      el.onclick = () => select(p.id);
+      list.append(el);
+    }
+  }
+  list.scrollTop = scroll;
+}
+function renderWho() {
+  const p = state.panes[state.selected];
+  $('who').textContent = p ? `${p.session} › ${p.name}${p.message ? ' — ' + p.message : ''}` : '';
+  for (const b of ['btn-prompt', 'btn-capture', 'btn-close']) $(b).disabled = !p;
+}
+function select(id) {
+  if (state.selected === id) return;
+  state.selected = id;
+  closeLive();
+  renderList(); renderWho();
+  showTab(state.tab, true);
+}
+
+// ---------------------------------------------------------------- tabs and detail
+function showTab(tab, force) {
+  const changed = tab !== state.tab;
+  state.tab = tab;
+  for (const b of document.querySelectorAll('.tabs button')) b.classList.toggle('on', b.dataset.tab === tab);
+  try { localStorage.setItem('deck.tab', tab); } catch (_) {}
+  const live = tab === 'live';
+  $('live').classList.toggle('on', live);
+  $('text').style.display = live ? 'none' : '';
+  if (live) { openLive(); return; }
+  closeLive();
+  if (changed || force) { state.detailText = ''; $('text').textContent = ''; }
+  loadDetail();
+}
+async function loadDetail() {
+  const p = state.panes[state.selected];
+  if (!p || state.tab === 'live') return;
+  const key = `${p.id}/${state.tab}`;
+  try {
+    let text;
+    if (state.tab === 'screen') {
+      const c = await api(`/api/panes/${enc(p.session)}/${enc(p.id)}/screen?lines=400`);
+      text = c.content;
+    } else {
+      const d = await api(`/api/panes/${enc(p.session)}/${enc(p.id)}/${state.tab}`);
+      text = (d.lines || []).join('\n');
+    }
+    if (key !== `${state.selected}/${state.tab}`) return; // the selection moved meanwhile
+    if (text !== state.detailText || key !== state.detailKey) {
+      const pre = $('text');
+      const atBottom = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 8;
+      state.detailText = text; state.detailKey = key;
+      pre.textContent = text || '(empty)';
+      if (atBottom) pre.scrollTop = pre.scrollHeight;
+    }
+  } catch (e) { if (key === `${state.selected}/${state.tab}`) $('text').textContent = 'error: ' + e.message; }
+}
+const enc = encodeURIComponent;
+// The detail re-reads every two seconds. It never touches the list, the
+// selection, open dialogs or a scroll position that is not at the bottom.
+setInterval(loadDetail, 2000);
+
+// ---------------------------------------------------------------- live pane
+let term = null, fit = null, ws = null, leaseTimer = null, lastSeq = 0n, bootId = '';
+function openLive() {
+  const p = state.panes[state.selected];
+  if (!p) return;
+  if (ws) return;
+  if (!term) {
+    term = new Terminal({ cursorBlink: true, scrollback: 2000, fontSize: 13, theme: { background: '#0f1115' } });
+    fit = new FitAddon.FitAddon();
+    term.loadAddon(fit);
+    term.open($('term'));
+    term.onData((d) => send('I', new TextEncoder().encode(d)));
+    term.onBinary((d) => send('I', Uint8Array.from(d, (c) => c.charCodeAt(0))));
+    new ResizeObserver(() => { if (ws && state.tab === 'live') { fit.fit(); lease(); } }).observe($('term'));
+  }
+  term.reset();
+  fit.fit();
+  const q = new URLSearchParams({ cols: term.cols, rows: term.rows });
+  if (lastSeq > 0n && bootId) { q.set('from_seq', lastSeq.toString()); q.set('boot_id', bootId); }
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}/api/panes/${enc(p.session)}/${enc(p.id)}/stream?${q}`);
+  ws.binaryType = 'arraybuffer';
+  note('connecting…');
+  ws.onmessage = (ev) => {
+    if (typeof ev.data === 'string') {
+      const r = JSON.parse(ev.data);
+      bootId = r.boot_id;
+      if (r.mode === 'resume' && (r.cols !== term.cols || r.rows !== term.rows)) term.resize(r.cols, r.rows);
+      note(`${r.mode} · ${r.cols}×${r.rows} · typing here goes to the pane`);
+      return;
+    }
+    onFrame(ev.data);
+  };
+  ws.onclose = () => { note('stream closed'); clearInterval(leaseTimer); ws = null; };
+  ws.onerror = () => note('stream error');
+  leaseTimer = setInterval(lease, 10000);
+  term.focus();
+}
+function closeLive() {
+  if (ws) { send('L', new Uint8Array(4)); ws.close(); ws = null; }
+  clearInterval(leaseTimer);
+}
+function onFrame(buf) {
+  const dv = new DataView(buf);
+  const t = String.fromCharCode(dv.getUint8(0));
+  const n = dv.getUint32(1);
+  const payload = new Uint8Array(buf, 5, n);
+  switch (t) {
+    case 'S': {
+      lastSeq = dv.getBigUint64(5);
+      const cols = dv.getUint16(13), rows = dv.getUint16(15);
+      term.reset(); term.resize(cols, rows);
+      term.write(payload.subarray(12));
+      break;
+    }
+    case 'O': lastSeq = dv.getBigUint64(5); term.write(payload.subarray(8)); break;
+    case 'R': lastSeq = dv.getBigUint64(5); term.resize(dv.getUint16(13), dv.getUint16(15)); break;
+    case 'E': { const e = JSON.parse(new TextDecoder().decode(payload)); note(`${e.code}: ${e.message}`); break; }
+    case 'X': note('ended: ' + new TextDecoder().decode(payload)); break;
+    default: break; // a frame type a later daemon added
+  }
+}
+function send(type, bytes) {
+  if (!ws || ws.readyState !== 1) return;
+  const f = new Uint8Array(5 + bytes.length);
+  f[0] = type.charCodeAt(0);
+  new DataView(f.buffer).setUint32(1, bytes.length);
+  f.set(bytes, 5);
+  ws.send(f);
+}
+function lease() {
+  if (!term) return;
+  const b = new Uint8Array(4);
+  const dv = new DataView(b.buffer);
+  dv.setUint16(0, term.cols); dv.setUint16(2, term.rows);
+  send('L', b);
+}
+function note(t) { const el = $('livenote'); el.textContent = t; el.hidden = !t; }
+
+// ---------------------------------------------------------------- events
+function listen() {
+  const es = new EventSource('/api/events');
+  es.addEventListener('open', () => { $('events').textContent = 'events: live'; });
+  for (const t of ['agent-state', 'attention', 'window-created', 'window-closed', 'window-exit', 'window-retitled', 'session-created', 'session-closed']) {
+    es.addEventListener(t, scheduleRefresh);
+  }
+  es.onerror = () => { $('events').textContent = 'events: reconnecting'; };
+}
+
+// ---------------------------------------------------------------- dialogs
+function dialog(id, fill) {
+  return new Promise((resolve) => {
+    const dlg = $(id), form = dlg.querySelector('form');
+    form.reset();
+    if (fill) for (const [k, v] of Object.entries(fill)) if (form.elements[k]) form.elements[k].value = v;
+    dlg.querySelectorAll('[data-cancel]').forEach((b) => (b.onclick = () => dlg.close('')));
+    dlg.onclose = () => resolve(dlg.returnValue === 'ok' ? Object.fromEntries(new FormData(form)) : null);
+    dlg.showModal();
+  });
+}
+for (const b of document.querySelectorAll('[data-browse]')) {
+  b.onclick = async () => {
+    const input = b.closest('form').elements[b.dataset.browse];
+    const chosen = await browseDir(input.value);
+    if (chosen) input.value = chosen;
+  };
+}
+// The folder picker browses the machine the daemon runs on, through the
+// server, because a browser's own picker cannot name a path there.
+async function browseDir(start) {
+  const dlg = $('dlg-dir');
+  let current = start || '~';
+  async function load(path) {
+    try {
+      const d = await api('/api/dirs?path=' + enc(path));
+      current = d.path;
+      $('dirpath').textContent = d.path;
+      const list = $('dirlist'); list.replaceChildren();
+      const up = document.createElement('div'); up.textContent = '↑ ..'; up.onclick = () => load(d.parent); list.append(up);
+      for (const name of d.dirs) { const el = document.createElement('div'); el.textContent = name + '/'; el.onclick = () => load(d.path + '/' + name); list.append(el); }
+    } catch (e) { $('dirpath').textContent = 'cannot read ' + path + ': ' + e.message; }
+  }
+  await load(current);
+  return new Promise((resolve) => {
+    dlg.querySelectorAll('[data-cancel]').forEach((b) => (b.onclick = () => dlg.close('')));
+    dlg.onclose = () => resolve(dlg.returnValue === 'ok' ? current : null);
+    dlg.showModal();
+  });
+}
+function defaults() {
+  const p = state.panes[state.selected];
+  return { session: p ? p.session : (state.sessions[0]?.name || 'deck'), cwd: p?.cwd || state.sessions.find((s) => s.name === p?.session)?.dir || '~' };
+}
+
+$('btn-agent').onclick = async () => {
+  const v = await dialog('dlg-agent', defaults());
+  if (!v) return;
+  setStatus(`starting ${v.agent} in ${v.session}, waiting for its prompt…`);
+  try { const r = await api('/api/agents', { method: 'POST', body: JSON.stringify(v) }); setStatus(r.status); }
+  catch (e) { setStatus('error: ' + e.message, true); }
+  scheduleRefresh();
+};
+$('btn-term').onclick = async () => {
+  const v = await dialog('dlg-term', defaults());
+  if (!v) return;
+  try { const r = await api('/api/terminals', { method: 'POST', body: JSON.stringify({ ...v, cols: 120, rows: 36 }) }); setStatus(r.status); }
+  catch (e) { setStatus('error: ' + e.message, true); }
+  scheduleRefresh();
+};
+$('btn-prompt').onclick = async () => {
+  const p = state.panes[state.selected];
+  if (!p) return;
+  if (p.blocked_by) { setStatus(`${p.name} is waiting on ${p.blocked_by}; answer it in tuios, not here`, true); return; }
+  $('prompt-title').textContent = (p.is_agent ? 'Prompt for ' : 'Text for ') + p.name;
+  $('prompt-hint').textContent = p.is_agent ? 'Queued by the daemon and typed when the agent is at rest.' : 'Typed into the shell with Enter.';
+  const v = await dialog('dlg-prompt');
+  if (!v || !v.text.trim()) return;
+  try { const r = await api(`/api/panes/${enc(p.session)}/${enc(p.id)}/prompt`, { method: 'POST', body: JSON.stringify({ text: v.text, is_agent: p.is_agent }) }); setStatus(`${r.status} (${p.name})`); }
+  catch (e) { setStatus('error: ' + e.message, true); }
+  scheduleRefresh();
+};
+$('btn-capture').onclick = async () => {
+  const p = state.panes[state.selected];
+  if (!p) return;
+  try { const r = await api(`/api/panes/${enc(p.session)}/${enc(p.id)}/capture?name=${enc(p.name)}`, { method: 'POST' }); setStatus(r.status); }
+  catch (e) { setStatus('error: ' + e.message, true); }
+};
+$('btn-close').onclick = async () => {
+  const p = state.panes[state.selected];
+  if (!p) return;
+  $('confirm-title').textContent = `Close ${p.name} in ${p.session}?`;
+  const v = await dialog('dlg-confirm');
+  if (!v) return;
+  try { await api(`/api/panes/${enc(p.session)}/${enc(p.id)}`, { method: 'DELETE' }); setStatus(`closed ${p.name}`); }
+  catch (e) { setStatus('error: ' + e.message, true); }
+  scheduleRefresh();
+};
+for (const b of document.querySelectorAll('.tabs button')) b.onclick = () => showTab(b.dataset.tab);
+document.addEventListener('keydown', (e) => {
+  if (document.querySelector('dialog[open]') || (term && state.tab === 'live' && $('term').contains(document.activeElement))) return;
+  if (e.target.matches('input, textarea')) return;
+  const ids = Object.keys(state.panes);
+  const i = ids.indexOf(state.selected);
+  if (e.key === 'j' && i < ids.length - 1) select(ids[i + 1]);
+  else if (e.key === 'k' && i > 0) select(ids[i - 1]);
+  else if (e.key === '1') showTab('live'); else if (e.key === '2') showTab('screen');
+  else if (e.key === '3') showTab('activity'); else if (e.key === '4') showTab('transcript');
+  else if (e.key === 'n') $('btn-agent').click(); else if (e.key === 't') $('btn-term').click();
+  else if (e.key === 'p') $('btn-prompt').click(); else if (e.key === 'c') $('btn-capture').click();
+});
+
+try { state.tab = localStorage.getItem('deck.tab') || 'screen'; } catch (_) {}
+showTab(state.tab, true);
+refresh();
+listen();
+})();
+</script>
+</body>
+</html>

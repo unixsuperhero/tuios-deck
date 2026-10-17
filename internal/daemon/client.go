@@ -177,28 +177,35 @@ func (c *Client) Subscribe(ctx context.Context, session string, types []string) 
 }
 
 // Presence asks for the person's nonce with attach-presence. The nonce lives
-// as long as the returned connection stays open; cancel ctx to release it. It
+// as long as the connection stays open: cancel ctx to release it, and read
+// lost to learn that the daemon ended it (it closes when it went away). It
 // is refused from inside a tuios pane.
-func (c *Client) Presence(ctx context.Context) (string, error) {
+func (c *Client) Presence(ctx context.Context) (nonce string, lost <-chan struct{}, err error) {
 	conn, err := c.dial(ctx)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
-	res, err := request(conn, bufio.NewReaderSize(conn, 1<<16), "attach-presence", map[string]any{})
+	r := bufio.NewReaderSize(conn, 1<<16)
+	res, err := request(conn, r, "attach-presence", map[string]any{})
 	if err != nil {
 		conn.Close()
-		return "", err
+		return "", nil, err
 	}
 	var out struct {
 		Nonce string `json:"human_nonce"`
 	}
 	if err := json.Unmarshal(res, &out); err != nil {
 		conn.Close()
-		return "", err
+		return "", nil, err
 	}
+	done := make(chan struct{})
 	go func() {
-		<-ctx.Done()
-		conn.Close()
+		// The daemon writes nothing more on this connection, so a read ends
+		// only when the connection does.
+		defer close(done)
+		defer conn.Close()
+		var b [1]byte
+		conn.Read(b[:])
 	}()
-	return out.Nonce, nil
+	return out.Nonce, done, nil
 }

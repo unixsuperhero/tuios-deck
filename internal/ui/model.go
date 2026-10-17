@@ -6,13 +6,13 @@ package ui
 import (
 	"context"
 	"os"
-	"sort"
 	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/unixsuperhero/tuios-deck/internal/daemon"
+	"github.com/unixsuperhero/tuios-deck/internal/panes"
 )
 
 type mode int
@@ -35,29 +35,11 @@ func (t tab) String() string {
 	return [...]string{"Screen", "Activity", "Transcript"}[t]
 }
 
-// paneRow is one window of one session, with what list-agents knows of it.
-type paneRow struct {
-	Session   string
-	ID        string
-	Name      string
-	State     string
-	Harness   string
-	Fg        string
-	Cwd       string
-	Message   string
-	BlockedBy string
-	IsAgent   bool
-	Ready     bool
-	NeedsYou  bool
-	Queued    int
-	Unread    int
-}
-
 // row is a line of the left list: a session header or a pane.
 type row struct {
 	Header  string
-	Session *daemon.Session
-	Pane    *paneRow
+	Session *panes.Session
+	Pane    *panes.Pane
 }
 
 // Model is the deck's Bubble Tea model.
@@ -237,35 +219,16 @@ func (m *Model) setStatus(s string) {
 // applyList rebuilds the rows from the two listings and keeps the selection on
 // the same pane where it still exists.
 func (m *Model) applyList(sessions []daemon.Session, agents []daemon.Agent) {
-	byWindow := map[string]daemon.Agent{}
-	for _, a := range agents {
-		byWindow[a.WindowID] = a
-	}
 	selected := m.selectedID()
-	sort.Slice(sessions, func(i, j int) bool { return sessions[i].Name < sessions[j].Name })
+	merged := panes.Merge(sessions, agents)
 	var rows []row
 	newSel := -1
-	for i := range sessions {
-		s := &sessions[i]
+	for i := range merged {
+		s := &merged[i]
 		rows = append(rows, row{Header: s.Name, Session: s})
-		for _, w := range s.Windows {
-			p := &paneRow{
-				Session: s.Name, ID: w.ID, Name: w.Title, State: w.AgentState,
-				Harness: w.AgentHarness, Fg: w.ForegroundCmd,
-			}
-			if a, ok := byWindow[w.ID]; ok {
-				p.IsAgent = true
-				if a.Name != "" {
-					p.Name = a.Name
-				}
-				p.State, p.Harness, p.Fg, p.Cwd = a.State, a.HarnessID, a.Foreground, a.Cwd
-				p.Message, p.BlockedBy = a.Message, a.BlockedBy
-				p.Ready, p.NeedsYou, p.Queued, p.Unread = a.Ready, a.NeedsYou, a.Queued, a.Unread
-			}
-			if p.Name == "" {
-				p.Name = shortID(w.ID)
-			}
-			if w.ID == selected {
+		for j := range s.Panes {
+			p := &s.Panes[j]
+			if p.ID == selected {
 				newSel = len(rows)
 			}
 			rows = append(rows, row{Pane: p})
@@ -279,7 +242,7 @@ func (m *Model) applyList(sessions []daemon.Session, agents []daemon.Agent) {
 	}
 }
 
-func (m *Model) selected() *paneRow {
+func (m *Model) selected() *panes.Pane {
 	if m.sel >= 0 && m.sel < len(m.rows) {
 		return m.rows[m.sel].Pane
 	}
@@ -356,14 +319,7 @@ func (m *Model) leftWidth() int {
 	return w
 }
 
-func shortID(id string) string {
-	if len(id) > 8 {
-		return id[:8]
-	}
-	return id
-}
-
-func cwdDefault(p *paneRow) string {
+func cwdDefault(p *panes.Pane) string {
 	if p != nil && p.Cwd != "" {
 		return p.Cwd
 	}
@@ -384,5 +340,3 @@ func (m *Model) Close() {
 		m.presenceCtx()
 	}
 }
-
-var _ = context.Background
