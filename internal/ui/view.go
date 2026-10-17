@@ -292,7 +292,7 @@ func (m *Model) helpLine() string {
 	}
 	switch m.page {
 	case pageTasks:
-		return cDim.Render(" j/k select · N project · n task/subtask · e rename · s done · m colour · M glyph · a assign pane · enter go to pane · x delete · esc deck · q quit")
+		return cDim.Render(" j/k select · N project · n task/subtask · e rename · s status · m colour · M glyph · a assign pane · enter go to pane · x delete · esc deck · q quit")
 	case pageCaptures:
 		return cDim.Render(" j/k select · J/K scroll · G follow · enter go to pane · x delete · r refresh · T tasks · esc deck · q quit")
 	}

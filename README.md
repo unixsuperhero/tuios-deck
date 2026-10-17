@@ -120,7 +120,7 @@ through a temp file and a rename, so it can be read or copied at any time:
 {
   "version": 1,
   "projects": [
-    { "id": "p_8f3a1c", "name": "deck", "theme": { "color": "blue", "glyph": "◆" }, "created": 1760000000 }
+    { "id": "p_8f3a1c", "name": "deck", "theme": { "color": "blue", "glyph": "◆" }, "status": "open", "created": 1760000000 }
   ],
   "tasks": [
     { "id": "t_1a2b3c", "parent_id": "", "project_id": "p_8f3a1c", "title": "command palette",
@@ -134,7 +134,9 @@ through a temp file and a rename, so it can be read or copied at any time:
 }
 ```
 
-A task's `status` is `open` or `done`. Deleting a task takes its subtasks
+A project's or task's `status` is `open`, `done` or `skipped`; done and
+skipped are final, and only tasks that are not final count as open. A
+project written before it had a status reads as open. Deleting a task takes its subtasks
 with it, deleting a project takes its tasks, and either takes the
 assignments that pointed at any of them.
 
@@ -205,13 +207,13 @@ an unassigned pane, for clients from before the store; one that sends them
 empty is refused.
 
 ```
-GET    /api/projects                           {"projects": [{id, name, theme: {color, glyph, css}, created, open_tasks, panes}]}
+GET    /api/projects                           {"projects": [{id, name, theme: {color, glyph, css}, status, created, open_tasks, panes}]}
 POST   /api/projects                           {"name", "theme"?: {"color", "glyph"}}
-PATCH  /api/projects/{id}                      {"name"} and/or {"theme": {"color", "glyph"}}, either half of the theme alone
+PATCH  /api/projects/{id}                      {"name"}, {"status": "open"|"done"|"skipped"}, {"theme": {"color", "glyph"}}, either half of the theme alone
 DELETE /api/projects/{id}                      with its tasks and their assignments; the answer counts them
 GET    /api/tasks?project=                     {"tasks": [{id, parent_id, project_id, title, path, depth, theme, status, panes, …}]}
 POST   /api/tasks                              {"project_id", "title"} for a top-level task; {"parent_id", "title"} for a subtask; "theme"?
-PATCH  /api/tasks/{id}                         {"title"}, {"status": "open"|"done"}, {"theme": {…}}
+PATCH  /api/tasks/{id}                         {"title"}, {"status": "open"|"done"|"skipped"}, {"theme": {…}}
 DELETE /api/tasks/{id}                         with its subtasks and their assignments
 GET    /api/assignments                        {window id: {session, task_id, project_id, resolved: {project, task, top}}}
 PUT    /api/panes/{session}/{id}/assignment    a target; names resolve the way the TUI's forms do
@@ -285,7 +287,7 @@ selection stays on the same pane across a regroup.
 | `N` | New project: its name |
 | `n` | New task under the selected project, or a new subtask under the selected task |
 | `e` | Rename the project or task |
-| `s` | Mark the task done, or open again |
+| `s` | Cycle the task's or project's status: open, done, skipped, open |
 | `m` | The next colour of the palette for the row's theme |
 | `M` | Set the row's glyph |
 | `a` | Assign the pane selected on the deck page to the row |

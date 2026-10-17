@@ -115,6 +115,20 @@ curl -s -X PATCH -H "$J" -d '{"status":"done"}' "$base/api/tasks/$SID" > "$SCRAT
 check "PATCH task status" "$SCRATCH/out/task-patch.json" '"status":"done"'
 curl -s -X PATCH -H "$J" -d '{"status":"maybe"}' "$base/api/tasks/$SID" > "$SCRATCH/out/task-patch-bad.json"
 check "PATCH bad status refused" "$SCRATCH/out/task-patch-bad.json" '"error":"status'
+curl -s -X PATCH -H "$J" -d '{"status":"skipped"}' "$base/api/tasks/$TID" > "$SCRATCH/out/task-skip.json"
+check "PATCH task status skipped" "$SCRATCH/out/task-skip.json" '"status":"skipped"'
+curl -s "$base/api/projects" > "$SCRATCH/out/projects-skip.json"
+check "project carries its status, open by default" "$SCRATCH/out/projects-skip.json" '"name":"deckproj".*"status":"open"'
+check "done and skipped tasks are not open" "$SCRATCH/out/projects-skip.json" '"open_tasks":0'
+curl -s -X PATCH -H "$J" -d '{"status":"open"}' "$base/api/tasks/$TID" > /dev/null
+curl -s -X PATCH -H "$J" -d '{"status":"skipped"}' "$base/api/projects/$PID" > "$SCRATCH/out/project-skip.json"
+check "PATCH project status skipped" "$SCRATCH/out/project-skip.json" '"status":"skipped"'
+check "an open task counts once more" "$SCRATCH/out/project-skip.json" '"open_tasks":1'
+curl -s "$base/api/projects" > "$SCRATCH/out/projects-skipped.json"
+check "GET project shows it skipped" "$SCRATCH/out/projects-skipped.json" '"status":"skipped"'
+curl -s -X PATCH -H "$J" -d '{"status":"later"}' "$base/api/projects/$PID" > "$SCRATCH/out/project-skip-bad.json"
+check "PATCH bad project status refused" "$SCRATCH/out/project-skip-bad.json" '"error":"status'
+curl -s -X PATCH -H "$J" -d '{"status":"open"}' "$base/api/projects/$PID" > /dev/null
 curl -s "$base/api/tasks?project=$PID" > "$SCRATCH/out/tasks.json"
 check "tasks filtered by project" "$SCRATCH/out/tasks.json" '"title":"autocomplete"'
 curl -s "$base/api/state" > "$SCRATCH/out/state-store.json"

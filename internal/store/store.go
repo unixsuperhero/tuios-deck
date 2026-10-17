@@ -18,11 +18,13 @@ import (
 	"time"
 )
 
-// Project groups tasks.
+// Project groups tasks. Status is "open", "done" or "skipped", like a
+// task's.
 type Project struct {
 	ID      string `json:"id"`
 	Name    string `json:"name"`
 	Theme   Theme  `json:"theme"`
+	Status  string `json:"status"`
 	Created int64  `json:"created"`
 }
 
@@ -104,6 +106,17 @@ func Open(path string) (*Store, error) {
 	}
 	s.projects = f.Projects
 	s.tasks = f.Tasks
+	// Files written before projects had a status read as open.
+	for i := range s.projects {
+		if s.projects[i].Status == "" {
+			s.projects[i].Status = "open"
+		}
+	}
+	for i := range s.tasks {
+		if s.tasks[i].Status == "" {
+			s.tasks[i].Status = "open"
+		}
+	}
 	if f.Assignments != nil {
 		s.assignments = f.Assignments
 	}
@@ -204,7 +217,7 @@ func (s *Store) AddProject(name string, theme *Theme) (Project, error) {
 	if s.projectByName(name) >= 0 {
 		return Project{}, fmt.Errorf("project %q exists", name)
 	}
-	p := Project{ID: s.newID("p_"), Name: name, Created: now()}
+	p := Project{ID: s.newID("p_"), Name: name, Status: "open", Created: now()}
 	if theme != nil {
 		p.Theme = *theme
 	} else {
@@ -243,6 +256,21 @@ func (s *Store) SetProjectTheme(id string, theme Theme) error {
 		return fmt.Errorf("no project %s", id)
 	}
 	s.projects[i].Theme = theme
+	return s.save()
+}
+
+// SetProjectStatus marks a project "open", "done" or "skipped".
+func (s *Store) SetProjectStatus(id, status string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	i := s.projectIndex(id)
+	if i < 0 {
+		return fmt.Errorf("no project %s", id)
+	}
+	if err := checkStatus(status); err != nil {
+		return err
+	}
+	s.projects[i].Status = status
 	return s.save()
 }
 
@@ -335,7 +363,7 @@ func (s *Store) SetTaskTheme(id string, theme Theme) error {
 	return s.save()
 }
 
-// SetTaskStatus marks a task "open" or "done".
+// SetTaskStatus marks a task "open", "done" or "skipped".
 func (s *Store) SetTaskStatus(id, status string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -343,12 +371,29 @@ func (s *Store) SetTaskStatus(id, status string) error {
 	if i < 0 {
 		return fmt.Errorf("no task %s", id)
 	}
-	if status != "open" && status != "done" {
-		return fmt.Errorf("status %q is not open or done", status)
+	if err := checkStatus(status); err != nil {
+		return err
 	}
 	s.tasks[i].Status = status
 	s.tasks[i].Updated = now()
 	return s.save()
+}
+
+// Statuses is every status a project or task may have, in the order the
+// TUI cycles through them.
+var Statuses = []string{"open", "done", "skipped"}
+
+// IsFinal says whether a status is finished with: done or skipped. A final
+// item no longer counts as open.
+func IsFinal(status string) bool { return status == "done" || status == "skipped" }
+
+func checkStatus(status string) error {
+	for _, st := range Statuses {
+		if st == status {
+			return nil
+		}
+	}
+	return fmt.Errorf("status %q is not open, done or skipped", status)
 }
 
 // DeleteTask removes a task, its subtasks, and the assignments that pointed

@@ -351,6 +351,12 @@ assert hero["parent_id"] == landing["id"] and hero["project_id"] == "", hero
 assert hero["status"] == "done" and landing["status"] == "open"
 assert landing["theme"]["color"] != hero["theme"]["color"]
 PY
+b send-keys -s host -w deck s >/dev/null; settle; deckcap 14b-skipped
+check "s again marks the subtask skipped" "$SCRATCH/out/14b-skipped.txt" '⊘ hero text'
+check "status says it is skipped" "$SCRATCH/out/14b-skipped.txt" 'hero text is skipped'
+check "a skipped task does not count as open" "$SCRATCH/out/14b-skipped.txt" '◆ web *1 open'
+python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if [t for t in d["tasks"] if t["title"]=="hero text"][0]["status"]=="skipped" else 1)' "$DATA" \
+	&& echo "PASS store holds the subtask as skipped" || { echo "FAIL hero text is not skipped in $DATA"; fails=$((fails+1)); }
 
 echo "== delete the subtask"
 b send-keys -s host -w deck x >/dev/null; settle; deckcap 15-confirm
@@ -359,6 +365,18 @@ b send-keys -s host -w deck y >/dev/null; settle
 wait_store '"hero text"' absent 10 && echo "PASS subtask gone from the store" || { echo "FAIL hero text still in $DATA"; fails=$((fails+1)); }
 deckcap 16-deleted
 check "selection fell back to the task" "$SCRATCH/out/16-deleted.txt" 'path *web › landing$'
+
+echo "== a project's status cycles too"
+b send-keys -s host -w deck k >/dev/null; b send-keys -s host -w deck s >/dev/null; settle; deckcap 16b-project-done
+check "s marks the project done" "$SCRATCH/out/16b-project-done.txt" 'web is done'
+check "a done project's header shows it" "$SCRATCH/out/16b-project-done.txt" '◆ web ✓ done · 1 open'
+b send-keys -s host -w deck s >/dev/null; settle; deckcap 16c-project-skipped
+check "a skipped project's header shows it" "$SCRATCH/out/16c-project-skipped.txt" '◆ web ⊘ skipped · 1 open'
+check "project detail shows its status" "$SCRATCH/out/16c-project-skipped.txt" 'status *skipped'
+python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if [p for p in d["projects"] if p["name"]=="web"][0]["status"]=="skipped" else 1)' "$DATA" \
+	&& echo "PASS store holds the project as skipped" || { echo "FAIL web is not skipped in $DATA"; fails=$((fails+1)); }
+b send-keys -s host -w deck s >/dev/null; settle; deckcap 16d-project-open
+check "a third s opens the project again" "$SCRATCH/out/16d-project-open.txt" 'web is open'
 
 echo "== back to the deck, and enter jumps to an assigned pane"
 b send-keys -s host -w deck Escape >/dev/null; settle; deckcap 17-deck

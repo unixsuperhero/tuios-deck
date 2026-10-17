@@ -99,12 +99,12 @@ func (m *Model) selectedRow() *trow {
 }
 
 // projectCounts is how many tasks a project holds at any depth, and how
-// many of them are open.
+// many of them are open, that is not done or skipped.
 func (m *Model) projectCounts(projectID string) (total, open int) {
 	for _, t := range m.store.Tasks() {
 		if m.store.ProjectOf(t.ID) == projectID {
 			total++
-			if t.Status != "done" {
+			if !store.IsFinal(t.Status) {
 				open++
 			}
 		}
@@ -173,6 +173,29 @@ func plural(n int, word string) string {
 	return fmt.Sprintf("%d %ss", n, word)
 }
 
+// nextStatus is the status after st in the order s cycles through: open,
+// done, skipped, then open again.
+func nextStatus(st string) string {
+	for i, s := range store.Statuses {
+		if s == st {
+			return store.Statuses[(i+1)%len(store.Statuses)]
+		}
+	}
+	return store.Statuses[0]
+}
+
+// statusMark is the mark drawn before a task's title: ✓ when done, ⊘ when
+// skipped, a space when open.
+func statusMark(st string) string {
+	switch st {
+	case "done":
+		return "✓"
+	case "skipped":
+		return "⊘"
+	}
+	return " "
+}
+
 // nextColor is the palette colour after c, wrapping round.
 func nextColor(c string) string {
 	pal := store.Palette()
@@ -210,14 +233,14 @@ func (m *Model) handleTasksKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "M":
 		return m, m.openGlyphForm()
 	case "s":
-		if r == nil || r.Task == nil {
-			m.setStatus("select a task first")
+		if r == nil {
 			return m, nil
 		}
-		status := "done"
-		if r.Task.Status == "done" {
-			status = "open"
+		if r.Project != nil {
+			status := nextStatus(r.Project.Status)
+			return m, m.storeChange(m.store.SetProjectStatus(r.Project.ID, status), r.Project.Name+" is "+status)
 		}
+		status := nextStatus(r.Task.Status)
 		return m, m.storeChange(m.store.SetTaskStatus(r.Task.ID, status), r.Task.Title+" is "+status)
 	case "m":
 		if r == nil {
@@ -490,16 +513,22 @@ func (m *Model) taskListLines(width, height int) []string {
 		var line string
 		if r.Project != nil {
 			_, open := m.projectCounts(r.Project.ID)
-			count := cDim.Render(fmt.Sprintf(" %d open", open))
+			text := fmt.Sprintf(" %d open", open)
+			name := cTitle
+			if store.IsFinal(r.Project.Status) {
+				text = " " + statusMark(r.Project.Status) + " " + r.Project.Status + " ·" + text
+				name = cDim
+			}
+			count := cDim.Render(text)
 			glyph := themeStyle(r.Project.Theme).Render(r.Project.Theme.Glyph)
-			line = glyph + " " + cTitle.Render(ansi.Truncate(r.Project.Name, width-2-ansi.StringWidth(count), "…")) + count
+			line = glyph + " " + name.Render(ansi.Truncate(r.Project.Name, width-2-ansi.StringWidth(count), "…")) + count
 		} else {
 			t := r.Task
 			indent := strings.Repeat("  ", r.Depth)
 			glyph := themeStyle(t.Theme).Render(t.Theme.Glyph)
 			mark, title := " ", t.Title
-			if t.Status == "done" {
-				mark, title = cDim.Render("✓"), cDim.Render(t.Title)
+			if store.IsFinal(t.Status) {
+				mark, title = cDim.Render(statusMark(t.Status)), cDim.Render(t.Title)
 			}
 			count := ""
 			if n := len(m.assignedPanes("", t.ID)); n > 0 {
@@ -555,6 +584,7 @@ func (m *Model) taskDetailLines(width, height int) []string {
 		p := r.Project
 		total, open := m.projectCounts(p.ID)
 		lines = append(lines, themeStyle(p.Theme).Render(p.Theme.Glyph)+" "+cTitle.Render(p.Name))
+		field("status", p.Status)
 		field("theme", p.Theme.Color+" "+p.Theme.Glyph)
 		field("tasks", fmt.Sprintf("%d (%d open)", total, open))
 		field("created", time.Unix(p.Created, 0).Format("2006-01-02 15:04"))
@@ -577,10 +607,7 @@ func (m *Model) taskDetailLines(width, height int) []string {
 		children := m.store.Children(t.ID)
 		field("subtasks", fmt.Sprintf("%d", len(children)))
 		for _, c := range children {
-			mark := " "
-			if c.Status == "done" {
-				mark = "✓"
-			}
+			mark := statusMark(c.Status)
 			lines = append(lines, "  "+themeStyle(c.Theme).Render(c.Theme.Glyph)+" "+mark+" "+c.Title)
 		}
 		paneLines(m.assignedPanes("", t.ID))

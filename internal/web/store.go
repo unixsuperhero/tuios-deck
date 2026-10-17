@@ -109,12 +109,12 @@ func (s *Server) paneCounts() (byTask, byProject map[string]int) {
 func (s *Server) projectJSON(p store.Project, panes int) map[string]any {
 	open := 0
 	for _, t := range s.Store.Tasks() {
-		if t.Status == "open" && s.Store.ProjectOf(t.ID) == p.ID {
+		if !store.IsFinal(t.Status) && s.Store.ProjectOf(t.ID) == p.ID {
 			open++
 		}
 	}
 	return map[string]any{
-		"id": p.ID, "name": p.Name, "theme": themeJSON(p.Theme), "created": p.Created,
+		"id": p.ID, "name": p.Name, "theme": themeJSON(p.Theme), "status": p.Status, "created": p.Created,
 		"open_tasks": open, "panes": panes,
 	}
 }
@@ -294,8 +294,9 @@ func (s *Server) patchProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var in struct {
-		Name  *string  `json:"name"`
-		Theme *themeIn `json:"theme"`
+		Name   *string  `json:"name"`
+		Status *string  `json:"status"`
+		Theme  *themeIn `json:"theme"`
 	}
 	if err := readJSON(r, &in); err != nil {
 		badRequest(w, "bad json: "+err.Error())
@@ -303,6 +304,12 @@ func (s *Server) patchProject(w http.ResponseWriter, r *http.Request) {
 	}
 	if in.Name != nil {
 		if err := s.Store.RenameProject(id, *in.Name); err != nil {
+			storeErr(w, err)
+			return
+		}
+	}
+	if in.Status != nil {
+		if err := s.Store.SetProjectStatus(id, *in.Status); err != nil {
 			storeErr(w, err)
 			return
 		}
