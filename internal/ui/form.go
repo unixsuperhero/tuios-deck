@@ -32,6 +32,7 @@ type field struct {
 	Options func() []string
 	Multi   bool
 	New     string
+	HintFn  func() string // the hint worked out afresh on every draw, in place of Hint
 
 	hl int // the highlighted list entry plus one; 0 is none
 	at int // the offset of the '@' being completed plus one; 0 is none
@@ -94,6 +95,9 @@ type form struct {
 	Err      string
 	Validate func(values []string) (field int, msg string)
 	Done     func(values []string) tea.Cmd
+	// OnKey, when set, sees every key first from any field; a key it
+	// reports handled goes no further.
+	OnKey func(key string) bool
 
 	adding int // the field whose addNew was taken, plus one; 0 is none
 
@@ -272,6 +276,9 @@ func (f *form) handleKey(msg tea.KeyPressMsg) (finished bool, cmd tea.Cmd) {
 	cur := &f.Fields[f.Cur]
 	f.Err = ""
 	key := msg.String()
+	if f.OnKey != nil && f.OnKey(key) {
+		return false, nil
+	}
 	if list := f.list(); len(list) > 0 {
 		switch key {
 		case "ctrl+n", "down":

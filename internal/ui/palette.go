@@ -413,72 +413,27 @@ func (m *Model) openTargetForm(p *panes.Pane, task bool) tea.Cmd {
 	return nil
 }
 
-// openNewTaskForm adds a top-level task to a project, offering the
-// selected pane's project as the default.
+// openNewTaskForm adds a task, starting at the top level of the selected
+// pane's project.
 func (m *Model) openNewTaskForm() tea.Cmd {
-	project := ""
+	parent := ""
 	if p := m.selected(); p != nil {
 		if pr, _, _ := m.store.Resolve(p.ID); pr != nil {
-			project = pr.Name
+			parent = topLevel(pr.Name)
 		}
 	}
-	m.mode = modeForm
-	m.form = &form{
-		Title:  "new task",
-		Fields: []field{{Label: "project", Default: project, Options: m.projectOptions, New: "project"}, {Label: "title", Keep: true}},
-		Validate: func(v []string) (int, string) {
-			if v[0] == "" {
-				return 0, "a project is required (tab lists them)"
-			}
-			if m.store.ProjectByName(v[0]) == nil {
-				return 0, "no project " + v[0]
-			}
-			if v[1] == "" {
-				return 1, "title is empty"
-			}
-			return 0, ""
-		},
-		Done: func(v []string) tea.Cmd {
-			projectID := m.store.ProjectByName(v[0]).ID
-			return func() tea.Msg {
-				t, err := m.store.AddTask(projectID, "", v[1], nil)
-				if err != nil {
-					return actionMsg{err: err}
-				}
-				return actionMsg{status: "added " + t.Title + " to " + v[0], selectRow: t.ID}
-			}
-		},
-	}
-	return nil
+	return m.openNewTask(parent)
 }
 
-// openSubtaskForm adds a subtask under a task named by its path or title.
+// openSubtaskForm adds a subtask, starting under the selected pane's task.
 func (m *Model) openSubtaskForm() tea.Cmd {
-	m.mode = modeForm
-	m.form = &form{
-		Title:  "new subtask",
-		Fields: []field{{Label: "of task", Keep: true, Options: m.taskOptions, New: "task"}, {Label: "title", Keep: true}},
-		Validate: func(v []string) (int, string) {
-			if _, msg := m.findTask(v[0]); msg != "" {
-				return 0, msg
-			}
-			if v[1] == "" {
-				return 1, "title is empty"
-			}
-			return 0, ""
-		},
-		Done: func(v []string) tea.Cmd {
-			parent, _ := m.findTask(v[0])
-			return func() tea.Msg {
-				t, err := m.store.AddTask("", parent.ID, v[1], nil)
-				if err != nil {
-					return actionMsg{err: err}
-				}
-				return actionMsg{status: "added " + t.Title + " under " + parent.Title, selectRow: t.ID}
-			}
-		},
+	parent := ""
+	if p := m.selected(); p != nil {
+		if _, t, _ := m.store.Resolve(p.ID); t != nil {
+			parent = m.taskPath(*t)
+		}
 	}
-	return nil
+	return m.openNewTask(parent)
 }
 
 func (m *Model) sessionOptions() []string {

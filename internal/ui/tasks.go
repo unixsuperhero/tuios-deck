@@ -388,41 +388,125 @@ func (m *Model) openProjectForm() tea.Cmd {
 	return nil
 }
 
-// openTaskForm adds a top-level task to the selected project, or a subtask
-// of the selected task.
+// openTaskForm adds a task under the selected row: a top-level task of the
+// selected project, or a subtask of the selected task.
 func (m *Model) openTaskForm() tea.Cmd {
 	r := m.selectedRow()
 	if r == nil {
 		m.setStatus("add a project first (N)")
 		return nil
 	}
-	projectID, parentID, title := "", "", ""
 	if r.Project != nil {
-		projectID, title = r.Project.ID, "new task in "+r.Project.Name
-	} else {
-		parentID, title = r.Task.ID, "new subtask of "+r.Task.Title
+		return m.openNewTask(topLevel(r.Project.Name))
 	}
-	m.mode = modeForm
-	m.form = &form{
-		Title:  title,
-		Fields: []field{{Label: "title", Keep: true}},
+	return m.openNewTask(m.taskPath(*r.Task))
+}
+
+// openNewTask opens the new-task form: the parent, starting at parent,
+// then the title. ctrl+h walks the parent up a level from any field, to the
+// project's top level at most, and ctrl+l walks back down the way it came.
+func (m *Model) openNewTask(parent string) tea.Cmd {
+	f := &form{
+		Fields: []field{
+			{Label: "parent", Default: parent, Options: func() []string { return m.parentOptions(nil) }, New: "task"},
+			{Label: "title", Keep: true},
+		},
 		Validate: func(v []string) (int, string) {
-			if v[0] == "" {
-				return 0, "title is empty"
+			if _, _, msg := m.resolveParent(v[0]); msg != "" {
+				return 0, msg
+			}
+			if v[1] == "" {
+				return 1, "title is empty"
 			}
 			return 0, ""
 		},
 		Done: func(v []string) tea.Cmd {
+			parentID, projectID, _ := m.resolveParent(v[0])
 			return func() tea.Msg {
-				t, err := m.store.AddTask(projectID, parentID, v[0], nil)
+				t, err := m.store.AddTask(projectID, parentID, v[1], nil)
 				if err != nil {
 					return actionMsg{err: err}
 				}
-				return actionMsg{status: "added " + t.Title, selectRow: t.ID}
+				return actionMsg{status: "added " + m.taskPath(t), selectRow: t.ID}
 			}
 		},
 	}
+	hint := func() string { return m.parentHint(f.Fields[0].result()) }
+	f.Fields[0].HintFn, f.Fields[1].HintFn = hint, hint
+	f.Title = m.newTaskTitle(parent)
+	if parent != "" {
+		f.Cur = 1
+	}
+	var down []string // the entries walked up from, nearest last
+	f.OnKey = func(key string) bool {
+		cur := f.Fields[0].result()
+		switch key {
+		case "ctrl+h":
+			up := m.parentUp(cur)
+			if up == "" {
+				return true
+			}
+			down = append(down, cur)
+			f.Fields[0].Value = up
+		case "ctrl+l":
+			if len(down) == 0 || m.parentUp(down[len(down)-1]) != cur {
+				down = nil
+				return true
+			}
+			f.Fields[0].Value, down = down[len(down)-1], down[:len(down)-1]
+		default:
+			return false
+		}
+		f.Fields[0].hl = 0
+		f.Title = m.newTaskTitle(f.Fields[0].Value)
+		return true
+	}
+	m.mode, m.form = modeForm, f
 	return nil
+}
+
+// parentUp is the parent entry one level above entry: the parent task's
+// path, the project's top level for a top-level task, and "" from a
+// project's top level or an entry that names nothing.
+func (m *Model) parentUp(entry string) string {
+	parentID, _, msg := m.resolveParent(entry)
+	if msg != "" || parentID == "" {
+		return ""
+	}
+	return m.parentEntry(*m.store.Task(parentID))
+}
+
+// parentHint names where the new task goes, by its full path, and the keys
+// that walk it.
+func (m *Model) parentHint(entry string) string {
+	keys := " · ctrl+h parent up · ctrl+l back down"
+	parentID, projectID, msg := m.resolveParent(entry)
+	switch {
+	case msg != "":
+		return msg + keys
+	case parentID != "":
+		path := "?"
+		if p := m.store.Project(m.store.ProjectOf(parentID)); p != nil {
+			path = p.Name
+		}
+		for _, c := range m.store.Path(parentID) {
+			path += " › " + c.Title
+		}
+		return "under " + path + keys
+	}
+	return "at the top level of " + m.store.Project(projectID).Name + keys
+}
+
+// newTaskTitle is the new-task form's title for a parent entry.
+func (m *Model) newTaskTitle(entry string) string {
+	parentID, projectID, msg := m.resolveParent(entry)
+	switch {
+	case msg != "":
+		return "new task"
+	case parentID != "":
+		return "new subtask of " + m.store.Task(parentID).Title
+	}
+	return "new task in " + m.store.Project(projectID).Name
 }
 
 // topLevel is the parent entry that stands for a project's top level.
@@ -554,7 +638,7 @@ func (m *Model) openEditForm() tea.Cmd {
 		Title: "edit task " + t.Title,
 		Fields: []field{
 			{Label: "title", Default: t.Title},
-			{Label: "parent", Default: parent, Options: func() []string { return m.parentOptions(skip) }},
+			{Label: "parent", Default: parent, Options: func() []string { return m.parentOptions(skip) }, New: "task"},
 			{Label: "status", Default: t.Status, Options: statusOptions},
 			{Label: "colour", Default: t.Theme.Color, Options: m.colorOptions(t.ID)},
 			{Label: "glyph", Default: t.Theme.Glyph},

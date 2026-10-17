@@ -103,15 +103,19 @@ func (m *Model) currentField(fl field, iw int) []string {
 		}
 		out = append(out, ansi.Truncate(cStatus.Render(label)+value, iw, "…"))
 	}
+	hint := fl.Hint
+	if fl.HintFn != nil {
+		hint = fl.HintFn()
+	}
 	// A multiline field keeps its hint's lines, so the hint can show an
 	// example of what to type.
 	switch {
-	case fl.Hint != "" && fl.Multi:
-		for _, l := range strings.Split(fl.Hint, "\n") {
+	case hint != "" && fl.Multi:
+		for _, l := range strings.Split(hint, "\n") {
 			out = append(out, cDim.Render(ansi.Truncate("    "+l, iw, "…")))
 		}
-	case fl.Hint != "":
-		out = append(out, cDim.Render(ansi.Truncate("    "+panes.OneLine(fl.Hint), iw, "…")))
+	case hint != "":
+		out = append(out, cDim.Render(ansi.Truncate("    "+panes.OneLine(hint), iw, "…")))
 	}
 	list := m.form.list()
 	if len(list) == 0 {

@@ -488,6 +488,28 @@ d = json.load(open(sys.argv[1]))
 api = [t for t in d["tasks"] if t["title"] == "api ref"][0]
 assert api["parent_id"] == "" and api["project_id"] == "p_e2e001", api
 PY2
+
+echo "== ctrl+h and ctrl+l walk the parent of a new task"
+b send-keys -s host -w deck j >/dev/null; b send-keys -s host -w deck n >/dev/null; settle; deckcap 21a-new-under-child
+check "n on a subtask starts under it" "$SCRATCH/out/21a-new-under-child.txt" '╭─ new subtask of child ─'
+check "the hint names the parent's full path" "$SCRATCH/out/21a-new-under-child.txt" 'under deck › api ref › child · ctrl+h'
+b send-keys -s host -w deck ctrl+h >/dev/null; b send-keys -s host -w deck ctrl+h >/dev/null; b send-keys -s host -w deck ctrl+h >/dev/null; settle; deckcap 21b-up
+check "ctrl+h walks up to the project's top level and stops there" "$SCRATCH/out/21b-up.txt" '╭─ new task in deck ─'
+check "the parent field shows the top-level entry" "$SCRATCH/out/21b-up.txt" '  parent: (top level of deck)'
+b send-keys -s host -w deck ctrl+l >/dev/null; settle; deckcap 21c-down
+check "ctrl+l walks back down the way it came" "$SCRATCH/out/21c-down.txt" '╭─ new subtask of api ref ─'
+b send-keys -s host -w deck ctrl+h >/dev/null
+b send-text -s host -w deck 'top again'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 21d-added
+check "the new task is added at the top level" "$SCRATCH/out/21d-added.txt" 'added deck / top again'
+python3 - "$DATA" <<'PY2' && echo "PASS store holds the new task at the top level of deck" || { echo "FAIL top again is not top-level in deck"; fails=$((fails+1)); }
+import json, sys
+d = json.load(open(sys.argv[1]))
+t = [t for t in d["tasks"] if t["title"] == "top again"][0]
+assert t["parent_id"] == "" and t["project_id"] == "p_e2e001", t
+PY2
+b send-keys -s host -w deck x >/dev/null; b send-keys -s host -w deck y >/dev/null
+wait_store '"top again"' absent 10 || { echo "FAIL top again still in $DATA"; fails=$((fails+1)); }
+b send-keys -s host -w deck g >/dev/null; b send-keys -s host -w deck j --repeat 2 >/dev/null; settle
 b send-keys -s host -w deck x >/dev/null; b send-keys -s host -w deck y >/dev/null
 wait_store '"api ref"' absent 10 && echo "PASS api ref cleaned up" || { echo "FAIL api ref still in $DATA"; fails=$((fails+1)); }
 
