@@ -56,6 +56,7 @@ type Store struct {
 	projects    []Project
 	tasks       []Task
 	assignments map[string]Assignment
+	contexts    []ContextItem
 }
 
 // file is the JSON shape on disk.
@@ -64,6 +65,7 @@ type file struct {
 	Projects    []Project             `json:"projects"`
 	Tasks       []Task                `json:"tasks"`
 	Assignments map[string]Assignment `json:"assignments"`
+	Contexts    []ContextItem         `json:"context_items"`
 }
 
 const version = 1
@@ -120,6 +122,7 @@ func Open(path string) (*Store, error) {
 	if f.Assignments != nil {
 		s.assignments = f.Assignments
 	}
+	s.contexts = f.Contexts
 	return s, nil
 }
 
@@ -135,12 +138,15 @@ func (s *Store) Save() error {
 }
 
 func (s *Store) save() error {
-	f := file{Version: version, Projects: s.projects, Tasks: s.tasks, Assignments: s.assignments}
+	f := file{Version: version, Projects: s.projects, Tasks: s.tasks, Assignments: s.assignments, Contexts: s.contexts}
 	if f.Projects == nil {
 		f.Projects = []Project{}
 	}
 	if f.Tasks == nil {
 		f.Tasks = []Task{}
+	}
+	if f.Contexts == nil {
+		f.Contexts = []ContextItem{}
 	}
 	data, err := json.MarshalIndent(f, "", "  ")
 	if err != nil {
@@ -178,7 +184,7 @@ func (s *Store) newID(prefix string) string {
 		b := make([]byte, 3)
 		rand.Read(b)
 		id := prefix + hex.EncodeToString(b)
-		if s.projectIndex(id) < 0 && s.taskIndex(id) < 0 {
+		if s.projectIndex(id) < 0 && s.taskIndex(id) < 0 && s.contextIndex(id) < 0 {
 			return id
 		}
 	}
@@ -293,6 +299,11 @@ func (s *Store) DeleteProject(id string) error {
 	for w, a := range s.assignments {
 		if a.ProjectID == id {
 			delete(s.assignments, w)
+		}
+	}
+	for j := range s.contexts {
+		if s.contexts[j].ProjectID == id {
+			s.contexts[j].ProjectID, s.contexts[j].TaskID = "", ""
 		}
 	}
 	s.projects = append(s.projects[:i], s.projects[i+1:]...)
@@ -469,6 +480,11 @@ func (s *Store) removeTasks(gone map[string]bool) {
 	for w, a := range s.assignments {
 		if gone[a.TaskID] {
 			delete(s.assignments, w)
+		}
+	}
+	for j := range s.contexts {
+		if gone[s.contexts[j].TaskID] {
+			s.contexts[j].TaskID = ""
 		}
 	}
 }

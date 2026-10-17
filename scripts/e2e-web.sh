@@ -65,6 +65,33 @@ if grep -q refused "$SCRATCH/out/transcript.json"; then echo "FAIL transcript re
 curl -s "$base/api/dirs?path=$SCRATCH" > "$SCRATCH/out/dirs.json"
 check "folder picker lists subfolders" "$SCRATCH/out/dirs.json" '"out"'
 
+echo "== context items: extract from the build pane"
+field() { python3 -I -c 'import json,sys; d=json.load(open(sys.argv[1]))
+for k in sys.argv[2:]: d=d[int(k)] if isinstance(d,list) else d[k]
+print(d)' "$@"; }
+: > "$SCRATCH/ctx-file.txt"
+a send-text -s target -w build "echo see https://example.com/ctx-link and https://github.com/acme/widgets/pull/77 in $SCRATCH/ctx-file.txt
+"
+a wait-for window-output -s target -w build --pattern 'see https://example.com/ctx-link' --timeout 10000 >/dev/null
+curl -s -X POST "$base/api/panes/target/$BUILD/context/extract" > "$SCRATCH/out/ctx-extract.json"
+check "extract reports new items" "$SCRATCH/out/ctx-extract.json" '"status":"[1-9][0-9]* new context item'
+curl -s -X POST "$base/api/panes/target/$BUILD/context/extract" > "$SCRATCH/out/ctx-extract2.json"
+check "a second extract finds nothing new" "$SCRATCH/out/ctx-extract2.json" '"new":0'
+curl -s "$base/api/context" > "$SCRATCH/out/ctx-list.json"
+check "link extracted" "$SCRATCH/out/ctx-list.json" '"kind":"link","text":"https://example.com/ctx-link"'
+check "pr extracted" "$SCRATCH/out/ctx-list.json" '"kind":"pr","text":"https://github.com/acme/widgets/pull/77"'
+check "existing file extracted" "$SCRATCH/out/ctx-list.json" "\"kind\":\"file\",\"text\":\"[^\"]*ctx-file.txt\""
+check "item names its pane" "$SCRATCH/out/ctx-list.json" '"pane":"build"'
+curl -s "$base/api/context?kind=link" > "$SCRATCH/out/ctx-links.json"
+check "filter by kind keeps the link" "$SCRATCH/out/ctx-links.json" 'ctx-link'
+if grep -q '"kind":"pr"' "$SCRATCH/out/ctx-links.json"; then echo "FAIL kind filter kept a pr"; fails=$((fails+1)); else echo "PASS kind filter drops the pr"; fi
+LINK=$(python3 -I -c 'import json,sys; print([i["id"] for i in json.load(open(sys.argv[1]))["items"] if i["kind"]=="link" and "ctx-link" in i["text"]][0])' "$SCRATCH/out/ctx-list.json")
+curl -s -X PATCH -H "$J" -d '{"starred":true}' "$base/api/context/$LINK" > "$SCRATCH/out/ctx-star.json"
+check "PATCH stars the link" "$SCRATCH/out/ctx-star.json" '"starred":true'
+curl -s "$base/api/context?starred=1" > "$SCRATCH/out/ctx-starred.json"
+check "starred filter lists it" "$SCRATCH/out/ctx-starred.json" "\"id\":\"$LINK\""
+if grep -q '"kind":"pr"' "$SCRATCH/out/ctx-starred.json"; then echo "FAIL starred filter kept an unstarred item"; fails=$((fails+1)); else echo "PASS starred filter drops the rest"; fi
+
 echo "== events"
 (curl -sN --max-time 6 "$base/api/events" > "$SCRATCH/out/events.txt") &
 evpid=$!
@@ -94,9 +121,6 @@ a list-windows -s target --json > "$SCRATCH/out/windows-after.json"
 if grep -q '"build"' "$SCRATCH/out/windows-after.json"; then echo "FAIL build still open"; fails=$((fails+1)); else echo "PASS build is gone"; fi
 
 echo "== projects, tasks, assignments"
-field() { python3 -I -c 'import json,sys; d=json.load(open(sys.argv[1]))
-for k in sys.argv[2:]: d=d[int(k)] if isinstance(d,list) else d[k]
-print(d)' "$@"; }
 curl -s -X POST -H "$J" -d '{"name":"deckproj","theme":{"color":"blue"}}' "$base/api/projects" > "$SCRATCH/out/project.json"
 check "create project" "$SCRATCH/out/project.json" '"name":"deckproj"'
 check "project theme has css" "$SCRATCH/out/project.json" '"css":"#0000ee"'
@@ -111,6 +135,13 @@ check "subtask own_project_id is empty" "$SCRATCH/out/subtask.json" '"own_projec
 check "subtask path and depth" "$SCRATCH/out/subtask.json" '"path":"deckproj / palette / autocomplete"'
 check "subtask depth" "$SCRATCH/out/subtask.json" '"depth":1'
 SID=$(field "$SCRATCH/out/subtask.json" task id)
+curl -s -X PATCH -H "$J" -d "{\"task\":\"deckproj / palette\"}" "$base/api/context/$LINK" > "$SCRATCH/out/ctx-assign.json"
+check "PATCH assigns the link to a task" "$SCRATCH/out/ctx-assign.json" "\"task_id\":\"$TID\""
+check "the task brings its project" "$SCRATCH/out/ctx-assign.json" "\"project_id\":\"$PID\""
+curl -s "$base/api/context?task=$TID" > "$SCRATCH/out/ctx-bytask.json"
+check "filter by task lists it" "$SCRATCH/out/ctx-bytask.json" "\"id\":\"$LINK\""
+curl -s -X PATCH -H "$J" -d "{\"task_id\":\"$TID\",\"project_id\":\"$PID\"}" "$base/api/context/$LINK" > "$SCRATCH/out/ctx-assign-both.json"
+check "PATCH resolves task over project like an assignment" "$SCRATCH/out/ctx-assign-both.json" "\"task_id\":\"$TID\""
 curl -s -X PATCH -H "$J" -d '{"status":"done"}' "$base/api/tasks/$SID" > "$SCRATCH/out/task-patch.json"
 check "PATCH task status" "$SCRATCH/out/task-patch.json" '"status":"done"'
 curl -s -X PATCH -H "$J" -d '{"status":"maybe"}' "$base/api/tasks/$SID" > "$SCRATCH/out/task-patch-bad.json"
@@ -209,6 +240,13 @@ curl -s "$base/api/tasks" > "$SCRATCH/out/tasks-after.json"
 check "tasks gone with the project" "$SCRATCH/out/tasks-after.json" '"tasks":\[\]'
 curl -s "$base/api/assignments" > "$SCRATCH/out/assignments-cascade.json"
 check "assignments gone with the project" "$SCRATCH/out/assignments-cascade.json" '"assignments":{}'
+curl -s "$base/api/context?kind=link" > "$SCRATCH/out/ctx-after-project.json"
+check "context item outlives its project" "$SCRATCH/out/ctx-after-project.json" "\"id\":\"$LINK\""
+check "and its references are cleared" "$SCRATCH/out/ctx-after-project.json" '"project_id":"","task_id":""'
+curl -s -X DELETE "$base/api/context/$LINK" > "$SCRATCH/out/ctx-delete.json"
+check "DELETE context item" "$SCRATCH/out/ctx-delete.json" '"status":"deleted '
+curl -s "$base/api/context" > "$SCRATCH/out/ctx-after-delete.json"
+if grep -q "$LINK" "$SCRATCH/out/ctx-after-delete.json"; then echo "FAIL context item still listed"; fails=$((fails+1)); else echo "PASS context item is gone"; fi
 grep -q '"version": 1' "$SCRATCH/deck.json" && echo "PASS store written under the scratch folder" || { echo "FAIL store file"; fails=$((fails+1)); }
 
 echo "== new items take random colours from the unassigned pool"

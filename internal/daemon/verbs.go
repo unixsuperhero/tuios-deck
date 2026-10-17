@@ -149,6 +149,34 @@ func (c *Client) Transcript(ctx context.Context, session, window, nonce string, 
 	return out, err
 }
 
+// HistoryEntry is one command of command-history: what a shell in a pane
+// ran, read between its OSC 133 marks.
+type HistoryEntry struct {
+	At         int64  `json:"at"`
+	Cmdline    string `json:"cmdline"`
+	Cwd        string `json:"cwd"`
+	DurationMS int64  `json:"duration_ms"`
+	Exit       *int   `json:"exit"`
+	Name       string `json:"name"`
+	Seq        int64  `json:"seq"`
+	Session    string `json:"session"`
+	Window     string `json:"window"`
+}
+
+// CommandHistory lists the commands a pane's shell ran, newest first. A
+// shell that sends no OSC 133 marks reports none.
+func (c *Client) CommandHistory(ctx context.Context, session, window string, limit int) ([]HistoryEntry, error) {
+	var out struct {
+		Commands []HistoryEntry `json:"commands"`
+	}
+	p := map[string]any{"session": session, "window": window}
+	if limit > 0 {
+		p["limit"] = limit
+	}
+	err := c.Call(ctx, "command-history", p, &out)
+	return out.Commands, err
+}
+
 // StartAgentParams are the inputs of start-agent.
 type StartAgentParams struct {
 	Session string `json:"session,omitempty"`
