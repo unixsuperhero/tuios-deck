@@ -62,6 +62,8 @@ func (m *Model) View() tea.View {
 		leftLines, rightLines = m.taskListLines(left, bodyH), m.taskDetailLines(right, bodyH)
 	case pageCaptures:
 		leftLines, rightLines = m.captureListLines(left, bodyH), m.captureDetailLines(right, bodyH)
+	case pageContext:
+		leftLines, rightLines = m.contextListLines(left, bodyH), m.contextDetailLines(right, bodyH)
 	}
 	// The palette lies over the lower part of the body, full width.
 	var under []string
@@ -109,6 +111,9 @@ func (m *Model) titleLine() string {
 	s := cTitle.Render(" tuios-deck ") + cTabOn.Render(" "+m.page.String()+" ")
 	if m.page == pageDeck && !m.grouping.bySession() {
 		s += " by " + m.grouping.String()
+	}
+	if m.page == pageContext {
+		s += " " + m.ctxTitle()
 	}
 	s += " " + cDim.Render(m.daemonInfo+"  "+m.client.Socket)
 	right := fmt.Sprintf("%d agents", agents)
@@ -293,8 +298,10 @@ func (m *Model) helpLine() string {
 		return cDim.Render(" j/k select · N project · n task/subtask · A add many · e edit · s status · m colour · M glyph · a assign pane · enter go to pane · x delete · esc deck · q quit")
 	case pageCaptures:
 		return cDim.Render(" j/k select · J/K scroll · G follow · enter go to pane · x delete · r refresh · T tasks · esc deck · q quit")
+	case pageContext:
+		return cDim.Render(" j/k select · s sort · f filter · o/O group · * star · ! pin · a assign · x delete · r refresh · esc deck · q quit")
 	}
-	return cDim.Render(" j/k move · 1-3 tab · J/K scroll · G follow · o group · n agent · t term · p prompt · a assign · c capture · x close · T tasks · C captures · r refresh · q quit")
+	return cDim.Render(" j/k move · 1-3 tab · J/K scroll · G follow · o group · n agent · t term · p prompt · a assign · c capture · i context · x close · T tasks · C captures · I context · r refresh · q quit")
 }
 
 // pad fits s to width: truncated when longer, padded with spaces when shorter.

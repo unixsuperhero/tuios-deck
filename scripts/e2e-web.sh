@@ -304,7 +304,7 @@ curl -s -X POST -H "$J" -d '{"verb":"no-such-verb","params":{}}' "$base/api/call
 check "call refuses an unknown verb" "$SCRATCH/out/call-unknown.json" '"code":"unknown_verb"'
 curl -s -X POST -H "$J" -d '{"verb":"list-windows","params":{"session":"nowhere"}}' "$base/api/call" > "$SCRATCH/out/call-daemon-err.json"
 check "call passes the daemon error through" "$SCRATCH/out/call-daemon-err.json" '"code":"session_not_found"'
-for id in page-deck page-tasks page-captures dlg-palette; do
+for id in page-deck page-tasks page-captures page-context btn-extract dlg-palette; do
 	check "page has #$id" "$SCRATCH/out/index.html" "id=\"$id\""
 done
 check "page has the group select" "$SCRATCH/out/index.html" 'id="group"'

@@ -209,6 +209,38 @@ check "list is empty after the delete" "$SCRATCH/out/06h-deleted.txt" 'no captur
 b send-keys -s host -w deck Escape >/dev/null; settle; deckcap 06i-back
 check "esc returns to the deck from captures" "$SCRATCH/out/06i-back.txt" 'tuios-deck.* deck '
 
+echo "== context items: extract with i, list with I, star, filter"
+a send-text -s target -w build 'echo ctx https://example.com/tui-link
+'
+a wait-for window-output -s target -w build --pattern 'ctx https://example.com/tui-link' --timeout 10000 >/dev/null
+select_pane 1
+b send-keys -s host -w deck i >/dev/null
+wait_deck 'new context item' 15 && echo "PASS i reported its extraction" || { echo "FAIL i reported nothing"; fails=$((fails+1)); }
+deckcap 06j-extract
+check "status counts the new context items from build" "$SCRATCH/out/06j-extract.txt" '[1-9][0-9]* new context items\? from build'
+b send-text -s host -w deck 'I'; settle; deckcap 06k-context
+check "title names the context page" "$SCRATCH/out/06k-context.txt" 'tuios-deck.* context .*sort newest'
+check "the link is listed with its kind" "$SCRATCH/out/06k-context.txt" 'link *https://example.com/tui-link'
+check "help line is the context page's" "$SCRATCH/out/06k-context.txt" 'f filter · o/O group · \* star'
+b send-keys -s host -w deck f >/dev/null; settle
+b send-text -s host -w deck 'link'; b send-keys -s host -w deck Enter >/dev/null
+b send-keys -s host -w deck Enter >/dev/null; b send-keys -s host -w deck Enter >/dev/null; b send-keys -s host -w deck Enter >/dev/null; settle
+b send-keys -s host -w deck g >/dev/null; settle; deckcap 06l-filtered
+check "title shows the kind filter" "$SCRATCH/out/06l-filtered.txt" 'context .*kind link'
+check "status confirms the filter" "$SCRATCH/out/06l-filtered.txt" 'filtered: kind link'
+if grep -q ' command  ' "$SCRATCH/out/06l-filtered.txt"; then echo "FAIL kind filter kept a command"; fails=$((fails+1)); else echo "PASS kind filter keeps only links"; fi
+check "detail shows the whole link" "$SCRATCH/out/06l-filtered.txt" 'pane *target › build'
+b send-text -s host -w deck '*'; settle; deckcap 06m-starred
+check "status says it is starred" "$SCRATCH/out/06m-starred.txt" 'starred https://example.com/tui-link'
+check "the row carries the star" "$SCRATCH/out/06m-starred.txt" '★  link'
+python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if any(c["text"]=="https://example.com/tui-link" and c["starred"] and c["pane"]=="build" for c in d["context_items"]) else 1)' "$DATA" \
+	&& echo "PASS store holds the starred link" || { echo "FAIL store has no starred link"; fails=$((fails+1)); }
+b send-keys -s host -w deck s >/dev/null; settle; deckcap 06n-sorted
+check "s cycles the sort" "$SCRATCH/out/06n-sorted.txt" 'sorted kind'
+b send-keys -s host -w deck o >/dev/null; settle; deckcap 06o-grouped
+check "o groups the items by kind" "$SCRATCH/out/06o-grouped.txt" '▾ link'
+b send-keys -s host -w deck Escape >/dev/null; settle
+
 echo "== a terminal needs a task or a project"
 b send-keys -s host -w deck t >/dev/null; settle
 b send-keys -s host -w deck Enter >/dev/null            # session
@@ -656,7 +688,7 @@ a list-windows -s target --json > "$SCRATCH/out/a-windows-after.json"
 if grep -q '"build"' "$SCRATCH/out/a-windows-after.json"; then echo "FAIL build still open"; fails=$((fails+1)); else echo "PASS build closed"; fi
 deckcap 09-final
 check "list refreshed without build" "$SCRATCH/out/09-final.txt" 'closed build'
-wait_store "\"$BUILD\"" absent 10 && echo "PASS closed build's assignment pruned" || { echo "FAIL $BUILD still assigned in $DATA"; fails=$((fails+1)); }
+wait_store "\"$BUILD\": {" absent 10 && echo "PASS closed build's assignment pruned" || { echo "FAIL $BUILD still assigned in $DATA"; fails=$((fails+1)); }
 
 echo "== quit"
 b send-keys -s host -w deck q >/dev/null

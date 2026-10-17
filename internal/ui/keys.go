@@ -69,12 +69,18 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "A":
 		return m, m.openMassAdd("")
+	case "I":
+		m.openContext()
+		return m, nil
 	}
 	if m.page == pageTasks {
 		return m.handleTasksKey(msg)
 	}
 	if m.page == pageCaptures {
 		return m.handleCapturesKey(msg)
+	}
+	if m.page == pageContext {
+		return m.handleContextKey(msg)
 	}
 
 	switch msg.String() {
@@ -144,6 +150,8 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, m.openAssignForm()
 	case "c":
 		return m, m.captureToFile()
+	case "i":
+		return m, m.extractContext()
 	case "x":
 		p := m.selected()
 		if p == nil {

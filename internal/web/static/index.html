@@ -119,6 +119,19 @@ dialog .hint.err:empty { display: none; }
 .caprow.selected { background: var(--sel); border-left-color: var(--accent); }
 .caprow .cname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, Menlo, monospace; font-size: 12.5px; }
 .caprow .cmeta { color: var(--muted); font-size: 12px; grid-column: 1 / -1; }
+/* context page */
+.railhead.filters { flex-wrap: wrap; }
+.railhead.filters select, .railhead.filters input[type=search] { margin-left: 0; font-size: 12px; padding: 3px 6px; width: auto; flex: 1 1 7em; }
+.railhead.filters label { display: flex; gap: 4px; align-items: center; }
+.railhead.filters input[type=checkbox] { width: auto; }
+.ctxgroup { padding: 8px 12px 4px; font-weight: 600; color: var(--muted); font-size: 12px; }
+.ctxrow { display: flex; gap: 8px; align-items: baseline; padding: 6px 12px; cursor: pointer; border-left: 3px solid transparent; }
+.ctxrow:hover { background: var(--hover); }
+.ctxrow.selected { background: var(--sel); border-left-color: var(--accent); }
+.ctxrow .marks { width: 2.2em; flex: none; color: var(--working); }
+.ctxrow .kind { font-size: 11px; padding: 0 6px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); flex: none; }
+.ctxrow .ctext { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, Menlo, monospace; font-size: 12.5px; }
+.ctxfull { white-space: pre-wrap; word-break: break-all; font-family: ui-monospace, Menlo, monospace; font-size: 12.5px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px; margin: 0 0 16px; }
 /* command palette */
 #dlg-palette { width: min(640px, 92vw); margin-top: 10vh; }
 #dlg-palette .body { padding: 10px; display: grid; gap: 8px; }
@@ -143,6 +156,7 @@ dialog .hint.err:empty { display: none; }
     <button data-page="deck">Deck</button>
     <button data-page="tasks">Tasks</button>
     <button data-page="captures">Captures</button>
+    <button data-page="context">Context</button>
   </nav>
   <span class="meta" id="meta">connecting…</span>
   <span class="badge needs" id="needs" hidden></span>
@@ -172,6 +186,7 @@ dialog .hint.err:empty { display: none; }
         <button id="btn-assign">Assign</button>
         <button id="btn-prompt">Prompt</button>
         <button id="btn-capture">Capture</button>
+        <button id="btn-extract" title="Find links, paths, prompts and commands in this pane (i)">Extract context</button>
         <button id="btn-close">Close</button>
       </div>
       <div class="detail">
@@ -212,6 +227,32 @@ dialog .hint.err:empty { display: none; }
         <button id="cap-delete" class="danger">Delete</button>
       </div>
       <div class="detail"><pre class="text" id="captext"><span class="empty">select a capture</span></pre></div>
+    </section>
+  </div>
+
+  <div class="page split" id="page-context">
+    <aside>
+      <div class="railhead filters">
+        <select id="ctx-kind" title="Kind"><option value="">any kind</option><option>link</option><option>pr</option><option>file</option><option>dir</option><option>prompt</option><option>command</option></select>
+        <select id="ctx-project" title="Project"><option value="">any project</option></select>
+        <select id="ctx-task" title="Task"><option value="">any task</option></select>
+        <input type="search" id="ctx-q" placeholder="text…">
+        <label><input type="checkbox" id="ctx-starred">★</label>
+        <label><input type="checkbox" id="ctx-pinned">pinned</label>
+        <select id="ctx-sort" title="Sort"><option value="created">newest</option><option value="kind">kind</option><option value="starred">starred first</option><option value="pinned">pinned first</option></select>
+        <select id="ctx-group" title="Group by"><option value="none">no groups</option><option value="kind">by kind</option><option value="project">by project</option><option value="task">by task</option><option value="pane">by pane</option></select>
+      </div>
+      <div class="rail" id="ctxlist"><div class="empty">loading…</div></div>
+    </aside>
+    <section>
+      <div class="toolbar">
+        <span class="who spacer" id="ctxwho"></span>
+        <button id="ctx-star">Star</button>
+        <button id="ctx-pin">Pin</button>
+        <button id="ctx-assign">Assign</button>
+        <button id="ctx-delete" class="danger">Delete</button>
+      </div>
+      <div class="taskinfo" id="ctxinfo"><div class="empty">select a context item</div></div>
     </section>
   </div>
 </main>
@@ -318,12 +359,13 @@ const DOTS = { working: '◐', needs_input: '●', errored: '✗', idle: '○', 
 // A grouping is a list of levels joined by " > ", the first outermost.
 const LEVELS = ['session', 'project', 'task', 'parent task', 'top-level task', 'cwd', 'harness', 'state', 'kind'];
 const GROUPS = ['session', 'project', 'project > parent task', 'task', 'top-level task', 'harness > project > parent task', 'cwd', 'harness', 'state', 'kind'];
-const PAGES = ['deck', 'tasks', 'captures'];
+const PAGES = ['deck', 'tasks', 'captures', 'context'];
 const state = {
   sessions: [], panes: {}, order: [], selected: null, tab: 'screen', transcripts: false,
   detailKey: '', detailText: '', pollTimer: null, refreshTimer: null, lastStatusErr: false,
   projects: [], tasks: [], group: 'session', page: 'deck',
   taskSel: null, captures: [], capSel: null, captureDir: '', palette: null, verbs: null,
+  ctx: [], ctxSel: null, ctxSort: 'created', ctxGroup: 'none',
 };
 
 // ---------------------------------------------------------------- API
@@ -572,6 +614,7 @@ function setPage(name, fromHash) {
   const hash = name === 'deck' ? '' : '#' + name;
   if (!fromHash && location.hash !== hash) history.replaceState(null, '', location.pathname + hash);
   if (name === 'captures') loadCaptures();
+  if (name === 'context') loadContext();
   if (name === 'tasks') { renderTree(); renderTaskInfo(); }
 }
 for (const b of document.querySelectorAll('#nav button')) b.onclick = () => setPage(b.dataset.page);
@@ -1115,6 +1158,124 @@ async function deleteCapture() {
 $('cap-refresh').onclick = loadCaptures;
 $('cap-delete').onclick = deleteCapture;
 
+// ---------------------------------------------------------------- context page
+async function extractContext() {
+  const p = state.panes[state.selected];
+  if (!p) { setStatus('select a pane first', true); return; }
+  setStatus(`extracting context from ${p.name}…`);
+  try { const r = await api(`/api/panes/${enc(p.session)}/${enc(p.id)}/context/extract`, { method: 'POST' }); setStatus(r.status); }
+  catch (e) { setStatus('error: ' + e.message, true); }
+  if (state.page === 'context') loadContext();
+}
+function fillSelect(id, entries, any) {
+  const el = $(id), cur = el.value;
+  el.replaceChildren(new Option(any, ''), ...entries.map(([v, label]) => new Option(label, v)));
+  el.value = entries.some(([v]) => v === cur) ? cur : '';
+}
+async function loadContext() {
+  fillSelect('ctx-project', state.projects.map((p) => [p.id, p.name]), 'any project');
+  fillSelect('ctx-task', state.tasks.map((t) => [t.id, t.path]), 'any task');
+  const q = new URLSearchParams();
+  for (const [k, id] of [['kind', 'ctx-kind'], ['project', 'ctx-project'], ['task', 'ctx-task'], ['q', 'ctx-q']]) if ($(id).value) q.set(k, $(id).value);
+  if ($('ctx-starred').checked) q.set('starred', '1');
+  if ($('ctx-pinned').checked) q.set('pinned', '1');
+  try { state.ctx = (await api('/api/context?' + q)).items || []; }
+  catch (e) { setStatus('context: ' + e.message, true); return; }
+  if (state.ctxSel && !state.ctx.some((c) => c.id === state.ctxSel)) state.ctxSel = null;
+  renderContext();
+}
+const KINDS = ['link', 'file', 'dir', 'pr', 'prompt', 'command'];
+function ctxGroupKey(c) {
+  switch (state.ctxGroup) {
+    case 'kind': return c.kind;
+    case 'project': return c.project || '(none)';
+    case 'task': return c.task || '(none)';
+    case 'pane': return `${c.session} › ${c.pane}`;
+  }
+  return '';
+}
+function ctxSorted() {
+  const items = state.ctx.slice();
+  const by = { kind: (a, b) => KINDS.indexOf(a.kind) - KINDS.indexOf(b.kind), starred: (a, b) => b.starred - a.starred, pinned: (a, b) => b.pinned - a.pinned }[state.ctxSort];
+  if (by) items.sort(by); // Array.sort is stable, so newest first holds within
+  if (state.ctxGroup === 'none') return [['', items]];
+  const groups = new Map();
+  for (const c of items) { const k = ctxGroupKey(c); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(c); }
+  return [...groups];
+}
+function renderContext() {
+  const list = $('ctxlist');
+  const scroll = list.scrollTop;
+  list.replaceChildren();
+  if (!state.ctx.length) list.innerHTML = '<div class="empty">no context items here: Extract context on a pane finds them</div>';
+  for (const [key, items] of ctxSorted()) {
+    if (key) { const h = document.createElement('div'); h.className = 'ctxgroup'; h.textContent = key; list.append(h); }
+    for (const c of items) {
+      const el = document.createElement('div'); el.className = 'ctxrow' + (c.id === state.ctxSel ? ' selected' : '');
+      const marks = document.createElement('span'); marks.className = 'marks'; marks.textContent = (c.starred ? '★' : ' ') + (c.pinned ? '^' : '');
+      const kind = document.createElement('span'); kind.className = 'kind'; kind.textContent = c.kind;
+      const text = document.createElement('span'); text.className = 'ctext'; text.textContent = c.text; text.title = c.text;
+      el.append(marks, kind, text);
+      el.onclick = () => { state.ctxSel = c.id; renderContext(); };
+      list.append(el);
+    }
+  }
+  list.scrollTop = scroll;
+  renderContextInfo();
+}
+const ctxSelected = () => state.ctx.find((c) => c.id === state.ctxSel);
+function renderContextInfo() {
+  const c = ctxSelected(), info = $('ctxinfo');
+  for (const id of ['ctx-star', 'ctx-pin', 'ctx-assign', 'ctx-delete']) $(id).disabled = !c;
+  $('ctxwho').textContent = c ? `${c.kind} from ${c.session} › ${c.pane}` : '';
+  if (!c) { info.innerHTML = '<div class="empty">select a context item</div>'; return; }
+  $('ctx-star').textContent = c.starred ? 'Unstar' : 'Star';
+  $('ctx-pin').textContent = c.pinned ? 'Unpin' : 'Pin';
+  info.replaceChildren();
+  const full = document.createElement('pre'); full.className = 'ctxfull'; full.textContent = c.text;
+  const dl = document.createElement('dl');
+  const row = (k, v) => { const dt = document.createElement('dt'); dt.textContent = k; const dd = document.createElement('dd'); dd.textContent = v; dl.append(dt, dd); };
+  row('kind', c.kind);
+  row('pane', `${c.session} › ${c.pane}`);
+  row('assigned', c.task ? c.task.split(' / ').join(' › ') : c.project || '(none)');
+  row('created', when(c.created));
+  row('starred', c.starred ? 'yes' : 'no');
+  row('pinned', c.pinned ? 'yes' : 'no');
+  info.append(full, dl);
+}
+async function patchContext(body, what) {
+  const c = ctxSelected();
+  if (!c) return;
+  try { await api(`/api/context/${enc(c.id)}`, { method: 'PATCH', body: JSON.stringify(body) }); setStatus(what); }
+  catch (e) { setStatus('error: ' + e.message, true); }
+  loadContext();
+}
+async function assignContext() {
+  const c = ctxSelected();
+  if (!c) return;
+  $('assign-title').textContent = `Assign ${c.kind} ${c.text.slice(0, 40)}`;
+  const v = await dialog('dlg-assign', { task: c.task, project: c.task ? '' : c.project });
+  if (!v) return;
+  await patchContext({ task: v.task, project: v.project }, v.task.trim() || v.project.trim() ? 'assigned' : 'assignment cleared');
+}
+async function deleteContext() {
+  const c = ctxSelected();
+  if (!c) return;
+  if (!(await confirmDialog(`Delete this ${c.kind}?`, c.text.slice(0, 200), 'Delete'))) return;
+  try { const r = await api(`/api/context/${enc(c.id)}`, { method: 'DELETE' }); setStatus(r.status); state.ctxSel = null; }
+  catch (e) { setStatus('error: ' + e.message, true); }
+  loadContext();
+}
+$('btn-extract').onclick = extractContext;
+$('ctx-star').onclick = () => { const c = ctxSelected(); if (c) patchContext({ starred: !c.starred }, c.starred ? 'unstarred' : 'starred'); };
+$('ctx-pin').onclick = () => { const c = ctxSelected(); if (c) patchContext({ pinned: !c.pinned }, c.pinned ? 'unpinned' : 'pinned'); };
+$('ctx-assign').onclick = assignContext;
+$('ctx-delete').onclick = deleteContext;
+for (const id of ['ctx-kind', 'ctx-project', 'ctx-task', 'ctx-starred', 'ctx-pinned']) $(id).onchange = loadContext;
+$('ctx-q').oninput = () => { clearTimeout(state.ctxTimer); state.ctxTimer = setTimeout(loadContext, 200); };
+$('ctx-sort').onchange = () => { state.ctxSort = $('ctx-sort').value; try { localStorage.setItem('deck.ctxSort', state.ctxSort); } catch (_) {} renderContext(); };
+$('ctx-group').onchange = () => { state.ctxGroup = $('ctx-group').value; try { localStorage.setItem('deck.ctxGroup', state.ctxGroup); } catch (_) {} renderContext(); };
+
 // ---------------------------------------------------------------- command palette
 function deckCommands() {
   const cmds = [
@@ -1124,6 +1285,8 @@ function deckCommands() {
     { label: 'go to deck', run: () => setPage('deck') },
     { label: 'go to tasks', run: () => setPage('tasks') },
     { label: 'go to captures', run: () => setPage('captures') },
+    { label: 'go to context', run: () => setPage('context') },
+    { label: 'extract context from selected pane', run: extractContext },
   ];
   for (const g of GROUPS) cmds.push({ label: `group by ${g}`, run: () => setGroup(g) });
   cmds.push({ label: 'group by…', run: () => { setPage('deck'); $('group-custom').focus(); } });
@@ -1289,6 +1452,7 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'O') { cycleGroup(-1); return; }
   if (e.key === 'T') { setPage('tasks'); return; }
   if (e.key === 'C') { setPage('captures'); return; }
+  if (e.key === 'I') { setPage('context'); return; }
   if (e.key === 'Escape') { setPage('deck'); return; }
   if (state.page !== 'deck') return;
   const ids = state.order;
@@ -1299,7 +1463,7 @@ document.addEventListener('keydown', (e) => {
   else if (e.key === '3') showTab('activity'); else if (e.key === '4') showTab('transcript');
   else if (e.key === 'n') $('btn-agent').click(); else if (e.key === 't') $('btn-term').click();
   else if (e.key === 'p') $('btn-prompt').click(); else if (e.key === 'c') $('btn-capture').click();
-  else if (e.key === 'a') $('btn-assign').click();
+  else if (e.key === 'a') $('btn-assign').click(); else if (e.key === 'i') extractContext();
 });
 
 try { state.tab = localStorage.getItem('deck.tab') || 'screen'; } catch (_) {}
@@ -1307,6 +1471,8 @@ if (state.tab === 'result') state.tab = 'screen';
 try { const g = parseGroup(localStorage.getItem('deck.group')); if (g) state.group = g.join(' > '); } catch (_) {}
 fillGroupSelect();
 if (!GROUPS.includes(state.group)) $('group-custom').value = state.group;
+try { state.ctxSort = localStorage.getItem('deck.ctxSort') || 'created'; state.ctxGroup = localStorage.getItem('deck.ctxGroup') || 'none'; } catch (_) {}
+$('ctx-sort').value = state.ctxSort; $('ctx-group').value = state.ctxGroup;
 setPage(location.hash.replace('#', '') || 'deck', true);
 showTab(state.tab, true);
 refresh();

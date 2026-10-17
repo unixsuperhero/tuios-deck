@@ -344,6 +344,8 @@ func (m *Model) deckCommands() []palItem {
 		{"deck", "go to deck", "the panes page", func() tea.Cmd { m.page = pageDeck; return m.loadDetail(true) }},
 		{"deck", "go to tasks", "the projects, tasks and subtasks page (T)", func() tea.Cmd { m.page = pageTasks; m.rebuildTasks(); return nil }},
 		{"deck", "go to captures", "the captures folder page (C)", func() tea.Cmd { m.openCaptures(); return nil }},
+		{"deck", "go to context", "the context items page (I)", func() tea.Cmd { m.openContext(); return nil }},
+		{"deck", "extract context from pane", "find links, paths, prompts and commands in the selected pane (i)", needPane(func(*panes.Pane) tea.Cmd { return m.extractContext() })},
 	}
 	for _, g := range presets {
 		items = append(items, palItem{"deck", "group by " + g.String(), "group the left rail of the deck by " + g.String() + " (o/O cycle)", func() tea.Cmd {
@@ -365,6 +367,9 @@ func (m *Model) deckCommands() []palItem {
 func (m *Model) refreshAll() tea.Cmd {
 	if m.page == pageCaptures {
 		m.loadCaptures()
+	}
+	if m.page == pageContext {
+		m.rebuildContext()
 	}
 	m.rebuildTasks()
 	return tea.Batch(m.refreshList(), m.loadDetail(true))

@@ -33,10 +33,11 @@ const (
 	pageDeck page = iota
 	pageTasks
 	pageCaptures
+	pageContext
 )
 
 func (p page) String() string {
-	return [...]string{"deck", "tasks", "captures"}[p]
+	return [...]string{"deck", "tasks", "captures", "context"}[p]
 }
 
 type tab int
@@ -91,6 +92,8 @@ type Model struct {
 	capErr    string
 	capScroll int
 	capFollow bool
+
+	cx ctxPage // the context page
 
 	tab        tab
 	detail     []string
@@ -284,6 +287,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.rebuildTasks()
 		if m.page == pageCaptures {
 			m.loadCaptures()
+		}
+		if m.page == pageContext {
+			m.rebuildContext()
 		}
 		return m, m.refreshList()
 
