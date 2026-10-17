@@ -9,6 +9,12 @@ import (
 func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch m.mode {
 	case modeForm:
+		if m.form.cwd == "" {
+			m.form.cwd = cwdDefault(m.selected())
+		}
+		if msg.String() == "esc" && m.form.escape() {
+			return m, nil
+		}
 		switch msg.String() {
 		case "esc", "ctrl+c":
 			m.mode, m.form = modeNormal, nil

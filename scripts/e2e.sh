@@ -122,6 +122,23 @@ a wait-for window-output -s target -w build --pattern 'from-deck-prompt' --timeo
 settle; deckcap 04-after-prompt
 check "status reports the send" "$SCRATCH/out/04-after-prompt.txt" 'sent to build'
 
+echo "== @ completes paths under the pane's cwd"
+b send-keys -s host -w deck p >/dev/null; settle
+b send-text -s host -w deck 'look at @'; settle; deckcap 04b-at
+check "@ lists the folders of the pane's cwd" "$SCRATCH/out/04b-at.txt" '  captures/'
+check "@ list shows files plain" "$SCRATCH/out/04b-at.txt" '  deck.json '
+b send-text -s host -w deck 'capt'; settle; deckcap 04c-at-filter
+check "typing after @ filters the list" "$SCRATCH/out/04c-at-filter.txt" '▸ captures/'
+if grep -q 'deck.json' "$SCRATCH/out/04c-at-filter.txt"; then echo "FAIL @ filter kept deck.json"; fails=$((fails+1)); else echo "PASS @ filter hides unmatched entries"; fi
+b send-keys -s host -w deck Tab >/dev/null; settle; deckcap 04d-at-descend
+check "tab on a folder descends into it" "$SCRATCH/out/04d-at-descend.txt" 'look at @captures/▏'
+b send-keys -s host -w deck Escape >/dev/null; settle; deckcap 04e-at-closed
+check "esc closes the @ list and keeps the form" "$SCRATCH/out/04e-at-closed.txt" '╭─ prompt ─'
+b send-keys -s host -w deck ctrl+u >/dev/null; b send-text -s host -w deck '@deck.j'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 04f-at-file
+check "enter on a file puts its path in place of the @query" "$SCRATCH/out/04f-at-file.txt" '    deck.json▏'
+b send-keys -s host -w deck Escape >/dev/null; settle; deckcap 04g-at-cancel
+if grep -q '╭─ prompt' "$SCRATCH/out/04g-at-cancel.txt"; then echo "FAIL prompt form still open"; fails=$((fails+1)); else echo "PASS esc with no list cancels the form"; fi
+
 echo "== prompt to the fake agent is queued"
 select_pane 2
 b send-keys -s host -w deck p >/dev/null; settle

@@ -138,10 +138,12 @@ func (m *Model) formHelp() string {
 	cur := f.Fields[f.Cur]
 	pos := fmt.Sprintf("%d/%d", f.Cur+1, len(f.Fields))
 	switch {
+	case cur.at > 0:
+		return pos + " · ctrl+n/ctrl+p pick · tab or enter take the path, or open the folder · esc close the list"
 	case len(f.list()) > 0:
 		return pos + " · ctrl+n/ctrl+p pick · tab accept · enter accept or next · shift+tab back · esc cancel"
 	case cur.Multi:
-		return pos + " · enter newline · ctrl+s submit · shift+tab back · esc cancel"
+		return pos + " · enter newline · ctrl+s submit · @ a file · shift+tab back · esc cancel"
 	case f.Cur+1 < len(f.Fields):
 		return pos + " · enter next · tab default · ctrl+s submit · shift+tab back · esc cancel"
 	}

@@ -362,6 +362,14 @@ The prompt (`p`) and the new agent's first prompt are multiline: `enter`
 starts a new line, `ctrl+s` (or `ctrl+enter` where the terminal reports it)
 sends, and a paste keeps its newlines.
 
+In those fields `@` at the start of a word lists what is in the selected
+pane's cwd (the deck's own when no pane is selected): folders with a
+trailing `/`, files plain, hidden ones left out, at most 200. Typing after
+the `@` filters the list; `tab` or `enter` on a folder opens it, on a file
+puts its path, relative to the cwd, in place of the `@` and what followed
+it. `esc` closes the list and keeps the form. A symlink that leads outside
+the cwd is not listed.
+
 ## Transcript needs the person's presence
 
 The transcript tab reads `agent-transcript`, which the daemon only serves to

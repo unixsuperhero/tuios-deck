@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -14,7 +16,8 @@ const listRows = 8
 // field is one line of a form: a label, the text typed so far, and a default
 // used when the person leaves it empty. A field with Options shows the
 // options that fuzzy-match the typed text in a list under it. A Multi field
-// holds several lines: enter inserts a newline there. Hint, when set, is
+// holds several lines: enter inserts a newline there, and `@` completes a
+// file path under the form's cwd. Hint, when set, is
 // shown under the field while it is the current one.
 type field struct {
 	Label   string
@@ -26,6 +29,7 @@ type field struct {
 	Multi   bool
 
 	hl int // the highlighted list entry plus one; 0 is none
+	at int // the offset of the '@' being completed plus one; 0 is none
 }
 
 func (f field) result() string {
@@ -85,11 +89,88 @@ type form struct {
 	Err      string
 	Validate func(values []string) (field int, msg string)
 	Done     func(values []string) tea.Cmd
+
+	cwd  string              // the folder `@` completes under
+	dirs map[string][]string // the entries read so far, by folder under cwd
+}
+
+// maxEntries caps how many entries of one folder `@` lists.
+const maxEntries = 200
+
+// splitPath cuts what follows an `@` into the folder typed so far, ending
+// in a slash or empty, and the name being typed in it.
+func splitPath(rel string) (dir, name string) {
+	i := strings.LastIndex(rel, "/")
+	return rel[:i+1], rel[i+1:]
+}
+
+// entries is the folder dir under the cwd, read once per form: folders
+// with a trailing slash, files plain, hidden ones left out. A symlink is
+// listed only when it points inside the cwd, and a folder outside it is
+// never read.
+func (f *form) entries(dir string) []string {
+	if e, ok := f.dirs[dir]; ok {
+		return e
+	}
+	if f.dirs == nil {
+		f.dirs = map[string][]string{}
+	}
+	f.dirs[dir] = readEntries(f.cwd, dir)
+	return f.dirs[dir]
+}
+
+func readEntries(cwd, dir string) []string {
+	root, err := filepath.EvalSymlinks(cwd)
+	if err != nil {
+		return nil
+	}
+	inside := func(p string) bool {
+		return p == root || strings.HasPrefix(p, root+string(filepath.Separator))
+	}
+	full, err := filepath.EvalSymlinks(filepath.Join(root, dir))
+	if err != nil || !inside(full) {
+		return nil
+	}
+	ents, err := os.ReadDir(full)
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, e := range ents {
+		name := e.Name()
+		if strings.HasPrefix(name, ".") {
+			continue
+		}
+		isDir := e.IsDir()
+		if e.Type()&os.ModeSymlink != 0 {
+			target, err := filepath.EvalSymlinks(filepath.Join(full, name))
+			if err != nil || !inside(target) {
+				continue
+			}
+			st, err := os.Stat(target)
+			if err != nil {
+				continue
+			}
+			isDir = st.IsDir()
+		}
+		if isDir {
+			name += "/"
+		}
+		out = append(out, name)
+		if len(out) == maxEntries {
+			break
+		}
+	}
+	return out
 }
 
 // list is the completion list open under the current field, nil when none.
 func (f *form) list() []string {
 	cur := f.Fields[f.Cur]
+	if cur.at > 0 {
+		dir, name := splitPath(cur.Value[cur.at:])
+		return fuzzy(f.entries(dir), name)
+	}
 	if cur.Options == nil {
 		return nil
 	}
@@ -108,7 +189,29 @@ func (f *form) accept(list []string) {
 		}
 		i = 0
 	}
+	if cur.at > 0 {
+		// A folder is descended into; a file replaces the @query with its
+		// path relative to the cwd and closes the list.
+		dir, _ := splitPath(cur.Value[cur.at:])
+		if strings.HasSuffix(list[i], "/") {
+			cur.Value, cur.hl = cur.Value[:cur.at]+dir+list[i], 1
+			return
+		}
+		cur.Value, cur.at, cur.hl = cur.Value[:cur.at-1]+dir+list[i], 0, 0
+		return
+	}
 	cur.Value, cur.hl = list[i], 0
+}
+
+// escape closes an open `@` list and reports whether there was one, so
+// esc closes the list before it cancels the form.
+func (f *form) escape() bool {
+	cur := &f.Fields[f.Cur]
+	if cur.at == 0 {
+		return false
+	}
+	cur.at, cur.hl = 0, 0
+	return true
 }
 
 // submit validates the values and, when they pass, finishes the form.
@@ -127,9 +230,20 @@ func (f *form) submit() (bool, tea.Cmd) {
 }
 
 // edited resets the highlight after the value changed: the best match is
-// highlighted while there is text to match.
-func (f *form) edited() {
+// highlighted while there is text to match. An `@` typed at the start of a
+// word of a Multi field opens the path list; a space or a newline after it,
+// or deleting it, closes the list.
+func (f *form) edited(typed string) {
 	cur := &f.Fields[f.Cur]
+	if cur.at > 0 && (len(cur.Value) < cur.at || strings.ContainsAny(cur.Value[cur.at:], " \t\n")) {
+		cur.at = 0
+	}
+	if cur.Multi && typed == "@" {
+		before := cur.Value[:len(cur.Value)-1]
+		if before == "" || strings.ContainsAny(before[len(before)-1:], " \t\n") {
+			cur.at = len(cur.Value)
+		}
+	}
 	cur.hl = 0
 	if cur.Value != "" {
 		cur.hl = 1
@@ -206,8 +320,10 @@ func (f *form) handleKey(msg tea.KeyPressMsg) (finished bool, cmd tea.Cmd) {
 			return false, nil
 		}
 		cur.Value += k.Text
+		f.edited(k.Text)
+		return false, nil
 	}
-	f.edited()
+	f.edited("")
 	return false, nil
 }
 
@@ -219,5 +335,5 @@ func (f *form) paste(text string) {
 		text = strings.ReplaceAll(text, "\n", " ")
 	}
 	f.Fields[f.Cur].Value += text
-	f.edited()
+	f.edited("")
 }
