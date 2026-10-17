@@ -29,30 +29,30 @@ include:
 ---
 
 
-- [ ] for each terminal/agent in the left rail, display line in the format of:
+- [x] for each terminal/agent in the left rail, display line in the format of:
   - first 4 characters of project name, using colors from project's theme
   - followed by task name using colors from the task's theme
-- [ ] all projects and tasks/subtasks get auto-assigned a random theme from the
+- [x] all projects and tasks/subtasks get auto-assigned a random theme from the
   pool of unassigned themes.  a theme is only considered assigned if it has a
   project/task in a non-final state (final states include: done, skipped)
-- [ ] btw if not setup yet, projects and tasks have a state property
-- [ ] ideally captures happen automatically on completions of agent turn or
+- [x] btw if not setup yet, projects and tasks have a state property
+- [x] ideally captures happen automatically on completions of agent turn or
 shell command completion
-- [ ] when prompted for a task title...need a binding walk up the tree for
+- [x] when prompted for a task title...need a binding walk up the tree for
 parent.  meaning...i don't want to have to be on a project row to create a
 top-level task within it
-- [ ] right now `e` renames a task.  it should be edit instead with with
+- [x] right now `e` renames a task.  it should be edit instead with with
 mutliple fields for the various properties: title, parent, status and something
 like parent should have an auto-complete fuzzy search for selecting the option.
-- [ ] grouping a rail should be configurable to have multiple, nested groups.
+- [x] grouping a rail should be configurable to have multiple, nested groups.
 one, for example, could simply be Project > Parent Task (if exists).  or even
 something like Harness > Project > Parent Task
-- [ ] `r` to refresh causes a panic
-- [ ] i don't like filling in all info in the bottom prompt...would rather a
+- [x] `r` to refresh causes a panic
+- [x] i don't like filling in all info in the bottom prompt...would rather a
 modal-style popover with fuzzy-find autocompletion, etc.  especially for agent
 prompts...those should have things like @ autocomplete for file references, etc.
-- [ ] alternate view for terminals/agents...
-  - [ ] update bindingsn so h/l move in/out of rail and main content area
+- [x] alternate view for terminals/agents...
+  - [x] update bindingsn so h/l move in/out of rail and main content area
   - alternate view is like accordian for all prompts in agent session
     and commands submitting in terminal, and maybe both if pane has both
   commands and agent session in scrollback.
@@ -65,18 +65,18 @@ prompts...those should have things like @ autocomplete for file references, etc.
   probably have their own page like tasks, and be sortable, filterable,
   groupable, etc.  one reason is it will probbaly be common to sort by created
   at to see most recent items.
-- [ ] in text fields or prompts accepting input, and have autocomplete lists,
+- [x] in text fields or prompts accepting input, and have autocomplete lists,
 ctrl+n/ctrl+p can be used to go down/up in the list respectively
-- [ ] any terminal or agent not assigned to a project/task should be displayed
+- [x] any terminal or agent not assigned to a project/task should be displayed
 in the left rail with an obnoxious red/white theme.
-- [ ] whenever asked to choose a project or task, there should always be an
+- [x] whenever asked to choose a project or task, there should always be an
 option to add a new one...and it should be a multi-line screen/input that makes
 it extremely easy to add multiple projects/tasks/subtasks both brand new or add
 sub-items to existing items.  then once they are created, the user can choose
 the one for assignment.  also, this mass-input screen should always be
 available.
-- [ ] delete confirmation prompt default to Y or yes instead of N or no.
-- [ ] once command palette is open....esc closes it...not ctrl-p so ctrl-p can
+- [x] delete confirmation prompt default to Y or yes instead of N or no.
+- [x] once command palette is open....esc closes it...not ctrl-p so ctrl-p can
 be used to walk up in the list of options
 
 ---
