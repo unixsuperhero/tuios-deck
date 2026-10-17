@@ -24,7 +24,7 @@ var (
 	cTabOff = lipgloss.NewStyle().Faint(true)
 	cBorder = lipgloss.NewStyle().Faint(true)
 	// An unassigned pane is meant to be hard to miss.
-	cUnassigned = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("15")).Background(lipgloss.Color("1"))
+	cUnassigned = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("0")).Background(lipgloss.Color("1"))
 	stateFg     = map[string]string{
 		"working": "3", "needs_input": "1", "errored": "1", "idle": "2", "done": "4",
 	}

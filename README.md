@@ -225,8 +225,8 @@ Each pane's row in the left rail carries its state dot, the first four
 letters of its project in the project's colour, its task's title in the
 task's colour, its name, and its state flush right. A narrow rail cuts the
 task title first, then the name. A pane assigned to nothing shows `!!!!`
-in place of the project, and its name, in bold white on red, so it stands
-out until `a` gives it a home (the web page draws it black on red).
+in place of the project, and its name, in bold black on red, so it stands
+out until `a` gives it a home.
 
 The focus is on the rail or on the main area; `h` and `l` move it. The
 selected pane is in reverse video while the rail has focus and keeps a dim
