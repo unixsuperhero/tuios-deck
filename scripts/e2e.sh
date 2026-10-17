@@ -313,7 +313,19 @@ check "harness header at the outer level" "$SCRATCH/out/07g3-free-text.txt" '^�
 check "project header indented under a harness" "$SCRATCH/out/07g3-free-text.txt" '^  ◆ deck '
 b send-text -s host -w deck 'oo'; settle; deckcap 07g4-back
 check "o from a custom grouping restarts the presets" "$SCRATCH/out/07g4-back.txt" 'tuios-deck.* deck  by project '
-b send-keys -s host -w deck ctrl+p >/dev/null; settle
+b send-keys -s host -w deck ctrl+p >/dev/null; settle; deckcap 07g5-ctrlp
+check "ctrl+p opens the palette" "$SCRATCH/out/07g5-ctrlp.txt" '─ command palette'
+check "help line names ctrl+p/n" "$SCRATCH/out/07g5-ctrlp.txt" 'ctrl+p/n pick'
+b send-keys -s host -w deck ctrl+n >/dev/null; settle
+b send-keys -s host -w deck Tab >/dev/null; settle; deckcap 07g6-ctrln
+check "ctrl+n moves to the second entry" "$SCRATCH/out/07g6-ctrln.txt" '^ > assign to project'
+b send-keys -s host -w deck ctrl+u >/dev/null
+b send-keys -s host -w deck ctrl+n >/dev/null
+b send-keys -s host -w deck ctrl+p >/dev/null; settle; deckcap 07g7-ctrlp-back
+check "palette stays open after ctrl+p" "$SCRATCH/out/07g7-ctrlp-back.txt" '─ command palette'
+b send-keys -s host -w deck Tab >/dev/null; settle; deckcap 07g8-first
+check "ctrl+p moves back to the first entry" "$SCRATCH/out/07g8-first.txt" '^ > assign to task'
+b send-keys -s host -w deck ctrl+u >/dev/null; settle
 b send-text -s host -w deck 'nosuchthing'; settle; deckcap 07h-nomatch
 check "an unknown query says no matches" "$SCRATCH/out/07h-nomatch.txt" 'no matches'
 b send-keys -s host -w deck Escape >/dev/null; settle; deckcap 07i-closed

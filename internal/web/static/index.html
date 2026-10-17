@@ -1266,8 +1266,10 @@ function coerce(type, raw) {
 }
 $('pal-input').oninput = filterPalette;
 $('pal-input').onkeydown = (e) => {
-  if (e.key === 'ArrowDown') { e.preventDefault(); if (pal.active < pal.shown.length - 1) { pal.active++; renderPalette(); } }
-  else if (e.key === 'ArrowUp') { e.preventDefault(); if (pal.active > 0) { pal.active--; renderPalette(); } }
+  const ctrl = e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey;
+  if (e.key === 'ArrowDown' || (ctrl && e.key === 'n')) { e.preventDefault(); if (pal.active < pal.shown.length - 1) { pal.active++; renderPalette(); } }
+  else if (e.key === 'ArrowUp' || (ctrl && e.key === 'p')) { e.preventDefault(); if (pal.active > 0) { pal.active--; renderPalette(); } }
+  else if (e.key === 'Escape') { e.preventDefault(); $('dlg-palette').close(); }
   else if (e.key === 'Enter') { e.preventDefault(); const it = pal.shown[pal.active]; if (it) runPalette(it); }
 };
 $('dlg-palette').onclose = () => { pal.verb = null; };

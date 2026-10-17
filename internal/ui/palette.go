@@ -216,13 +216,13 @@ func (p *palette) setQuery(q string) {
 func (m *Model) handlePaletteKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	p := m.pal
 	switch msg.String() {
-	case "esc", "ctrl+c", "ctrl+p":
+	case "esc", "ctrl+c":
 		m.closePalette()
 	case "down", "ctrl+n":
 		if p.sel+1 < len(p.shown) {
 			p.sel++
 		}
-	case "up":
+	case "up", "ctrl+p":
 		if p.sel > 0 {
 			p.sel--
 		}

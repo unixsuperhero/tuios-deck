@@ -286,7 +286,7 @@ func (m *Model) helpLine() string {
 	case modeConfirm:
 		return cDim.Render(" enter/y confirm · n/esc cancel")
 	case modePalette:
-		return cDim.Render(" type to filter · ↑/↓ pick · enter run · tab complete · esc close")
+		return cDim.Render(" type to filter · ↑/↓ ctrl+p/n pick · enter run · tab complete · esc close")
 	}
 	switch m.page {
 	case pageTasks:

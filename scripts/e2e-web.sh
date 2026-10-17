@@ -261,6 +261,7 @@ check "page has the free-text grouping field" "$SCRATCH/out/index.html" 'id="gro
 check "page lists the nested presets" "$SCRATCH/out/index.html" "'harness > project > parent task'"
 check "pane rows lead with the project chip" "$SCRATCH/out/index.html" "chip.className = 'chip'"
 check "unassigned panes are marked" "$SCRATCH/out/index.html" "chip.classList.add('unassigned')"
+check "web palette moves on ctrl+n and ctrl+p" "$SCRATCH/out/index.html" "(ctrl && e.key === 'p')"
 
 echo "== websocket pane stream"
 EXTRA=$(a list-windows -s target --json | python3 -c 'import json,sys; print([w["window_id"] for w in json.load(sys.stdin)["windows"] if w["title"]=="extra"][0])')
