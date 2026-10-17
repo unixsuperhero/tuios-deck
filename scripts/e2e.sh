@@ -259,7 +259,7 @@ b send-keys -s host -w deck ctrl+o >/dev/null; settle; deckcap 06m4-opened
 check "ctrl+o opens with the platform opener" "$SCRATCH/out/06m4-opened.txt" 'opened https://example.com/tui-link with \(open\|xdg-open\)'
 grep -q 'https://example.com/tui-link' "$SCRATCH/opened.txt" && echo "PASS the opener got the link" || { echo "FAIL the opener got nothing"; fails=$((fails+1)); }
 b send-keys -s host -w deck w >/dev/null; settle; deckcap 06m5-with
-check "w asks for a program, offering the opener" "$SCRATCH/out/06m5-with.txt" 'with · program: \(open\|xdg-open\)'
+check "w asks for a program, offering the opener" "$SCRATCH/out/06m5-with.txt" 'program: .*\(open\|xdg-open\) (tab to take)'
 b send-keys -s host -w deck Tab >/dev/null; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 06m6-with-done
 check "open with reports the program" "$SCRATCH/out/06m6-with-done.txt" 'opened https://example.com/tui-link with \(open\|xdg-open\)'
 [ "$(grep -c tui-link "$SCRATCH/opened.txt")" -ge 2 ] && echo "PASS open with ran the program" || { echo "FAIL open with did not run"; fails=$((fails+1)); }
