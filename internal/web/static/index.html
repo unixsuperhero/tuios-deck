@@ -247,6 +247,9 @@ dialog .hint.err:empty { display: none; }
     <section>
       <div class="toolbar">
         <span class="who spacer" id="ctxwho"></span>
+        <button id="ctx-copy" title="Copy the text to the clipboard">Copy</button>
+        <button id="ctx-insert" title="Type the text into the pane selected on the deck page, without Enter">Insert</button>
+        <button id="ctx-open" title="Open on the machine deck web runs on">Open</button>
         <button id="ctx-star">Star</button>
         <button id="ctx-pin">Pin</button>
         <button id="ctx-assign">Assign</button>
@@ -1226,7 +1229,8 @@ function renderContext() {
 const ctxSelected = () => state.ctx.find((c) => c.id === state.ctxSel);
 function renderContextInfo() {
   const c = ctxSelected(), info = $('ctxinfo');
-  for (const id of ['ctx-star', 'ctx-pin', 'ctx-assign', 'ctx-delete']) $(id).disabled = !c;
+  for (const id of ['ctx-copy', 'ctx-insert', 'ctx-star', 'ctx-pin', 'ctx-assign', 'ctx-delete']) $(id).disabled = !c;
+  $('ctx-open').disabled = !c || !['link', 'pr', 'file', 'dir'].includes(c.kind);
   $('ctxwho').textContent = c ? `${c.kind} from ${c.session} › ${c.pane}` : '';
   if (!c) { info.innerHTML = '<div class="empty">select a context item</div>'; return; }
   $('ctx-star').textContent = c.starred ? 'Unstar' : 'Star';
@@ -1270,6 +1274,25 @@ $('btn-extract').onclick = extractContext;
 $('ctx-star').onclick = () => { const c = ctxSelected(); if (c) patchContext({ starred: !c.starred }, c.starred ? 'unstarred' : 'starred'); };
 $('ctx-pin').onclick = () => { const c = ctxSelected(); if (c) patchContext({ pinned: !c.pinned }, c.pinned ? 'unpinned' : 'pinned'); };
 $('ctx-assign').onclick = assignContext;
+$('ctx-copy').onclick = async () => {
+  const c = ctxSelected();
+  if (!c) return;
+  try { await navigator.clipboard.writeText(c.text); setStatus('copied to the clipboard'); }
+  catch (e) { setStatus('copy: ' + e.message, true); }
+};
+$('ctx-insert').onclick = async () => {
+  const c = ctxSelected(), p = state.panes[state.selected];
+  if (!c) return;
+  if (!p) { setStatus('select a pane on the deck page first', true); return; }
+  try { const r = await api(`/api/context/${enc(c.id)}/insert`, { method: 'POST', body: JSON.stringify({ session: p.session, window: p.id }) }); setStatus(`${r.status} into ${p.name}`); }
+  catch (e) { setStatus('error: ' + e.message, true); }
+};
+$('ctx-open').onclick = async () => {
+  const c = ctxSelected();
+  if (!c) return;
+  try { const r = await api(`/api/context/${enc(c.id)}/open`, { method: 'POST', body: '{}' }); setStatus(`${r.status}: ${r.target}`); }
+  catch (e) { setStatus('error: ' + e.message, true); }
+};
 $('ctx-delete').onclick = deleteContext;
 for (const id of ['ctx-kind', 'ctx-project', 'ctx-task', 'ctx-starred', 'ctx-pinned']) $(id).onchange = loadContext;
 $('ctx-q').oninput = () => { clearTimeout(state.ctxTimer); state.ctxTimer = setTimeout(loadContext, 200); };

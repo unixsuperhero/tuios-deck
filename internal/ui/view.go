@@ -299,7 +299,7 @@ func (m *Model) helpLine() string {
 	case pageCaptures:
 		return cDim.Render(" j/k select · J/K scroll · G follow · enter go to pane · x delete · r refresh · T tasks · esc deck · q quit")
 	case pageContext:
-		return cDim.Render(" j/k select · s sort · f filter · o/O group · * star · ! pin · a assign · x delete · r refresh · esc deck · q quit")
+		return cDim.Render(" j/k select · s sort · f filter · o/O group · * star · ! pin · a assign · y copy · enter insert · ^o open · w open with · x delete · esc deck · q quit")
 	}
 	return cDim.Render(" j/k move · 1-3 tab · J/K scroll · G follow · o group · n agent · t term · p prompt · a assign · c capture · i context · x close · T tasks · C captures · I context · r refresh · q quit")
 }

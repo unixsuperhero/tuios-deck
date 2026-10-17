@@ -45,7 +45,11 @@ if lsof -nP -iTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1; then
 	echo "FAIL port $PORT is already in use; a stale deck-web? (lsof -nP -iTCP:$PORT)"; exit 1
 fi
 echo "== deck-web, outside every pane of A"
-(unset TUIOS_ENV TUIOS_SESSION TUIOS_PANE_ID TUIOS_PANE_TOKEN TUIOS_SOCKET; export TUIOS_DECK_DATA="$SCRATCH/deck.json"; exec "$DECK" web --listen "127.0.0.1:$PORT" --socket "$ASOCK" --captures "$SCRATCH/captures" > "$SCRATCH/out/web.log" 2>&1) &
+# A stand-in opener, so opening an item is seen in a file and never opens a browser.
+mkdir -p "$SCRATCH/bin"
+for t in open xdg-open; do printf '#!/bin/sh\necho "$@" >> "%s/opened.txt"\n' "$SCRATCH" > "$SCRATCH/bin/$t"; done
+chmod +x "$SCRATCH"/bin/*
+(unset TUIOS_ENV TUIOS_SESSION TUIOS_PANE_ID TUIOS_PANE_TOKEN TUIOS_SOCKET; export TUIOS_DECK_DATA="$SCRATCH/deck.json" PATH="$SCRATCH/bin:$PATH"; exec "$DECK" web --listen "127.0.0.1:$PORT" --socket "$ASOCK" --captures "$SCRATCH/captures" > "$SCRATCH/out/web.log" 2>&1) &
 webpid=$!
 for i in $(seq 1 50); do curl -sf "$base/api/state" > "$SCRATCH/out/state.json" 2>/dev/null && break; sleep 0.2; done
 check "state lists the session" "$SCRATCH/out/state.json" '"name":"target"'
@@ -91,6 +95,20 @@ check "PATCH stars the link" "$SCRATCH/out/ctx-star.json" '"starred":true'
 curl -s "$base/api/context?starred=1" > "$SCRATCH/out/ctx-starred.json"
 check "starred filter lists it" "$SCRATCH/out/ctx-starred.json" "\"id\":\"$LINK\""
 if grep -q '"kind":"pr"' "$SCRATCH/out/ctx-starred.json"; then echo "FAIL starred filter kept an unstarred item"; fails=$((fails+1)); else echo "PASS starred filter drops the rest"; fi
+a send-keys -s target -w build ctrl+u >/dev/null
+(a wait-for window-output -s target -w build --pattern 'ctx-link' --timeout 10000 >/dev/null; echo $? > "$SCRATCH/out/ctx-insert-wait.txt") &
+waitpid=$!
+curl -s -X POST -H "$J" -d "{\"session\":\"target\",\"window\":\"$BUILD\"}" "$base/api/context/$LINK/insert" > "$SCRATCH/out/ctx-insert.json"
+wait "$waitpid"
+check "insert answered" "$SCRATCH/out/ctx-insert.json" '"status":"inserted (not submitted)"'
+grep -qx 0 "$SCRATCH/out/ctx-insert-wait.txt" && echo "PASS insert reached the build pane" || { echo "FAIL insert never reached build"; fails=$((fails+1)); }
+a send-keys -s target -w build ctrl+u >/dev/null
+curl -s -X POST -H "$J" -d '{}' "$base/api/context/$LINK/open" > "$SCRATCH/out/ctx-open.json"
+check "open runs the platform opener" "$SCRATCH/out/ctx-open.json" '"status":"opened with \(open\|xdg-open\)"'
+for i in $(seq 1 20); do grep -q ctx-link "$SCRATCH/opened.txt" 2>/dev/null && break; sleep 0.1; done
+grep -q 'https://example.com/ctx-link' "$SCRATCH/opened.txt" && echo "PASS the opener got the link" || { echo "FAIL the opener got nothing"; fails=$((fails+1)); }
+curl -s -X POST -H "$J" -d '{"program":"vim"}' "$base/api/context/$LINK/open" > "$SCRATCH/out/ctx-open-vim.json"
+check "open refuses a terminal program" "$SCRATCH/out/ctx-open-vim.json" 'needs a terminal'
 
 echo "== events"
 (curl -sN --max-time 6 "$base/api/events" > "$SCRATCH/out/events.txt") &
@@ -304,7 +322,7 @@ curl -s -X POST -H "$J" -d '{"verb":"no-such-verb","params":{}}' "$base/api/call
 check "call refuses an unknown verb" "$SCRATCH/out/call-unknown.json" '"code":"unknown_verb"'
 curl -s -X POST -H "$J" -d '{"verb":"list-windows","params":{"session":"nowhere"}}' "$base/api/call" > "$SCRATCH/out/call-daemon-err.json"
 check "call passes the daemon error through" "$SCRATCH/out/call-daemon-err.json" '"code":"session_not_found"'
-for id in page-deck page-tasks page-captures page-context btn-extract dlg-palette; do
+for id in page-deck page-tasks page-captures page-context btn-extract ctx-copy ctx-insert ctx-open dlg-palette; do
 	check "page has #$id" "$SCRATCH/out/index.html" "id=\"$id\""
 done
 check "page has the group select" "$SCRATCH/out/index.html" 'id="group"'

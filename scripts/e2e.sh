@@ -92,7 +92,13 @@ echo "== daemon B: the deck in a pane, pointed at A"
 # The host session is made wide so the list has room for the task titles.
 b new boot --detach --cwd "$SCRATCH" >/dev/null
 b call new-session "{\"name\":\"host\",\"width\":160,\"height\":50,\"cwd\":\"$SCRATCH\"}" >/dev/null
-b new-window -s host deck --no-focus -- env TUIOS_DECK_DATA="$DATA" "$DECK" tui --socket "$ASOCK" --captures "$SCRATCH/captures" >/dev/null
+# Stand-ins for the clipboard tools and the opener, so y, ctrl+o and w are
+# seen in files here and never touch the person's clipboard or browser.
+mkdir -p "$SCRATCH/bin"
+for t in pbcopy wl-copy xclip; do printf '#!/bin/sh\ncat > "%s/clipboard.txt"\n' "$SCRATCH" > "$SCRATCH/bin/$t"; done
+for t in open xdg-open; do printf '#!/bin/sh\necho "$@" >> "%s/opened.txt"\n' "$SCRATCH" > "$SCRATCH/bin/$t"; done
+chmod +x "$SCRATCH"/bin/*
+b new-window -s host deck --no-focus -- env PATH="$SCRATCH/bin:$PATH" TUIOS_DECK_DATA="$DATA" "$DECK" tui --socket "$ASOCK" --captures "$SCRATCH/captures" >/dev/null
 b wait-for window-output -s host -w deck --pattern 'tuios-deck' --timeout 15000 >/dev/null
 b send-keys -s host -w deck r >/dev/null; settle; deckcap 00-r-at-start
 check "r right after start leaves the deck alive" "$SCRATCH/out/00-r-at-start.txt" 'tuios-deck'
@@ -235,6 +241,28 @@ check "status says it is starred" "$SCRATCH/out/06m-starred.txt" 'starred https:
 check "the row carries the star" "$SCRATCH/out/06m-starred.txt" '★  link'
 python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if any(c["text"]=="https://example.com/tui-link" and c["starred"] and c["pane"]=="build" for c in d["context_items"]) else 1)' "$DATA" \
 	&& echo "PASS store holds the starred link" || { echo "FAIL store has no starred link"; fails=$((fails+1)); }
+b send-keys -s host -w deck y >/dev/null; settle; deckcap 06m2-copied
+check "y reports the clipboard mechanisms" "$SCRATCH/out/06m2-copied.txt" 'copied https://example.com/tui-link with OSC 52 and \(pbcopy\|wl-copy\|xclip\)'
+grep -qx 'https://example.com/tui-link' "$SCRATCH/clipboard.txt" && echo "PASS the clipboard tool got the link" || { echo "FAIL clipboard tool got nothing"; fails=$((fails+1)); }
+a send-keys -s target -w build ctrl+u >/dev/null
+(a wait-for window-output -s target -w build --pattern 'tui-link' --timeout 10000 >/dev/null; echo $? > "$SCRATCH/out/insert-wait.txt") &
+waitpid=$!
+b send-keys -s host -w deck Enter >/dev/null
+wait "$waitpid"
+grep -qx 0 "$SCRATCH/out/insert-wait.txt" && echo "PASS enter inserted the link into build" || { echo "FAIL the link never reached build"; fails=$((fails+1)); }
+settle; deckcap 06m3-inserted
+check "status says inserted, not submitted" "$SCRATCH/out/06m3-inserted.txt" 'inserted https://example.com/tui-link into build (not submitted)'
+a capture-pane -s target -w build > "$SCRATCH/out/build-inserted.txt"
+grep -v '^ *$' "$SCRATCH/out/build-inserted.txt" | tail -1 | grep -q 'https://example.com/tui-link *$' && echo "PASS the link waits on the prompt line, unsubmitted" || { echo "FAIL the prompt line does not end with the link"; fails=$((fails+1)); }
+a send-keys -s target -w build ctrl+u >/dev/null
+b send-keys -s host -w deck ctrl+o >/dev/null; settle; deckcap 06m4-opened
+check "ctrl+o opens with the platform opener" "$SCRATCH/out/06m4-opened.txt" 'opened https://example.com/tui-link with \(open\|xdg-open\)'
+grep -q 'https://example.com/tui-link' "$SCRATCH/opened.txt" && echo "PASS the opener got the link" || { echo "FAIL the opener got nothing"; fails=$((fails+1)); }
+b send-keys -s host -w deck w >/dev/null; settle; deckcap 06m5-with
+check "w asks for a program, offering the opener" "$SCRATCH/out/06m5-with.txt" 'with · program: \(open\|xdg-open\)'
+b send-keys -s host -w deck Tab >/dev/null; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 06m6-with-done
+check "open with reports the program" "$SCRATCH/out/06m6-with-done.txt" 'opened https://example.com/tui-link with \(open\|xdg-open\)'
+[ "$(grep -c tui-link "$SCRATCH/opened.txt")" -ge 2 ] && echo "PASS open with ran the program" || { echo "FAIL open with did not run"; fails=$((fails+1)); }
 b send-keys -s host -w deck s >/dev/null; settle; deckcap 06n-sorted
 check "s cycles the sort" "$SCRATCH/out/06n-sorted.txt" 'sorted kind'
 b send-keys -s host -w deck o >/dev/null; settle; deckcap 06o-grouped

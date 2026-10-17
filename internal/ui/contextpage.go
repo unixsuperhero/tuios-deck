@@ -286,6 +286,26 @@ func (m *Model) handleContextKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, m.ctxChange(m.store.SetContextPin(it.ID, !it.Pinned), word+" "+shortText(it.Text))
 	case "a":
 		return m, m.openContextAssign()
+	case "y":
+		if it == nil {
+			return m, nil
+		}
+		return m, m.copyItem(*it)
+	case "enter":
+		if it == nil {
+			return m, nil
+		}
+		return m, m.insertItem(*it)
+	case "ctrl+o":
+		if it == nil {
+			return m, nil
+		}
+		return m, m.openItem(*it)
+	case "w":
+		if it == nil {
+			return m, nil
+		}
+		return m, m.openWithForm(*it)
 	case "x":
 		if it == nil {
 			return m, nil

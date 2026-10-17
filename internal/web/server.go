@@ -79,6 +79,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/panes/{session}/{id}/context/extract", s.extractContext)
 	mux.HandleFunc("PATCH /api/context/{id}", s.patchContext)
 	mux.HandleFunc("DELETE /api/context/{id}", s.deleteContext)
+	mux.HandleFunc("POST /api/context/{id}/insert", s.insertContext)
+	mux.HandleFunc("POST /api/context/{id}/open", s.openContext)
 	mux.HandleFunc("GET /api/palette", s.palette)
 	mux.HandleFunc("GET /api/verbs", s.listVerbs)
 	mux.HandleFunc("POST /api/call", s.call)
