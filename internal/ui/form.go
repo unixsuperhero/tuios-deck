@@ -124,7 +124,8 @@ type form struct {
 
 	vimNormal bool // normal mode of the vim modes setting; false is insert
 
-	adding int // the field whose addNew was taken, plus one; 0 is none
+	adding     int    // the field whose addNew was taken, plus one; 0 is none
+	targetTask string // last task value seen by project autofill; project edits stay editable
 
 	cwd   string              // the folder `@` completes under
 	cwdFn func() string       // when set, the folder worked out afresh instead of cwd

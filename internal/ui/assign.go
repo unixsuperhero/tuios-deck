@@ -118,6 +118,36 @@ func (m *Model) targetFields(keep bool) []field {
 	return fields
 }
 
+// autofillTaskProject runs after form updates, including prefills and returning
+// from mass-add. Only a changed, resolved task updates the following project;
+// empty or invalid task text leaves the project editable and validation alone.
+func (m *Model) autofillTaskProject() {
+	f := m.form
+	if m.mode != modeForm || f == nil {
+		return
+	}
+	for i := 0; i+1 < len(f.Fields); i++ {
+		task, project := &f.Fields[i], &f.Fields[i+1]
+		if task.Label != "task" || task.New != "task" || project.Label != "project" || project.New != "project" {
+			continue
+		}
+		value := task.result()
+		if value == f.targetTask {
+			return
+		}
+		f.targetTask = value
+		t, err := m.findTask(value)
+		if err != "" {
+			return
+		}
+		project.Value, project.Default, project.hl = "", "", 0
+		if p := m.store.Project(m.store.ProjectOf(t.ID)); p != nil {
+			project.Value = p.Name
+		}
+		return
+	}
+}
+
 // assignment is the theme and the text a pane's assignment is drawn with:
 // the task's, or the project's when the pane has only a project.
 type assignment struct {
