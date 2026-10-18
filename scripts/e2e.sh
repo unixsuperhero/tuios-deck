@@ -890,6 +890,34 @@ b send-keys -s host -w deck g >/dev/null; b send-keys -s host -w deck j >/dev/nu
 b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 18-jump
 check "enter on the task selects its pane on the deck" "$SCRATCH/out/18-jump.txt" 'target › extra .*deck › command palette'
 
+echo "== w opens the task tree of the selected pane and manages it in place"
+# extra is selected and assigned to deck › command palette. Everything the
+# block changes it puts back: four s are a full status cycle, and the
+# subtask n adds is deleted with x.
+task_field() { python3 -c 'import json,sys; t=[t for t in json.load(open(sys.argv[1]))["tasks"] if t["title"]==sys.argv[2]]; print(t[0][sys.argv[3]] if t else "")' "$DATA" "$1" "$2"; }
+b send-text -s host -w deck 'w'; settle; deckcap 18t-tree
+check "w opens the task tree of the pane's project" "$SCRATCH/out/18t-tree.txt" '╭─ task tree · deck'
+check "the tree marks the pane's own node with its pane count" "$SCRATCH/out/18t-tree.txt" '▸ *● *command palette .*pane ◂ this pane'
+check "the tree starts at the project" "$SCRATCH/out/18t-tree.txt" '◆ *deck .*pane'
+b send-text -s host -w deck 's'; settle; deckcap 18u-tree-status
+[ "$(task_field 'command palette' status)" = done ] && echo "PASS s in the tree sets the node's status in the store" || { echo "FAIL command palette is $(task_field 'command palette' status), not done"; fails=$((fails+1)); }
+check "the node shows its new mark and the tree stays open" "$SCRATCH/out/18u-tree-status.txt" '▸ *● ✓ command palette'
+b send-text -s host -w deck 'sss'; settle
+[ "$(task_field 'command palette' status)" = open ] && echo "PASS four s cycle the status back to open" || { echo "FAIL command palette is $(task_field 'command palette' status) after a full cycle"; fails=$((fails+1)); }
+b send-text -s host -w deck 'n'; settle; deckcap 18v-tree-add
+check "n opens the outline at the node" "$SCRATCH/out/18v-tree-add.txt" 'add projects and tasks'
+b send-text -s host -w deck 'tree kid'; b send-keys -s host -w deck ctrl+s >/dev/null; settle; deckcap 18w-tree-added
+[ "$(task_field 'tree kid' parent_id)" = t_e2e001 ] && echo "PASS n adds a subtask under the node" || { echo "FAIL tree kid's parent is '$(task_field 'tree kid' parent_id)'"; fails=$((fails+1)); }
+check "the tree comes back with the new subtask under the node" "$SCRATCH/out/18w-tree-added.txt" '│ *    [^ ]* *tree kid'
+b send-text -s host -w deck 'j'; b send-text -s host -w deck 'x'; settle; deckcap 18x-tree-delete
+check "x asks, naming what goes with the node" "$SCRATCH/out/18x-tree-delete.txt" 'delete task tree kid, 0 subtasks and 0 assignments'
+b send-text -s host -w deck 'y'; settle; deckcap 18y-tree-deleted
+[ -z "$(task_field 'tree kid' id)" ] && echo "PASS x deletes the subtask" || { echo "FAIL tree kid is still in the store"; fails=$((fails+1)); }
+check "the tree is back after the deletion" "$SCRATCH/out/18y-tree-deleted.txt" '╭─ task tree · deck'
+b send-keys -s host -w deck Escape >/dev/null; settle; deckcap 18z-tree-closed
+if grep -q 'task tree · deck' "$SCRATCH/out/18z-tree-closed.txt"; then echo "FAIL esc left the tree open"; fails=$((fails+1)); else echo "PASS esc closes the tree"; fi
+check "the rail selection is the pane it was" "$SCRATCH/out/18z-tree-closed.txt" 'target › extra .*deck › command palette'
+
 echo "== the assign tree: every branch open, the preview beside it"
 b send-keys -s host -w deck a >/dev/null; settle; deckcap 19-assign-box
 check "assign box shows its title" "$SCRATCH/out/19-assign-box.txt" '╭─ assign extra ─'
