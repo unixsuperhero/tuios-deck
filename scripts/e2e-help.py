@@ -159,7 +159,7 @@ try:
     text = screen("restored", "help-selection-proof")
     assert "Keybindings and actions" not in text
     print("PASS mode navigation, unbound commands, daemon actions and selection restore", flush=True)
-    keys("p")
+    keys("p i")
     run("B", "send-text", "-s", "host", "-w", "deck", "why?")
     text = screen("question-input", "why?")
     assert "Keybindings and actions" not in text
@@ -194,7 +194,7 @@ try:
     launch("contextual", 120, 45, plain)
     keys("F1", "contextual")
     screen("f1-page", "Mode: deck", "contextual")
-    keys("F1 p", "contextual")
+    keys("F1 p i", "contextual")
     run("B", "send-text", "-s", "contextual", "-w", "deck", "recover this?")
     screen("draft-before-help", "recover this?", "contextual")
     keys("F1", "contextual")
@@ -210,7 +210,7 @@ try:
     screen("f1-stashes", "Mode: saved prompts", "contextual")
     keys("Escape Enter", "contextual")
     screen("stash-restored-after-help", "recover this?", "contextual")
-    keys("Escape y :", "contextual")  # an edited form asks before closing
+    keys("Escape Escape y :", "contextual")  # input mode to normal, then an edited form asks before closing
     run("B", "send-text", "-s", "contextual", "-w", "deck", "keybindings")
     keys("F1", "contextual")
     screen("f1-palette", "Mode: palette", "contextual")
@@ -257,7 +257,7 @@ try:
     text = screen("remapped-help", "Keybindings and actions", "remapped")
     assert "alt+h" == next(line for line in text.splitlines() if "help:" in line).strip("│ ").split()[0]
     print("PASS help itself follows configured binding", flush=True)
-    keys("Escape p", "remapped")
+    keys("Escape p i", "remapped")
     run("B", "send-text", "-s", "remapped", "-w", "deck", "keep?")
     keys("alt+h", "remapped")
     screen("form-insert-default", "Mode: prompt", "remapped")

@@ -64,7 +64,7 @@ if [ "${FOCUS_WORK_SMOKE:-0}" = 1 ]; then
  check "$SCRATCH/out/work-created.txt" 'focus-work-terminal' 'new terminal remains visible in focus'
  a list-windows -s target --json > "$SCRATCH/out/work-windows.json"
  bun -e 'const fs=require("fs"), assert=require("assert/strict"); const d=JSON.parse(fs.readFileSync(process.argv[1])); const a=Object.values(d.assignments).find(a=>a.task_id==="t_sibling"); assert.ok(a,"new terminal assigned to empty focused task"); assert.equal(a.session,"target"); console.log("PASS persisted focused task assignment")' "$(store_json deck.json)"
- keys p
+ keys 'p i'
  b send-text -s host -w focus "printf '\\033[31mFOCUS_WORK_%s\\033[0m\\n' OK" >/dev/null
  shot work-command-form
  keys ctrl+s

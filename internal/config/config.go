@@ -18,8 +18,9 @@ import (
 // Config is every setting. The zero value is the deck's defaults, so a
 // missing file and an empty `{}` mean the same thing.
 type Config struct {
-	// VimModes gives forms explicit normal and insert modes.
-	VimModes bool `json:"vim_modes"`
+	// VimModes is no longer read: every form has normal and input modes.
+	// It stays so a file written before that still loads.
+	VimModes bool `json:"vim_modes,omitempty"`
 	// Keys are the rebindings: mode name, then action name, then the key.
 	// An action not listed keeps its default key.
 	Keys map[string]map[string]string `json:"keys,omitempty"`

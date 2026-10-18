@@ -345,7 +345,7 @@ func (m *Model) deckCommands() []palItem {
 		{"deck", "close pane", "close the selected pane after a confirmation (x)", needPane(m.confirmClose)},
 		{"deck", "close stale panes…", "list the panes idle past stale_after and close them after a confirmation", m.confirmCloseStale},
 		{"deck", "refresh", "list the sessions and agents again (r)", m.refreshAll},
-		{"deck", "settings…", "vim modes and key bindings, saved to the settings file", m.openSettingsForm},
+		{"deck", "settings…", "key bindings, saved to the settings file", m.openSettingsForm},
 		{"deck", "keybindings and actions…", "browse keys by mode, including actions without shortcuts", m.openHelp},
 		{"deck", "go to deck", "the panes page", func() tea.Cmd { m.page = pageDeck; return m.loadDetail(true) }},
 		{"deck", "go to tasks", "the projects, tasks and subtasks page (T)", func() tea.Cmd { m.page = pageTasks; m.rebuildTasks(); return nil }},

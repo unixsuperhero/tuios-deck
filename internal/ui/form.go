@@ -127,7 +127,9 @@ func fuzzy(options []string, query string) []string {
 
 // form is a sequence of fields, drawn as a box over the body. Validate,
 // when set, looks at the values on submit; a message keeps the form open
-// at the field it names.
+// at the field it names. A form opens in normal mode, where nothing types:
+// a field's hotkey (hotkeys) or the insert key puts the form in input mode
+// on that field, and esc comes back.
 type form struct {
 	Title    string
 	Fields   []field
@@ -141,8 +143,9 @@ type form struct {
 	// pending is a command OnKey asked for; handleKey returns it.
 	pending tea.Cmd
 
-	vimNormal bool // normal mode of the vim modes setting; false is insert
-	recovery  *promptRecovery
+	typing   bool     // input mode; false is normal mode, which a form opens in
+	hotkeys  []string // each field's key in normal mode, worked out once by ensureHotkeys
+	recovery *promptRecovery
 	// initial is each field's value when the person first touched the form,
 	// so esc can tell an edited form from an untouched one. nil until then.
 	initial []string
@@ -153,6 +156,68 @@ type form struct {
 	cwd   string              // the folder `@` completes under
 	cwdFn func() string       // when set, the folder worked out afresh instead of cwd
 	dirs  map[string][]string // the entries read so far, by folder under cwd
+}
+
+// ensureHotkeys gives every field its normal-mode key, once: the first
+// letter of a word of its label that no earlier field and no reserved key
+// took, else any free letter of the label, else a digit. A key is one
+// lowercase letter or digit.
+func (f *form) ensureHotkeys(reserved map[string]bool) {
+	if len(f.hotkeys) == len(f.Fields) {
+		return
+	}
+	used := map[string]bool{}
+	for k := range reserved {
+		used[k] = true
+	}
+	free := func(r rune) bool {
+		return (r >= 'a' && r <= 'z' || r >= '0' && r <= '9') && !used[string(r)]
+	}
+	f.hotkeys = make([]string, len(f.Fields))
+	for i, fl := range f.Fields {
+		label := strings.ToLower(fl.Label)
+		pick := ""
+		for _, w := range strings.Fields(label) {
+			if r := []rune(w)[0]; free(r) {
+				pick = string(r)
+				break
+			}
+		}
+		if pick == "" {
+			for _, r := range label {
+				if free(r) {
+					pick = string(r)
+					break
+				}
+			}
+		}
+		if pick == "" {
+			for _, r := range "123456789" {
+				if free(r) {
+					pick = string(r)
+					break
+				}
+			}
+		}
+		used[pick] = true
+		f.hotkeys[i] = pick
+	}
+}
+
+// hotkey is the field the key stands for in normal mode, or -1.
+func (f *form) hotkey(key string) int {
+	for i, k := range f.hotkeys {
+		if k != "" && k == key {
+			return i
+		}
+	}
+	return -1
+}
+
+// next moves the current field by dir, around the ends.
+func (f *form) next(dir int) {
+	n := len(f.Fields)
+	f.Cur = (f.Cur + dir + n) % n
 }
 
 // root is the folder `@` completes under.
@@ -461,8 +526,11 @@ func (f *form) handleKey(msg tea.KeyPressMsg) (finished bool, cmd tea.Cmd) {
 			}
 			return false, nil
 		case "tab":
-			f.accept(list)
-			return false, nil
+			// A highlighted entry is taken; with none, tab is the next field.
+			if cur.hl > 0 {
+				f.accept(list)
+				return false, nil
+			}
 		case "enter":
 			if cur.hl > 0 && !cur.isOption() {
 				f.accept(list)
@@ -488,14 +556,10 @@ func (f *form) handleKey(msg tea.KeyPressMsg) (finished bool, cmd tea.Cmd) {
 		}
 		return f.submit()
 	case "shift+tab", "up":
-		if f.Cur > 0 {
-			f.Cur--
-		}
+		f.next(-1)
 		return false, nil
-	case "tab":
-		if cur.Value == "" && cur.Default != "" {
-			cur.Value = cur.Default
-		}
+	case "tab", "down":
+		f.next(1)
 		return false, nil
 	case "backspace":
 		cur.Value = dropLastGrapheme(cur.Value)

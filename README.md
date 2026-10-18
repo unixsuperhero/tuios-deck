@@ -104,7 +104,6 @@ written whole through a temp file and a rename.
 
 ```json
 {
-  "vim_modes": true,
   "stale_after": "45m",
   "keys": {
     "deck":        { "quit": "Z", "close": "w" },
@@ -122,9 +121,10 @@ it at startup, `deck tui` at startup and when the settings form saves.
 `deck config path|show|get|set|init` reads and changes it from the shell;
 `deck config keys` lists every action with its default and current key, and
 `deck config bind <mode> <action> <key>` / `unbind <mode> <action>` change one.
-In the TUI the palette's `settings…` form does the same (vim modes on or
-off, and one rebinding at a time; an action with an empty key goes back to its
-default) and saves the file; the change applies at once.
+In the TUI the palette's `settings…` form does the same (one rebinding at a
+time; an action with an empty key goes back to its default) and saves the
+file; the change applies at once. A `vim_modes` setting from an earlier deck
+is still accepted and does nothing: every form has the two modes now.
 
 ### Key bindings
 
@@ -158,7 +158,7 @@ instead of a horizontal list. `?` on a page and the palette’s
 `keybindings and actions…` command still work. Palette-triggered help uses
 the page that opened the palette.
 Tables show the current configured keys, action names and scopes. `tab` / `shift+tab` or
-left/right select another mode, including vim form normal/insert, all page-local
+left/right select another mode, including form normal/input, all page-local
 keys, form editing, modal navigation, or all palette actions. A tab bar under
 the mode line names every mode; when they do not fit, it shows the current
 one and its neighbours with `…` for the rest. Within a tab, rows sit under a
@@ -189,7 +189,7 @@ help uses five line-heights vertically and five character-widths horizontally,
 with the same small-viewport fallback and a scrollable table. `F1` or `esc`
 closes TUI help without changing the underlying draft, filter, selection or
 scroll. The configurable `help` action can still be rebound; `F1` always
-works, including in text fields. In vim normal mode it shows normal-mode
+works, including in text fields. In form normal mode it shows normal-mode
 keys; in prompt insert mode it shows prompt editing and recovery. `?`
 remains text in inputs, and picker previews keep their existing key.
 
@@ -223,21 +223,28 @@ whose action moved elsewhere does nothing; swapping two keys is allowed.
 | --- | --- | --- |
 | `deck` | the dashboard; `help` `quit` `palette` `tasks` `captures` `add_many` `context` `review` `history` on every page, the rest on the deck page only | `help quit palette tasks captures add_many context review history left right down up top bottom scroll_down scroll_up next_tab prev_tab refresh group_next group_prev new_agent new_terminal prompt assign capture extract close live` |
 | `live` | the deck live on a pane; `leader` is the prefix (`ctrl+a`), the rest are the keys after it | `leader detach zoom zoom_pane fullscreen_pane next_pane prev_pane help` |
-| `form_normal` | forms, vim modes on, normal mode | `insert append next_field prev_field clear submit cancel` |
-| `form_insert` | forms, vim modes on, insert mode | `leave_insert` (never a printable key, so no key that types can leave the mode) |
+| `form_normal` | forms, normal mode | `insert next_field prev_field clear submit cancel` |
+| `form_insert` | forms, input mode | `leave_insert` (never a printable key, so no key that types can leave the mode) |
 
-### Vim modes
+### Form modes
 
-With `vim_modes` off (the default) forms behave as described under Forms:
-every key types, `esc` cancels. With it on, a form opens in **insert** mode,
-where every key types exactly as before, and the box names the mode. `esc`
-first closes an open `@` path list, then goes to **normal** mode. In normal
-mode nothing types: `i`/`a` return to insert, `j`/`k` move between fields,
-`D` empties the field, `enter` submits, and `esc` cancels the form (or goes
-back to the parked form after `+ add new…`). Any other key is ignored, and a
-paste is ignored too. In either setting, `esc` on a form whose fields you
-have changed asks first, `y` discards and `n` keeps the form; an untouched
-form closes at once.
+A form opens in **normal** mode, where nothing types. Every field's label
+has one letter underlined, its hotkey: pressing it puts the form in
+**input** mode on that field. `i` does the same on the current field,
+`j`/`k` (or `tab`/`shift+tab`, `↓`/`↑`) move the marker, `D` empties the
+field, `enter` submits, and `esc` cancels the form (or goes back to the
+parked form after `+ add new…`). Any other key is ignored, and a paste is
+ignored too. In input mode every key types as described under
+[Forms](#forms), and `esc` first closes an open completion list, then goes
+back to normal mode. In either mode, `esc` on a form whose fields you have
+changed asks first, `y` discards and `n` keeps the form; an untouched form
+closes at once. The line under the fields names the mode and its keys.
+
+A hotkey is a lowercase letter or a digit, worked out from the label: the
+first letter of one of its words that no earlier field and no normal-mode
+command took, else any free letter of the label, else a digit written in
+front of the label. The keys bound in `form_normal` and the help key are
+never hotkeys.
 
 ## Projects, tasks and assignments
 
@@ -1186,21 +1193,24 @@ timer, until the selection or the tab moves.
 ### Forms
 
 A form opens as a box over the middle of the screen: its title in the top
-border, every field on its own line, the current one marked `›` with its
-hint under it, and the keys at the bottom. A refused form keeps its message
-on the status line.
+border, every field on its own line with its hotkey underlined, the current
+one marked `›` with its hint under it, and the mode and its keys at the
+bottom. It opens in normal mode (see [Form modes](#form-modes)); the keys
+below are input mode's. A refused form keeps its message on the status
+line. An empty field shows its default dim, and submits it.
 
 | Key | Does |
 | --- | --- |
 | `enter` | The next field, or submit on the last one |
 | `shift+tab` `↑` | The previous field |
-| `tab` | Take the field's default when it is empty |
+| `tab` `↓` | The next field; `tab` takes the highlighted completion instead when there is one |
+| `esc` | Close the completion list, else back to normal mode |
 | `ctrl+s` | Submit from any field |
 | `ctrl+u` | Stash the full draft in prompt fields, then clear the current line only; earlier lines stay intact |
 | `ctrl+r` | In a prompt field, browse and search stashed prompts, newest first |
 | `ctrl+w` | Delete the last word |
 | `ctrl+z` | Undo the current field's last edit, including clearing, typing, completion or a paste; repeat to undo further |
-| `esc` | Cancel |
+| `ctrl+c` | Cancel |
 
 A field with known values (tasks, projects, sessions, windows, option keys,
 themes, accepted values, programs, grouping levels) lists up to 8 of them
@@ -1254,7 +1264,7 @@ or `ctrl+c` returns to the unchanged draft. Restoring also saves any draft it
 replaces, and `ctrl+z` can undo the replacement while the form stays open.
 Recovery is available in pane prompts (including terminals), new-agent first
 prompts, new/edit queued prompts, and the palette's `queue-prompt`/`start-agent`
-prompt parameters. `ctrl+r` also works in a prompt field in vim normal mode.
+prompt parameters. `ctrl+r` also works in a prompt field in normal mode.
 Stashes are local plaintext, protected by the store file's 0600 permissions;
 they are retained until removed from the store, not automatically expired.
 
@@ -1332,7 +1342,7 @@ confirms, `n` or `esc` cancels, and any other key does nothing.
 ### Contextual keybindings
 
 Every TUI screen and modal footer offers `F1 keybindings`. Forms also retain
-the field position and INSERT/NORMAL state; these are status, not key lists.
+the field position and INPUT/NORMAL state; these are status, not key lists.
 Help opens for what currently has focus, including saved prompts and picker
 variants, and lists bindings vertically. Use `F1` or `esc` to return without
 changing the underlying input or selection. The help modal lists its own
@@ -1477,7 +1487,7 @@ migrates it into the `deck.db` beside it, and the checks read the store back
 with `deck export`.
 `scripts/e2e-prompt-stash.sh` drives prompt stashing and recovery through the
 real TUI: exact text, preview/search, restart persistence, all composer forms,
-undo, deduplication, vim mode and failed-save protection.
+undo, deduplication, normal mode and failed-save protection.
 `scripts/e2e-web.sh` runs `deck web` against a throwaway daemon the same
 way and checks the API with curl, the event stream, and the WebSocket pane
 stream with `scripts/wscheck`. `scripts/e2e-reminders.sh` drives the reminder palette

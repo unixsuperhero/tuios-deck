@@ -54,9 +54,12 @@ wait_deck() { # pattern, seconds
 # 277 of the suite's 423 seconds, since the wait always runs its full window.
 settle() { b wait-for window-idle -s host -w deck --idle 200 --timeout 10000 >/dev/null; }
 # cancel_form sends esc and, when a form whose fields were edited asks before
-# closing, answers y; an untouched form, a page or a list closes at once.
+# closing, answers y; an untouched form, a page or a list closes at once. A
+# form in input mode goes to normal mode on the first esc, so one more is sent
+# while the form's help line still names NORMAL.
 cancel_form() {
 	b send-keys -s host -w deck Escape >/dev/null; settle
+	if b capture-pane -s host -w deck | grep -q '· NORMAL ·'; then b send-keys -s host -w deck Escape >/dev/null; settle; fi
 	if b capture-pane -s host -w deck | grep -q 'close this form without submitting'; then b send-keys -s host -w deck y >/dev/null; settle; fi
 }
 window_id() { a list-windows -s target --json | python3 -c 'import json,sys; print([w["window_id"] for w in json.load(sys.stdin)["windows"] if w["title"]==sys.argv[1]][0])' "$1"; }
@@ -141,7 +144,7 @@ b send-keys -s host -w deck 1 >/dev/null; settle
 
 echo "== prompt to a plain terminal"
 select_pane 1
-b send-keys -s host -w deck p >/dev/null; settle
+b send-keys -s host -w deck 'p i' >/dev/null; settle
 b send-text -s host -w deck 'echo from-deck-prompt'; settle; deckcap 04a-prompt-box
 check "prompt form is a box with its title" "$SCRATCH/out/04a-prompt-box.txt" '╭─ prompt ─'
 b send-keys -s host -w deck ctrl+s >/dev/null
@@ -151,7 +154,7 @@ settle; deckcap 04-after-prompt
 check "status reports the send" "$SCRATCH/out/04-after-prompt.txt" 'sent to build'
 
 echo "== @ completes paths under the pane's cwd"
-b send-keys -s host -w deck p >/dev/null; settle
+b send-keys -s host -w deck 'p i' >/dev/null; settle
 b send-text -s host -w deck 'look at @'; settle; deckcap 04b-at
 check "@ lists the folders of the pane's cwd" "$SCRATCH/out/04b-at.txt" '  captures/'
 check "@ list shows files plain" "$SCRATCH/out/04b-at.txt" '  deck.txt '
@@ -164,11 +167,11 @@ b send-keys -s host -w deck Escape >/dev/null; settle; deckcap 04e-at-closed
 check "esc closes the @ list and keeps the form" "$SCRATCH/out/04e-at-closed.txt" '╭─ prompt ─'
 b send-keys -s host -w deck ctrl+u >/dev/null; b send-text -s host -w deck '@deck.t'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 04f-at-file
 check "enter on a file puts its path in place of the @query" "$SCRATCH/out/04f-at-file.txt" '    deck.txt▏'
-b send-keys -s host -w deck Escape >/dev/null; settle; deckcap 04g-at-ask
+b send-keys -s host -w deck 'Escape Escape' >/dev/null; settle; deckcap 04g-at-ask   # input mode to normal mode, then the question
 check "esc on an edited form asks before closing" "$SCRATCH/out/04g-at-ask.txt" 'close this form without submitting'
 check "the edited form stays up while it asks" "$SCRATCH/out/04g-at-ask.txt" '╭─ prompt ─'
 b send-keys -s host -w deck n >/dev/null; settle; deckcap 04g-at-kept
-check "n keeps the edited form" "$SCRATCH/out/04g-at-kept.txt" '    deck.txt▏'
+check "n keeps the edited form" "$SCRATCH/out/04g-at-kept.txt" '    deck.txt '
 b send-keys -s host -w deck Escape >/dev/null; settle; b send-keys -s host -w deck y >/dev/null; settle; deckcap 04g-at-cancel
 if grep -q '╭─ prompt' "$SCRATCH/out/04g-at-cancel.txt"; then echo "FAIL prompt form still open"; fails=$((fails+1)); else echo "PASS esc then y discards the edited form"; fi
 b send-keys -s host -w deck p >/dev/null; settle; b send-keys -s host -w deck Escape >/dev/null; settle; deckcap 04h-untouched
@@ -176,7 +179,7 @@ if grep -q '╭─ prompt' "$SCRATCH/out/04h-untouched.txt"; then echo "FAIL unt
 
 echo "== prompt to the fake agent is queued"
 select_pane 2
-b send-keys -s host -w deck p >/dev/null; settle
+b send-keys -s host -w deck 'p i' >/dev/null; settle
 b send-text -s host -w deck 'do the thing'
 b send-keys -s host -w deck ctrl+s >/dev/null; settle; deckcap 05-queued
 check "queue-prompt was used for the agent" "$SCRATCH/out/05-queued.txt" 'prompt \(queued\|delivering\)'
@@ -190,7 +193,7 @@ printf 'run it\n' > "$SCRATCH/.claude/commands/e2e-cmd.md"
 printf -- '---\nname: e2e-skill\n---\n' > "$SCRATCH/.claude/skills/e2e-skill/SKILL.md"
 a set-agent-state working -s target -w fake --harness claude-code >/dev/null
 select_pane 2
-b send-keys -s host -w deck p >/dev/null; settle
+b send-keys -s host -w deck 'p i' >/dev/null; settle
 b send-text -s host -w deck '/e2e-'; settle; deckcap 05a-slash
 check "/ lists a project command" "$SCRATCH/out/05a-slash.txt" '▸ e2e-cmd'
 check "/ lists a project skill" "$SCRATCH/out/05a-slash.txt" 'e2e-skill'
@@ -203,7 +206,7 @@ check "the queued text is the command and the @ reference, as typed" "$SCRATCH/o
 a call cancel-queued '{"session":"target","window":"fake","all":true}' >/dev/null
 
 echo "== prompt line clearing is reversible"
-b send-keys -s host -w deck p >/dev/null; settle
+b send-keys -s host -w deck 'p i' >/dev/null; settle
 b send-text -s host -w deck $'\033[200~keep-first\nkeep-second\nrecover-café\033[201~'; settle
 b send-keys -s host -w deck ctrl+u >/dev/null; settle; deckcap 05-undo-cleared
 check "ctrl+u keeps the first prompt line" "$SCRATCH/out/05-undo-cleared.txt" 'keep-first'
@@ -233,7 +236,7 @@ a set-agent-state idle -s target -w fake --harness claude-code >/dev/null
 echo "== a path with spaces is written @\"path\" (Claude Code and OMP read the quoted form), never skipped"
 mkdir -p "$SCRATCH/my dir"
 printf 'x\n' > "$SCRATCH/my dir/inner file.txt"; printf 'x\n' > "$SCRATCH/spaced name.txt"
-b send-keys -s host -w deck p >/dev/null; settle
+b send-keys -s host -w deck 'p i' >/dev/null; settle
 b send-text -s host -w deck '@spaced'; settle; deckcap 05e-spaced-list
 check "a file with a space is offered" "$SCRATCH/out/05e-spaced-list.txt" '▸ spaced name.txt'
 b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 05f-spaced
@@ -249,7 +252,7 @@ a call cancel-queued '{"session":"target","window":"fake","all":true}' >/dev/nul
 
 echo "== a prompt takes capitals, opens on the text, and shift+tab reaches the preset"
 select_pane 2
-b send-keys -s host -w deck p >/dev/null; settle
+b send-keys -s host -w deck 'p i' >/dev/null; settle
 b send-keys -s host -w deck H >/dev/null; b send-text -s host -w deck 'ello '; b send-keys -s host -w deck W >/dev/null; settle; deckcap 05i-capitals
 check "capitals typed with shift reach the prompt" "$SCRATCH/out/05i-capitals.txt" 'Hello W▏'
 b send-keys -s host -w deck shift+tab >/dev/null; settle; deckcap 05j-preset
@@ -258,7 +261,7 @@ cancel_form
 
 echo "== a queued prompt takes @ files and / commands of the agent it will start"
 b send-keys -s host -w deck ctrl+p >/dev/null; settle
-b send-text -s host -w deck 'queue prompt'; b send-keys -s host -w deck Enter >/dev/null; settle
+b send-text -s host -w deck 'queue prompt'; b send-keys -s host -w deck Enter >/dev/null; settle; b send-keys -s host -w deck i >/dev/null
 b send-text -s host -w deck 'comm'; b send-keys -s host -w deck Tab >/dev/null
 for i in 1 2 3 4 5 6; do b send-keys -s host -w deck Enter >/dev/null; done   # task, project, preset, agent, session, cwd
 settle; deckcap 05k-queue-pane
@@ -284,7 +287,7 @@ a wait-for agent-state -s target -w ompfake --until idle --timeout 10000 >/dev/n
 a list-agents -s target --json > "$SCRATCH/out/05i-agents.json"
 check "the second fake agent reports the omp harness" "$SCRATCH/out/05i-agents.json" '"harness_id": *"omp"'
 select_pane 3
-b send-keys -s host -w deck p >/dev/null; settle
+b send-keys -s host -w deck 'p i' >/dev/null; settle
 b send-text -s host -w deck '/omp-'; settle; deckcap 05i-omp-cmd
 check "OMP lists a project command as /name" "$SCRATCH/out/05i-omp-cmd.txt" '▸ omp-cmd'
 b send-keys -s host -w deck ctrl+u >/dev/null; b send-text -s host -w deck '/skill:omp'; settle; deckcap 05j-omp-skill
@@ -297,7 +300,7 @@ echo "== ctrl+o picks files with the OS dialog (a stand-in osascript/zenity prin
 printf '#!/bin/sh\nprintf "%%s\\n%%s\\n" "%s/deck.txt" "/etc/hosts"\n' "$SCRATCH" > "$SCRATCH/bin/osascript"
 cp "$SCRATCH/bin/osascript" "$SCRATCH/bin/zenity"; chmod +x "$SCRATCH/bin/osascript" "$SCRATCH/bin/zenity"
 select_pane 2
-b send-keys -s host -w deck p >/dev/null; settle
+b send-keys -s host -w deck 'p i' >/dev/null; settle
 b send-text -s host -w deck 'read'; b send-keys -s host -w deck ctrl+o >/dev/null; wait_deck '@/etc/hosts' 10; deckcap 05d-pick
 check "the dialog's files become @ references, relative inside the cwd" "$SCRATCH/out/05d-pick.txt" 'read @deck.txt @/etc/hosts'
 cancel_form
@@ -428,7 +431,7 @@ b send-keys -s host -w deck ctrl+o >/dev/null; settle; deckcap 06m4-opened
 check "ctrl+o opens with the platform opener" "$SCRATCH/out/06m4-opened.txt" 'opened https://example.com/tui-link with \(open\|xdg-open\)'
 grep -q 'https://example.com/tui-link' "$SCRATCH/opened.txt" && echo "PASS the opener got the link" || { echo "FAIL the opener got nothing"; fails=$((fails+1)); }
 b send-keys -s host -w deck w >/dev/null; settle; deckcap 06m5-with
-check "w asks for a program, offering the opener" "$SCRATCH/out/06m5-with.txt" 'program: .*\(open\|xdg-open\) (tab to take)'
+check "w asks for a program, offering the opener" "$SCRATCH/out/06m5-with.txt" 'program: .*\(open\|xdg-open\) (the default)'
 b send-keys -s host -w deck Tab >/dev/null; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 06m6-with-done
 check "open with reports the program" "$SCRATCH/out/06m6-with-done.txt" 'opened https://example.com/tui-link with \(open\|xdg-open\)'
 [ "$(grep -c tui-link "$SCRATCH/opened.txt")" -ge 2 ] && echo "PASS open with ran the program" || { echo "FAIL open with did not run"; fails=$((fails+1)); }
@@ -439,7 +442,7 @@ check "o groups the items by kind" "$SCRATCH/out/06o-grouped.txt" '▾ link'
 cancel_form
 
 echo "== a terminal needs a task or a project"
-b send-keys -s host -w deck t >/dev/null; settle
+b send-keys -s host -w deck 't i' >/dev/null; settle
 b send-keys -s host -w deck Enter >/dev/null            # session
 b send-text -s host -w deck 'nope'; b send-keys -s host -w deck Enter >/dev/null
 b send-keys -s host -w deck Enter >/dev/null            # cwd
@@ -452,7 +455,7 @@ a list-windows -s target --json > "$SCRATCH/out/a-windows-nope.json"
 if grep -q '"nope"' "$SCRATCH/out/a-windows-nope.json"; then echo "FAIL nope opened without an assignment"; fails=$((fails+1)); else echo "PASS nothing opened"; fi
 
 echo "== new terminal through the form, assigned to a task"
-b send-keys -s host -w deck t >/dev/null; settle
+b send-keys -s host -w deck 't i' >/dev/null; settle
 b send-keys -s host -w deck Enter >/dev/null            # session: default target
 b send-text -s host -w deck 'extra'; b send-keys -s host -w deck Enter >/dev/null
 b send-keys -s host -w deck Enter >/dev/null            # cwd default; always a shell
@@ -482,7 +485,7 @@ python3 -c 'import json,sys; a=json.load(open(sys.argv[1]))["assignments"][sys.a
 	&& echo "PASS build is assigned to the project" || { echo "FAIL build assignment is not the project"; fails=$((fails+1)); }
 
 echo "== new agent through the form (a quiet program counts as ready)"
-b send-keys -s host -w deck n >/dev/null; settle
+b send-keys -s host -w deck 'n i' >/dev/null; settle
 b send-keys -s host -w deck Enter >/dev/null            # session
 b send-keys -s host -w deck ctrl+u >/dev/null; b send-text -s host -w deck 'sleep 600'; b send-keys -s host -w deck Enter >/dev/null
 b send-text -s host -w deck 'sleeper'; b send-keys -s host -w deck Enter >/dev/null
@@ -552,7 +555,7 @@ check "enter on group by project regroups the rail" "$SCRATCH/out/07g-regrouped.
 check "status confirms the palette's regroup" "$SCRATCH/out/07g-regrouped.txt" 'grouped by project'
 if grep -q '─ command palette' "$SCRATCH/out/07g-regrouped.txt"; then echo "FAIL palette still open after enter"; fails=$((fails+1)); else echo "PASS palette closed after enter"; fi
 b send-text -s host -w deck ':'; settle
-b send-text -s host -w deck 'group by…'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 07g2-group-form
+b send-text -s host -w deck 'group by…'; b send-keys -s host -w deck 'Enter i' >/dev/null; settle; deckcap 07g2-group-form
 check "group by… opens the levels form" "$SCRATCH/out/07g2-group-form.txt" '╭─ group by ─'
 b send-text -s host -w deck 'harness > project'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 07g3-free-text
 check "free-text grouping named in the title" "$SCRATCH/out/07g3-free-text.txt" 'tuios-deck.* deck  by harness > project'
@@ -585,7 +588,7 @@ b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 07k-form
 check "form box is titled with the verb" "$SCRATCH/out/07k-form.txt" '╭─ list-windows ─'
 check "form asks for the verb's session param" "$SCRATCH/out/07k-form.txt" '› session: '
 check "param description is the help-line hint" "$SCRATCH/out/07k-form.txt" 'Session name'
-b send-text -s host -w deck 'tar'; b send-keys -s host -w deck Tab >/dev/null; settle; deckcap 07k2-complete
+b send-keys -s host -w deck i >/dev/null; b send-text -s host -w deck 'tar'; b send-keys -s host -w deck Tab >/dev/null; settle; deckcap 07k2-complete
 check "tab completes the session name" "$SCRATCH/out/07k2-complete.txt" 'session: target'
 b send-keys -s host -w deck Enter >/dev/null
 wait_deck 'result of list-windows' 15 && echo "PASS verb result reached the detail pane" || { echo "FAIL no result of list-windows"; fails=$((fails+1)); }
@@ -607,14 +610,14 @@ check "seeded task listed with its pane" "$SCRATCH/out/10-tasks.txt" 'command pa
 check "project detail lists the panes assigned under it" "$SCRATCH/out/10-tasks.txt" 'target › extra'
 
 echo "== new project, task and subtask"
-b send-text -s host -w deck 'N'; settle
+b send-keys -s host -w deck 'N i' >/dev/null; settle
 b send-text -s host -w deck 'web'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 11-project
 check "project added and selected" "$SCRATCH/out/11-project.txt" 'added project web'
 check "project detail shows its theme" "$SCRATCH/out/11-project.txt" 'theme *[a-z-]* ◆'
-b send-keys -s host -w deck n >/dev/null; settle; deckcap 11b-task-form
+b send-keys -s host -w deck 'n i' >/dev/null; settle; deckcap 11b-task-form
 check "n on a project opens a task form for it" "$SCRATCH/out/11b-task-form.txt" 'new task in web'
 b send-text -s host -w deck 'landing'; b send-keys -s host -w deck Enter >/dev/null; settle
-b send-keys -s host -w deck n >/dev/null; settle; deckcap 11c-subtask-form
+b send-keys -s host -w deck 'n i' >/dev/null; settle; deckcap 11c-subtask-form
 check "n on a task opens a subtask form for it" "$SCRATCH/out/11c-subtask-form.txt" 'new subtask of landing'
 b send-text -s host -w deck 'hero copy'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 12-tree
 check "task listed under the project" "$SCRATCH/out/12-tree.txt" 'landing'
@@ -634,7 +637,7 @@ b send-text -s host -w deck '))'; settle; deckcap 12g-subtask
 check ") twice is back on the subtask" "$SCRATCH/out/12g-subtask.txt" 'path *web › landing › hero copy'
 
 echo "== rename through the edit form and toggle done"
-b send-keys -s host -w deck e >/dev/null; settle; deckcap 13a-edit-form
+b send-keys -s host -w deck 'e i' >/dev/null; settle; deckcap 13a-edit-form
 check "e opens the edit form for the task" "$SCRATCH/out/13a-edit-form.txt" '╭─ edit task hero copy ─'
 check "edit form offers the parent, current one by default" "$SCRATCH/out/13a-edit-form.txt" '  parent: web / landing'
 check "edit form offers status, colour and glyph" "$SCRATCH/out/13a-edit-form.txt" '  status: open'
@@ -675,7 +678,7 @@ check "selection fell back to the task" "$SCRATCH/out/16-deleted.txt" 'path *web
 
 echo "== notes: added through the palette, seen by ancestors and descendants, not siblings"
 palette() { b send-text -s host -w deck ':'; settle; b send-text -s host -w deck "$1"; b send-keys -s host -w deck Enter >/dev/null; settle; }
-addnote() { palette 'add note'; b send-text -s host -w deck "$1"; b send-keys -s host -w deck ctrl+s >/dev/null; settle; }
+addnote() { palette 'add note'; b send-keys -s host -w deck i >/dev/null; b send-text -s host -w deck "$1"; b send-keys -s host -w deck ctrl+s >/dev/null; settle; }
 # Rows of the tasks page here: 0 deck, 1 command palette, 2 web, 3 landing, then landing's subtasks.
 goto_row() { b send-keys -s host -w deck g >/dev/null; [ "$1" -gt 0 ] && b send-keys -s host -w deck j --repeat "$1" >/dev/null; settle; }
 goto_row 3
@@ -689,7 +692,7 @@ check "and sees the task's note under it" "$SCRATCH/out/16a2-project-note.txt" '
 goto_row 3; deckcap 16b-child-sees-project
 check "a task sees its project's note, marked with where it came from" "$SCRATCH/out/16b-child-sees-project.txt" 'from web'
 check "and the project's text" "$SCRATCH/out/16b-child-sees-project.txt" 'tui-note-web'
-b send-keys -s host -w deck n >/dev/null; settle; b send-text -s host -w deck 'kid'; b send-keys -s host -w deck Enter >/dev/null; settle
+b send-keys -s host -w deck 'n i' >/dev/null; settle; b send-text -s host -w deck 'kid'; b send-keys -s host -w deck Enter >/dev/null; settle
 addnote 'tui-note-kid'; deckcap 16b2-kid
 check "a subtask sees its parent's note" "$SCRATCH/out/16b2-kid.txt" 'tui-note-landing'
 goto_row 3; deckcap 16c-parent-sees-child
@@ -698,7 +701,7 @@ check "marked as under the subtask" "$SCRATCH/out/16c-parent-sees-child.txt" 'un
 goto_row 2; deckcap 16d-project-sees-all
 check "a project sees the notes of the tasks under it" "$SCRATCH/out/16d-project-sees-all.txt" 'tui-note-kid'
 goto_row 3
-b send-keys -s host -w deck n >/dev/null; settle; b send-text -s host -w deck 'sib'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 16e-sibling
+b send-keys -s host -w deck 'n i' >/dev/null; settle; b send-text -s host -w deck 'sib'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 16e-sibling
 check "a new sibling sees the parent's note" "$SCRATCH/out/16e-sibling.txt" 'tui-note-landing'
 if grep -q 'tui-note-kid' "$SCRATCH/out/16e-sibling.txt"; then echo "FAIL sibling sees its sibling's note"; fails=$((fails+1)); else echo "PASS a sibling's note is not inherited"; fi
 palette 'edit note'; deckcap 16f-edit-none
@@ -706,7 +709,7 @@ check "edit note refuses when the row has no note of its own" "$SCRATCH/out/16f-
 goto_row 4   # kid
 palette 'edit note'; deckcap 16g-edit-form
 check "edit note opens a form listing the row's own notes" "$SCRATCH/out/16g-edit-form.txt" 'edit note of kid'
-b send-keys -s host -w deck Enter >/dev/null; b send-text -s host -w deck 'tui-kid-edited'; b send-keys -s host -w deck ctrl+s >/dev/null; settle; deckcap 16h-edited
+b send-keys -s host -w deck 'i Enter' >/dev/null; b send-text -s host -w deck 'tui-kid-edited'; b send-keys -s host -w deck ctrl+s >/dev/null; settle; deckcap 16h-edited
 check "edit reports the note" "$SCRATCH/out/16h-edited.txt" 'edited note n_'
 check "the new text shows" "$SCRATCH/out/16h-edited.txt" 'tui-kid-edited'
 wait_store 'tui-kid-edited' present 10 && echo "PASS the edit is in the store" || { echo "FAIL edit not in $DATA"; fails=$((fails+1)); }
@@ -761,10 +764,10 @@ assert web["theme"]["color"] not in held, (web, held)
 PY
 
 echo "== edit a task: move it and set its status in one form"
-b send-keys -s host -w deck n >/dev/null; b send-text -s host -w deck 'docs'; b send-keys -s host -w deck Enter >/dev/null; settle
-b send-keys -s host -w deck n >/dev/null; b send-text -s host -w deck 'api ref'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 20a-api-ref
+b send-keys -s host -w deck 'n i' >/dev/null; b send-text -s host -w deck 'docs'; b send-keys -s host -w deck Enter >/dev/null; settle
+b send-keys -s host -w deck 'n i' >/dev/null; b send-text -s host -w deck 'api ref'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 20a-api-ref
 check "api ref is a subtask of docs" "$SCRATCH/out/20a-api-ref.txt" 'path *web › docs › api ref'
-b send-keys -s host -w deck e >/dev/null; settle
+b send-keys -s host -w deck 'e i' >/dev/null; settle
 b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 20b-parent-list   # title kept
 check "parent field lists the top-level entries" "$SCRATCH/out/20b-parent-list.txt" '(top level of deck)'
 if grep -q 'web / docs / api ref' "$SCRATCH/out/20b-parent-list.txt"; then echo "FAIL the parent list offers the task itself"; fails=$((fails+1)); else echo "PASS the parent list leaves out the task itself"; fi
@@ -785,7 +788,7 @@ landing = [t for t in d["tasks"] if t["title"] == "landing"][0]
 api = [t for t in d["tasks"] if t["title"] == "api ref"][0]
 assert api["parent_id"] == landing["id"] and api["project_id"] == "" and api["status"] == "done", api
 PY2
-b send-keys -s host -w deck e >/dev/null; settle
+b send-keys -s host -w deck 'e i' >/dev/null; settle
 b send-keys -s host -w deck Enter >/dev/null
 b send-text -s host -w deck '(top level of deck)'; b send-keys -s host -w deck ctrl+s >/dev/null; settle; deckcap 20d-top
 check "status reports the move to a project's top level" "$SCRATCH/out/20d-top.txt" 'api ref: moved to the top level of deck'
@@ -796,8 +799,8 @@ d = json.load(open(sys.argv[1]))
 api = [t for t in d["tasks"] if t["title"] == "api ref"][0]
 assert api["parent_id"] == "" and api["project_id"] == "p_e2e001", api
 PY2
-b send-keys -s host -w deck n >/dev/null; b send-text -s host -w deck 'child'; b send-keys -s host -w deck Enter >/dev/null; settle
-b send-keys -s host -w deck k >/dev/null; b send-keys -s host -w deck e >/dev/null; settle
+b send-keys -s host -w deck 'n i' >/dev/null; b send-text -s host -w deck 'child'; b send-keys -s host -w deck Enter >/dev/null; settle
+b send-keys -s host -w deck k >/dev/null; b send-keys -s host -w deck 'e i' >/dev/null; settle
 b send-keys -s host -w deck Enter >/dev/null
 b send-text -s host -w deck 'deck / api ref / child'; b send-keys -s host -w deck ctrl+s >/dev/null; settle; deckcap 20e-cycle
 check "moving a task under its own subtask is refused" "$SCRATCH/out/20e-cycle.txt" 'cannot move under itself or one of its subtasks'
@@ -810,7 +813,7 @@ assert api["parent_id"] == "" and api["project_id"] == "p_e2e001", api
 PY2
 
 echo "== ctrl+h and ctrl+l walk the parent of a new task"
-b send-keys -s host -w deck j >/dev/null; b send-keys -s host -w deck n >/dev/null; settle; deckcap 21a-new-under-child
+b send-keys -s host -w deck j >/dev/null; b send-keys -s host -w deck 'n i' >/dev/null; settle; deckcap 21a-new-under-child
 check "n on a subtask starts under it" "$SCRATCH/out/21a-new-under-child.txt" '╭─ new subtask of child ─'
 check "the hint names the parent's full path" "$SCRATCH/out/21a-new-under-child.txt" 'under deck › api ref › child · ctrl+h'
 b send-keys -s host -w deck ctrl+h >/dev/null; b send-keys -s host -w deck ctrl+h >/dev/null; b send-keys -s host -w deck ctrl+h >/dev/null; settle; deckcap 21b-up
@@ -834,7 +837,7 @@ b send-keys -s host -w deck x >/dev/null; b send-keys -s host -w deck y >/dev/nu
 wait_store '"api ref"' absent 10 && echo "PASS api ref cleaned up" || { echo "FAIL api ref still in $DATA"; fails=$((fails+1)); }
 
 echo "== edit a project: name and status in one form"
-b send-keys -s host -w deck g >/dev/null; b send-keys -s host -w deck e >/dev/null; settle; deckcap 20f-project-form
+b send-keys -s host -w deck g >/dev/null; b send-keys -s host -w deck 'e i' >/dev/null; settle; deckcap 20f-project-form
 check "e on a project opens its edit form" "$SCRATCH/out/20f-project-form.txt" '╭─ edit project deck ─'
 b send-keys -s host -w deck Enter >/dev/null; b send-text -s host -w deck 'done'; b send-keys -s host -w deck ctrl+s >/dev/null; settle; deckcap 20g-project-edited
 check "status reports the project's change" "$SCRATCH/out/20g-project-edited.txt" 'deck: status done'
@@ -874,12 +877,12 @@ b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 20o-glyph-emoji
 check "an emoji with its variation selector is one glyph" "$SCRATCH/out/20o-glyph-emoji.txt" $'task command palette is now ❤️'
 b send-keys -s host -w deck M >/dev/null; b send-text -s host -w deck $'é'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 20p-glyph-combining
 check "a letter with a combining accent is one glyph" "$SCRATCH/out/20p-glyph-combining.txt" $'task command palette is now é'
-b send-keys -s host -w deck e >/dev/null; for i in 1 2 3 4; do b send-keys -s host -w deck Enter >/dev/null; done; settle; deckcap 20q-edit-glyph
-check "the edit form's glyph field shows the current glyph as its default" "$SCRATCH/out/20q-edit-glyph.txt" $'› glyph: ▏é (tab to take)'
+b send-keys -s host -w deck 'e i' >/dev/null; for i in 1 2 3 4; do b send-keys -s host -w deck Enter >/dev/null; done; settle; deckcap 20q-edit-glyph
+check "the edit form's glyph field shows the current glyph as its default" "$SCRATCH/out/20q-edit-glyph.txt" $'› glyph: ▏é (the default)'
 b send-text -s host -w deck 'ab'; b send-keys -s host -w deck ctrl+s >/dev/null; settle; deckcap 20r-edit-multi
 check "a typed glyph of two characters is refused" "$SCRATCH/out/20r-edit-multi.txt" 'one character only'
 b send-keys -s host -w deck ctrl+u >/dev/null; b send-text -s host -w deck $'❤️'; b send-keys -s host -w deck backspace >/dev/null; settle; deckcap 20s-edit-backspace
-check "backspace takes the whole emoji, selector and all" "$SCRATCH/out/20s-edit-backspace.txt" $'› glyph: ▏é (tab to take)'
+check "backspace takes the whole emoji, selector and all" "$SCRATCH/out/20s-edit-backspace.txt" $'› glyph: ▏é (the default)'
 b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 20t-edit-table
 check "enter on the empty glyph field opens the table" "$SCRATCH/out/20t-edit-table.txt" '╭─ edit task command palette · glyph ─'
 check "the table opens on the current glyph, a custom entry" "$SCRATCH/out/20t-edit-table.txt" $'é · custom'
@@ -911,7 +914,7 @@ b send-text -s host -w deck 's'; settle; deckcap 18u-tree-status
 check "the node shows its new mark and the tree stays open" "$SCRATCH/out/18u-tree-status.txt" '▸ *● ✓ command palette'
 b send-text -s host -w deck 'sss'; settle
 [ "$(task_field 'command palette' status)" = open ] && echo "PASS four s cycle the status back to open" || { echo "FAIL command palette is $(task_field 'command palette' status) after a full cycle"; fails=$((fails+1)); }
-b send-text -s host -w deck 'n'; settle; deckcap 18v-tree-add
+b send-keys -s host -w deck 'n i' >/dev/null; settle; deckcap 18v-tree-add
 check "n opens the outline at the node" "$SCRATCH/out/18v-tree-add.txt" 'add projects and tasks'
 b send-text -s host -w deck 'tree kid'; b send-keys -s host -w deck ctrl+s >/dev/null; settle; deckcap 18w-tree-added
 [ "$(task_field 'tree kid' parent_id)" = t_e2e001 ] && echo "PASS n adds a subtask under the node" || { echo "FAIL tree kid's parent is '$(task_field 'tree kid' parent_id)'"; fails=$((fails+1)); }
@@ -965,7 +968,7 @@ b send-keys -s host -w deck r >/dev/null; settle; deckcap 20-r-deck
 check "r on a long screen leaves the deck alive" "$SCRATCH/out/20-r-deck.txt" 'tuios-deck.* deck '
 check "r keeps the followed screen in view" "$SCRATCH/out/20-r-deck.txt" '│END-OF-SEQ'
 b send-text -s host -w deck ':'; settle
-b send-text -s host -w deck 'list-win'; b send-keys -s host -w deck Enter >/dev/null; settle
+b send-text -s host -w deck 'list-win'; b send-keys -s host -w deck 'Enter i' >/dev/null; settle
 b send-text -s host -w deck 'target'; b send-keys -s host -w deck Enter >/dev/null
 wait_deck 'result of list-windows' 15 || true
 b send-keys -s host -w deck r >/dev/null; settle; deckcap 20b-r-result
@@ -996,7 +999,7 @@ type_lines() {
 }
 b send-text -s host -w deck 'T'; settle
 b send-keys -s host -w deck g >/dev/null; b send-keys -s host -w deck j >/dev/null; settle
-b send-text -s host -w deck 'A'; settle; deckcap 20-mass-box
+b send-keys -s host -w deck 'A i' >/dev/null; settle; deckcap 20-mass-box
 check "A opens the mass-add box" "$SCRATCH/out/20-mass-box.txt" '╭─ add projects and tasks ─'
 check "the hint says existing items are shown dim" "$SCRATCH/out/20-mass-box.txt" 'existing items are shown dim; editing or removing them changes nothing'
 python3 - "$SCRATCH/out/20-mass-box.txt" <<'PYO' && echo "PASS A opens with the existing projects and tasks as an outline, the cursor on an empty line after it" || { echo "FAIL the outline A opens with"; fails=$((fails+1)); }
@@ -1042,7 +1045,7 @@ PY2
 cancel_form
 
 echo "== tab and shift+tab change the nesting level in the mass-add outline"
-b send-text -s host -w deck 'A'; settle
+b send-keys -s host -w deck 'A i' >/dev/null; settle
 b send-keys -s host -w deck BTab >/dev/null
 b send-text -s host -w deck 'deck'; settle; deckcap 20e-mass-btab0
 check "shift+tab at no indent leaves the line alone" "$SCRATCH/out/20e-mass-btab0.txt" '│     deck▏'
@@ -1072,7 +1075,7 @@ assert s["project_id"] == deck["id"] and s["parent_id"] == "", s
 PY3
 
 echo "== the outline has a line cursor: up, typing at it, enter splits, tab indents that line"
-b send-text -s host -w deck 'A'; settle
+b send-keys -s host -w deck 'A i' >/dev/null; settle
 b send-text -s host -w deck 'deck'; b send-keys -s host -w deck 'Enter Tab' >/dev/null
 b send-text -s host -w deck 'edit'; b send-keys -s host -w deck Enter >/dev/null
 b send-text -s host -w deck 'later'; settle; deckcap 20j-cur-inherit
@@ -1105,7 +1108,7 @@ assert l["project_id"] == deck["id"] and l["parent_id"] == "", l
 PY4
 
 echo "== mass-add opens with the existing tree, so a subtask goes under an existing task"
-b send-text -s host -w deck 'A'; settle; deckcap 20n-tree
+b send-keys -s host -w deck 'A i' >/dev/null; settle; deckcap 20n-tree
 b capture-pane --ansi -s host -w deck > "$SCRATCH/out/20n-tree-ansi.txt"
 check "the outline holds the existing task" "$SCRATCH/out/20n-tree.txt" '│       command palette  '
 check "and its existing subtask under it" "$SCRATCH/out/20n-tree.txt" '│         verb autocomplete  '
@@ -1134,7 +1137,7 @@ def one(title):
 assert one("dim child")["parent_id"] == one("command palette")["id"]
 one("verb autocomplete"); one("landing"); one("docs")
 PY5
-b send-text -s host -w deck 'A'; settle
+b send-keys -s host -w deck 'A i' >/dev/null; settle
 b send-keys -s host -w deck Up --repeat 60 >/dev/null
 b send-keys -s host -w deck 'Down Down' >/dev/null; settle; deckcap 20q-tree-at
 check "the cursor is on the prefilled subtask line" "$SCRATCH/out/20q-tree-at.txt" '│     ▏    verb autocomplete'
@@ -1152,7 +1155,7 @@ PY6
 # A project marked done still shows, dim with its mark, so subtasks can go under it.
 b send-text -s host -w deck 'T'; settle
 b send-keys -s host -w deck g >/dev/null; b send-keys -s host -w deck s >/dev/null; settle
-b send-text -s host -w deck 'A'; b send-keys -s host -w deck Up --repeat 60 >/dev/null; settle; deckcap 20t-tree-done
+b send-keys -s host -w deck 'A i' >/dev/null; b send-keys -s host -w deck Up --repeat 60 >/dev/null; settle; deckcap 20t-tree-done
 check "a done project shows with its status mark" "$SCRATCH/out/20t-tree-done.txt" '│     ▏deck  ✓ done'
 cancel_form
 b send-keys -s host -w deck s >/dev/null; settle; b send-keys -s host -w deck s >/dev/null; settle; b send-keys -s host -w deck s >/dev/null; settle   # skipped, planned, then open
@@ -1173,7 +1176,7 @@ check "esc in the mass-add box returns to the tree unchanged" "$SCRATCH/out/21c-
 b send-keys -s host -w deck ctrl+u >/dev/null
 b send-text -s host -w deck 'brand new task'; settle
 b send-keys -s host -w deck Enter >/dev/null; settle
-b send-keys -s host -w deck BTab >/dev/null             # out from under command palette to the project
+b send-keys -s host -w deck 'i BTab' >/dev/null         # input mode, then out from under command palette to the project
 b send-keys -s host -w deck ctrl+s >/dev/null; settle; deckcap 21d-resumed
 check "ctrl+s in the mass-add box returns to the tree" "$SCRATCH/out/21d-resumed.txt" '╭─ assign extra ─'
 check "the new task is highlighted" "$SCRATCH/out/21d-resumed.txt" '│path *deck › brand new task'

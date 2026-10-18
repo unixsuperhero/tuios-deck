@@ -39,24 +39,19 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.openPromptRecovery()
 			return m, nil
 		}
-		helpKey := (&config.Config{}).Binding(config.ModeDeck, "help")
-		if m.settings != nil {
-			helpKey = m.settings.Binding(config.ModeDeck, "help")
-		}
-		if msg.String() == helpKey && (m.vimModes() && m.form.vimNormal || len([]rune(helpKey)) > 1 && helpKey != "space") {
+		helpKey := m.config().Binding(config.ModeDeck, "help")
+		if msg.String() == helpKey && (!m.form.typing || len([]rune(helpKey)) > 1 && helpKey != "space") {
 			return m, m.openHelp()
 		}
 		if m.form.cwd == "" {
 			m.form.cwd = cwdDefault(m.selected())
 		}
-		if m.vimModes() {
-			var handled bool
-			if msg, handled = m.vimFormKey(msg); handled {
-				return m, nil
-			}
-		}
-		if msg.String() == "esc" && m.form.escape() {
-			return m, nil
+		m.form.ensureHotkeys(m.formReserved())
+		var handled bool
+		if msg, handled = m.formModeKey(msg); handled {
+			cmd, f := m.form.pending, m.form
+			f.pending = nil
+			return m, cmd
 		}
 		switch msg.String() {
 		case "esc", "ctrl+c":

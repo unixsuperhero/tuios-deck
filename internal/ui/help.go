@@ -152,8 +152,10 @@ func (m *Model) helpRows(mode string) []helpRow {
 			scope = "live"
 		case mode == config.ModeLive:
 			scope = "live, after the prefix"
-		case mode != config.ModeDeck:
-			scope = "forms, vim modes on"
+		case mode == config.ModeFormNormal:
+			scope = "forms, normal mode"
+		case mode == config.ModeFormInsert:
+			scope = "forms, input mode"
 		case deckMotion[a.Name]:
 			scope = deckMotionScope
 		}
@@ -178,7 +180,8 @@ func (m *Model) helpRows(mode string) []helpRow {
 	case config.ModeFormInsert:
 		rows = append(rows, m.helpRows("forms")...)
 	case config.ModeFormNormal:
-		rows = append(rows, helpRow{"up/down", "previous/next field", "normal mode"}, helpRow{"ctrl+s", "submit", "normal mode"}, helpRow{"ctrl+c", "cancel", "normal mode"}, helpRow{"ctrl+z", "undo field edit", "normal mode"}, helpRow{"ctrl+r", "browse saved prompts", "prompt field"})
+		rows = append(rows, helpRow{"a field's underlined letter", "edit that field: input mode there", "normal mode"},
+			helpRow{"tab/shift+tab, down/up", "next/previous field", "normal mode"}, helpRow{"ctrl+s", "submit", "normal mode"}, helpRow{"ctrl+c", "cancel", "normal mode"}, helpRow{"ctrl+z", "undo field edit", "normal mode"}, helpRow{"ctrl+r", "browse saved prompts", "prompt field"})
 	case "pages":
 		rows = []helpRow{
 			{c.Binding(config.ModeDeck, "reset_view"), "reset filters/sort; no deletion or focus unlock", "context/tasks/review; pages without view controls unchanged"},
@@ -204,16 +207,16 @@ func (m *Model) helpRows(mode string) []helpRow {
 		}
 	case "forms":
 		rows = []helpRow{
-			{"text, ?", "type in the current field", "plain forms / vim insert"},
+			{"text, ?", "type in the current field", "input mode"},
 			{"enter", "next field; submit on last field", "single-line, no completion selected"},
-			{"enter", "newline", "multiline"}, {"ctrl+s, ctrl+enter", "submit", "plain forms / vim insert"},
-			{"shift+tab, up", "previous field", "no completion list; not outline"}, {"tab", "accept completion or empty field's default", "plain forms / vim insert"},
+			{"enter", "newline", "multiline"}, {"ctrl+s, ctrl+enter", "submit", "input mode"},
+			{"shift+tab, up", "previous field", "no completion list; not outline"}, {"tab, down", "next field, or accept the highlighted completion", "input mode"},
 			{"up/down, ctrl+p/n", "previous/next completion", "completion list"}, {"enter", "accept highlighted completion", "text completion list"},
-			{"esc", "close completion first; otherwise cancel", "plain forms"}, {"ctrl+c", "cancel", "forms"},
-			{"backspace", "delete previous character", "plain forms / vim insert"}, {"ctrl+u", "clear current line, keeping earlier lines", "non-outline"}, {"ctrl+w", "delete previous word", "plain forms / vim insert"},
-			{"ctrl+z", "undo the current field's last edit or paste", "plain forms / vim insert"},
+			{"esc", "close completion first; otherwise back to normal mode", "input mode"}, {"ctrl+c", "cancel", "forms"},
+			{"backspace", "delete previous character", "input mode"}, {"ctrl+u", "clear current line, keeping earlier lines", "non-outline"}, {"ctrl+w", "delete previous word", "input mode"},
+			{"ctrl+z", "undo the current field's last edit or paste", "input mode"},
 			{"ctrl+u", "save the full prompt before clearing its current line", "prompt fields"},
-			{"ctrl+r", "browse, search and restore saved prompts", "prompt fields, including vim normal"},
+			{"ctrl+r", "browse, search and restore saved prompts", "prompt fields, in either mode"},
 			{"up/down, ctrl+p/n", "select stash; PgUp/PgDn scroll its preview", "saved prompts"},
 			{"enter / esc", "restore (saving replaced draft) / return unchanged", "saved prompts"},
 			{"@", "complete path", "multiline, not outline"}, {"/", "complete command at start", "prompt fields"}, {"ctrl+o", "pick attachments", "attachment fields"},
@@ -453,7 +456,7 @@ func (m *Model) helpView() string {
 	if searching {
 		lines = append(lines, "Rows from every mode whose key, action or scope hold each word.")
 	} else if mode == config.ModeFormNormal || mode == config.ModeFormInsert {
-		lines = append(lines, fmt.Sprintf("vim_modes=%t; see forms for editing keys", m.vimModes()))
+		lines = append(lines, "A form opens in normal mode; a field's underlined letter edits it. See forms for the editing keys.")
 	} else {
 		lines = append(lines, "TUI only. Configured keys override defaults; dialogs own their input.")
 	}

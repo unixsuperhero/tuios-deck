@@ -7,8 +7,8 @@ import (
 	"unicode/utf8"
 )
 
-// The modes keys are bound in. deck is the dashboard and its pages; the
-// form modes apply only while vim_modes is on.
+// The modes keys are bound in. deck is the dashboard and its pages; a form
+// opens in form_normal and a field's hotkey or insert puts it in form_insert.
 const (
 	ModeDeck       = "deck"
 	ModeFormNormal = "form_normal"
@@ -78,7 +78,6 @@ var actions = map[string][]Action{
 	},
 	ModeFormNormal: {
 		{"insert", "i", "type in the current field", false},
-		{"append", "a", "type in the current field", false},
 		{"next_field", "j", "the next field", false},
 		{"prev_field", "k", "the previous field", false},
 		{"clear", "D", "empty the current field", false},
@@ -88,6 +87,8 @@ var actions = map[string][]Action{
 	ModeFormInsert: {
 		{"leave_insert", "esc", "back to normal mode", false},
 	},
+	// A field's hotkey in normal mode is a lowercase letter or a digit the
+	// form works out from its label, skipping the keys bound above.
 }
 
 // reserved are keys a mode answers itself and a binding may not take.

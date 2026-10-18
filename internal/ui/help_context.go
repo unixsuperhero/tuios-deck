@@ -21,16 +21,13 @@ func (m *Model) helpContext() string {
 		if m.form.recovery != nil {
 			return "saved prompts"
 		}
-		if m.vimModes() && m.form.vimNormal {
+		if !m.form.typing {
 			return config.ModeFormNormal
 		}
 		if m.form.Fields[m.form.Cur].Prompt {
 			return "prompt"
 		}
-		if m.vimModes() {
-			return config.ModeFormInsert
-		}
-		return "forms"
+		return config.ModeFormInsert
 	case modePalette:
 		return "palette"
 	case modeConfirm:
@@ -79,15 +76,8 @@ func (m *Model) contextHelpRows(mode string) []helpRow {
 		if m.form != nil && m.form.Fields[m.form.Cur].Attach {
 			rows = append(rows, helpRow{"ctrl+o", "choose attachment files", "prompt"}, helpRow{"/", "complete command or skill at start", "prompt"})
 		}
-		if m.vimModes() {
-			key := (&config.Config{}).Binding(config.ModeFormInsert, "leave_insert")
-			if m.settings != nil {
-				key = m.settings.Binding(config.ModeFormInsert, "leave_insert")
-			}
-			rows = append(rows, helpRow{key, "close completion first; otherwise enter normal mode", "prompt"})
-		} else {
-			rows = append(rows, helpRow{"esc", "close completion first; otherwise cancel form", "prompt"})
-		}
+		key := m.config().Binding(config.ModeFormInsert, "leave_insert")
+		rows = append(rows, helpRow{key, "close completion first; otherwise back to normal mode", "prompt"})
 		return rows
 	case "saved prompts":
 		return []helpRow{

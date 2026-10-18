@@ -40,7 +40,13 @@ unlock_store() { kill "$LOCK"; wait "$LOCK" 2>/dev/null || :; LOCK=; }
 cap() { b capture-pane -s host -w deck > "$SCRATCH/out/$1.txt"; }
 # cancel sends the key (esc unless given) and answers y when an edited form
 # asks before closing; a form whose autosave failed stays open and asks nothing.
-cancel() { keys "${1:-Escape}"; cap _ask; if grep -Fq 'close this form without submitting' "$SCRATCH/out/_ask.txt"; then keys y; fi; }
+# esc in input mode only goes to normal mode, so a form still naming NORMAL
+# gets a second esc.
+cancel() {
+  keys "${1:-Escape}"; cap _ask
+  if grep -Fq '· NORMAL ·' "$SCRATCH/out/_ask.txt"; then keys Escape; cap _ask; fi
+  if grep -Fq 'close this form without submitting' "$SCRATCH/out/_ask.txt"; then keys y; fi
+}
 check() { grep -Fq -- "$2" "$SCRATCH/out/$1.txt" || { echo "FAIL $1: missing $2"; exit 1; }; echo "PASS $1: $2"; }
 absent() { if grep -Fq -- "$2" "$SCRATCH/out/$1.txt"; then echo "FAIL $1: unexpected $2"; exit 1; fi; echo "PASS $1: absent $2"; }
 palette() { keys ctrl+p; text "$1"; keys Enter; }
@@ -60,7 +66,7 @@ JSON
 start_deck
 keys 'g j p ctrl+r'; cap empty
 check empty 'No stashed prompts.'
-keys Escape
+keys 'Escape i'
 paste $'keep-first\n日本語 café\nrecover-last'
 keys ctrl+u; cap cleared
 check cleared 'keep-first'
@@ -72,7 +78,7 @@ s=json.load(open(sys.argv[1]))['prompt_stashes']
 assert 'keep-first\n日本語 café\nrecover-last' in [p['text'] for p in s], s
 print('PASS full exact Unicode prompt persisted before line deletion')
 PY
-keys 'ctrl+z ctrl+u'; cancel; keys p
+keys 'ctrl+z ctrl+u'; cancel; keys 'p i'
 paste 'displaced draft'
 keys ctrl+r
 paste 'recover-last'; cap preview
@@ -104,30 +110,30 @@ keys Escape
 b kill-server >/dev/null
 B="$SCRATCH/B-restarted"
 start_deck
-keys 'g j p ctrl+r'; paste 'recover-last'; keys Enter; cap restart
+keys 'g j p i ctrl+r'; paste 'recover-last'; keys Enter; cap restart
 check restart 'recover-last▏'
 cancel
 # Every prompt entry point offers recovery; notes and other fields do not.
-keys 'g p ctrl+r'; paste 'recover-last'; keys Enter; cap terminal
+keys 'g p i ctrl+r'; paste 'recover-last'; keys Enter; cap terminal
 check terminal 'recover-last▏'
 cancel
-keys n
+keys 'n i'
 for i in 1 2 3 4 5 6 7; do keys Enter; done
 keys ctrl+r; paste 'recover-last'; keys Enter; cap new-agent
 check new-agent 'recover-last▏'
 cancel
-palette 'queue prompt'
+palette 'queue prompt'; keys i
 for i in 1 2 3 4 5 6 7; do keys Enter; done
 keys ctrl+r; paste 'recover-last'; keys Enter; cap new-queue
 check new-queue 'recover-last▏'
 cancel
 palette 'queued prompts'
-keys e
+keys 'e i'
 for i in 1 2 3 4 5 6; do keys Enter; done
 keys ctrl+r; paste 'recover-last'; keys Enter; cap edit-queue
 check edit-queue 'recover-last▏'
 cancel; keys Escape
-keys 'g j p'
+keys 'g j p i'
 long_prompt=$(python3 -c 'print("LONG-PREVIEW-START\n" + "\n".join("preview row %d" % n for n in range(80)) + "\nLONG-PREVIEW-END")')
 paste "$long_prompt"; keys ctrl+u; cancel; keys 'p ctrl+r'; paste 'VIEW-END'; cap long-preview-start
 check long-preview-start 'preview row 0'
@@ -136,8 +142,8 @@ b send-keys -s host -w deck PageDown --repeat 20 >/dev/null; settle; cap long-pr
 check long-preview-end 'LONG-PREVIEW-END'
 keys Escape; cancel
 # An empty final line still permits stashing; identical and empty drafts do not multiply.
-keys 'g j p'; paste $'trailing-newline\n'; keys 'ctrl+u ctrl+u'; cancel
-keys p; paste 'single stash'; keys 'ctrl+u ctrl+u ctrl+u'; cancel
+keys 'g j p i'; paste $'trailing-newline\n'; keys 'ctrl+u ctrl+u'; cancel
+keys 'p i'; paste 'single stash'; keys 'ctrl+u ctrl+u ctrl+u'; cancel
 python3 - "$(store_json)" <<'PY'
 import json,sys
 texts=[p['text'] for p in json.load(open(sys.argv[1]))['prompt_stashes']]
@@ -147,7 +153,7 @@ assert all(t.strip() for t in texts), texts
 print('PASS trailing newline and empty-draft suppression')
 PY
 # Hold the scratch store's write lock so saves fail, even when running as root; never touch the real store.
-keys p; paste 'cannot-lose-this-draft'
+keys 'p i'; paste 'cannot-lose-this-draft'
 lock_store
 keys ctrl+u; cap save-failure
 check save-failure 'cannot-lose-this-draft▏'
@@ -161,30 +167,33 @@ keys ctrl+r; paste 'cannot-lose'; cap rollback
 check rollback 'cannot-lose-this-draft'
 keys Escape; cancel
 # A failed autosave must retain the editor until persistence works again.
-keys p
+keys 'p i'
 lock_store
 paste 'unsaved-after-storage-failure'
 keys Escape; cap autosave-failure
 check autosave-failure 'unsaved-after-storage-failure▏'
 check autosave-failure 'prompt autosave failed'
 unlock_store
-cancel; keys 'p ctrl+r'; paste 'unsaved-after-storage-failure'; keys Enter; cap autosave-retry
+cancel; keys 'p i ctrl+r'; paste 'unsaved-after-storage-failure'; keys Enter; cap autosave-retry
 check autosave-retry 'unsaved-after-storage-failure▏'
 cancel
-# Vim normal mode can open recovery without interpreting picker input as commands.
+# Normal mode opens recovery too, without interpreting picker input as
+# commands; the restored text shows without a cursor there. An older file's
+# vim_modes setting still loads.
 b kill-server >/dev/null
 B="$SCRATCH/B-vim"
 mkdir -p "$B/config/tuios-deck"
 printf '{"vim_modes":true}\n' > "$B/config/tuios-deck/config"
 start_deck
-keys 'g j p Escape ctrl+r'; paste 'recover-last'; keys Enter; cap vim-recovery
-check vim-recovery 'recover-last▏'
+keys 'g j p ctrl+r'; paste 'recover-last'; keys Enter; cap vim-recovery
+check vim-recovery '    recover-last '
+absent vim-recovery '╭─ stashed prompts'
 # Autosave happens before dismissal, not only on explicit stash or submit.
 cancel; cancel
 b kill-server >/dev/null
 B="$SCRATCH/B-auto"
 start_deck
-keys 'g j p'
+keys 'g j p i'
 paste $'autosave-without-submit
 日本語 café
 last line'
@@ -197,19 +206,19 @@ assert 'autosave-without-submit\n日本語 café\nlast line' not in [p['text'] f
 print('PASS exact draft saved while editor is still open')
 PY
 cancel
-keys p
+keys 'p i'
 paste 'second cancelled prompt'
 cancel ctrl+c
 # Restart while a third unsent draft is still open.
-keys p
+keys 'p i'
 paste 'restart while typing'
 b kill-server >/dev/null
 B="$SCRATCH/B-auto-restart"
 start_deck
-keys 'g j p ctrl+r'; paste 'autosave-without-submit'; keys Enter; cap auto-restored
+keys 'g j p i ctrl+r'; paste 'autosave-without-submit'; keys Enter; cap auto-restored
 check auto-restored 'last line updated▏'
-cancel; keys 'p ctrl+r'; paste 'second cancelled'; keys Enter; cap second-restored
+cancel; keys 'p i ctrl+r'; paste 'second cancelled'; keys Enter; cap second-restored
 check second-restored 'second cancelled prompt▏'
-cancel; keys 'p ctrl+r'; paste 'restart while typing'; keys Enter; cap crash-restored
+cancel; keys 'p i ctrl+r'; paste 'restart while typing'; keys Enter; cap crash-restored
 check crash-restored 'restart while typing▏'
 printf 'PASS prompt stash suite; evidence in %s/out\n' "$SCRATCH"

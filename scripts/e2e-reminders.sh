@@ -67,6 +67,7 @@ b send-text -s host -w deck ':'; settle
 b send-text -s host -w deck 'new reminder'; settle
 b send-keys -s host -w deck Enter; settle; deckcap 01-form
 check "new reminder form opens" "$SCRATCH/out/01-form.txt" 'new reminder'
+b send-keys -s host -w deck i; settle   # input mode on the first field
 b send-text -s host -w deck 'stretch'; b send-keys -s host -w deck Enter
 b send-text -s host -w deck 'stand up and stretch'; b send-keys -s host -w deck Enter
 b send-text -s host -w deck 'abc'; settle; deckcap 02-bad
@@ -84,7 +85,7 @@ check "reminders command lists it" "$SCRATCH/out/04-list.txt" 'stretch · every 
 check "OS notifier got title and text as separate arguments" "$SCRATCH/os-args.txt" '^stand up and stretch$'
 echo "== deck tui: disable reminder…"
 b send-text -s host -w deck ':'; settle; b send-text -s host -w deck 'disable reminder'; settle; b send-keys -s host -w deck Enter; settle
-b send-keys -s host -w deck Tab; settle
+b send-keys -s host -w deck 'i ctrl+n Enter'; settle   # input mode, highlight the first reminder, take it
 b send-keys -s host -w deck Enter; settle; deckcap 05-disable
 check "status confirms disabled" "$SCRATCH/out/05-disable.txt" 'disabled reminder stretch'
 check "store says disabled" <(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["reminders"][0]["enabled"])' "$(store_json "$TUIDATA")") 'False'

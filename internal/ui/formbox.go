@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"strings"
 
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/unixsuperhero/tuios-deck/internal/config"
 	"github.com/unixsuperhero/tuios-deck/internal/panes"
 	"github.com/unixsuperhero/tuios-deck/internal/store"
 )
@@ -42,6 +44,7 @@ func (m *Model) formBox(width, maxH int) []string {
 	if avail < 1 {
 		avail = 1
 	}
+	f.ensureHotkeys(m.formReserved())
 	var body []string
 	curStart := 0
 	for i, fl := range f.Fields {
@@ -53,11 +56,11 @@ func (m *Model) formBox(width, maxH int) []string {
 			if value == "" && fl.Default != "" {
 				value = cDim.Render(fl.Default)
 			}
-			body = append(body, ansi.Truncate("  "+fl.Label+": "+value, iw, "…"))
+			body = append(body, ansi.Truncate("  "+hotLabel(fl.Label, f.hotkeys[i], lipgloss.NewStyle())+": "+value, iw, "…"))
 			continue
 		}
 		curStart = len(body)
-		body = append(body, m.currentField(fl, iw, avail-(len(f.Fields)-1))...)
+		body = append(body, m.currentField(fl, f.hotkeys[i], iw, avail-(len(f.Fields)-1))...)
 	}
 	help := m.formHelp()
 	lines := []string{boxTop(f.Title, width)}
@@ -79,22 +82,44 @@ func (m *Model) formBox(width, maxH int) []string {
 	return lines
 }
 
-// currentField is the lines of the field being edited: its label and value
-// with the cursor, the hint, and the completion list. room is how many
-// lines the box can give the current field; a preview takes what the list
-// leaves, so the keys under the box stay in sight.
-func (m *Model) currentField(fl field, iw, room int) []string {
+// cHot marks a field's hotkey in its label.
+var cHot = lipgloss.NewStyle().Bold(true).Underline(true).Foreground(lipgloss.Color("3"))
+
+// hotLabel is a field's label with its hotkey underlined where the letter
+// first occurs, the rest in style; a key the label does not hold is written
+// in front of it.
+func hotLabel(label, key string, style lipgloss.Style) string {
+	if key == "" {
+		return style.Render(label)
+	}
+	i := strings.Index(strings.ToLower(label), key)
+	if i < 0 {
+		return cHot.Render(key) + " " + style.Render(label)
+	}
+	return style.Render(label[:i]) + cHot.Render(label[i:i+len(key)]) + style.Render(label[i+len(key):])
+}
+
+// currentField is the lines of the current field: its label and value with
+// the cursor while typing, the hint, and in input mode the completion list.
+// room is how many lines the box can give the current field; a preview
+// takes what the list leaves, so the keys under the box stay in sight.
+func (m *Model) currentField(fl field, key string, iw, room int) []string {
 	var out []string
 	value := fl.Value
 	hint := fl.Hint
 	if fl.HintFn != nil {
 		hint = fl.HintFn()
 	}
+	cursor := "▏"
+	if !m.form.typing {
+		cursor = ""
+	}
+	label := cStatus.Render("› ") + hotLabel(fl.Label, key, cStatus) + cStatus.Render(":")
 	if fl.Multi && fl.Outline {
-		out = append(out, cStatus.Render("› "+fl.Label+":"))
+		out = append(out, label)
 		out = append(out, m.outlineView(iw, room-1-strings.Count(hint, "\n")-1)...)
 	} else if fl.Multi {
-		out = append(out, cStatus.Render("› "+fl.Label+":"))
+		out = append(out, label)
 		vl := strings.Split(value, "\n")
 		if len(vl) > listRows {
 			out = append(out, cDim.Render(fmt.Sprintf("    ⋮ %d lines above", len(vl)-listRows)))
@@ -102,19 +127,19 @@ func (m *Model) currentField(fl field, iw, room int) []string {
 		}
 		for j, l := range vl {
 			if j == len(vl)-1 {
-				out = append(out, "    "+tail(l+"▏", iw-4))
+				out = append(out, "    "+tail(l+cursor, iw-4))
 			} else {
 				out = append(out, "    "+ansi.Truncate(l, iw-4, "…"))
 			}
 		}
 	} else {
-		label := "› " + fl.Label + ": "
+		label += " "
 		if value == "" && fl.Default != "" {
-			value = "▏" + cDim.Render(fl.Default+" (tab to take)")
+			value = cursor + cDim.Render(fl.Default+" (the default)")
 		} else {
-			value = tail(value+"▏", iw-ansi.StringWidth(label))
+			value = tail(value+cursor, iw-ansi.StringWidth(label))
 		}
-		out = append(out, ansi.Truncate(cStatus.Render(label)+value, iw, "…"))
+		out = append(out, ansi.Truncate(label+value, iw, "…"))
 	}
 	// A multiline field keeps its hint's lines, so the hint can show an
 	// example of what to type.
@@ -125,6 +150,9 @@ func (m *Model) currentField(fl field, iw, room int) []string {
 		}
 	case hint != "":
 		out = append(out, cDim.Render(ansi.Truncate("    "+panes.OneLine(hint), iw, "…")))
+	}
+	if !m.form.typing {
+		return out
 	}
 	list := m.form.list()
 	if len(list) == 0 {
@@ -206,17 +234,18 @@ func (m *Model) outlineView(iw, rows int) []string {
 	return out
 }
 
+// formHelp is the line under the fields: the field count, the mode and its
+// keys as bound, and the help key.
 func (m *Model) formHelp() string {
 	f := m.form
+	c := m.config()
 	state := fmt.Sprintf("%d/%d", f.Cur+1, len(f.Fields))
-	if m.vimModes() {
-		if f.vimNormal {
-			state += " · NORMAL"
-		} else {
-			state += " · INSERT"
-		}
+	if f.typing {
+		return state + " · INPUT · " + c.Binding(config.ModeFormInsert, "leave_insert") + " normal · tab next field · ctrl+s submit · " + keyHelpHint
 	}
-	return state + " · " + keyHelpHint
+	return state + " · NORMAL · a field's letter or " + c.Binding(config.ModeFormNormal, "insert") + " edits it · " +
+		c.Binding(config.ModeFormNormal, "next_field") + "/" + c.Binding(config.ModeFormNormal, "prev_field") + " move · " +
+		c.Binding(config.ModeFormNormal, "submit") + " submit · " + c.Binding(config.ModeFormNormal, "cancel") + " cancel · " + keyHelpHint
 }
 
 // tail keeps the end of s when it is wider than w, so the cursor stays in

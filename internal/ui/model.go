@@ -269,7 +269,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.form.remember()
 			if p := m.form.recovery; p != nil {
 				p.search(p.query + panes.OneLine(msg.String()))
-			} else if !m.form.vimNormal {
+			} else if m.form.typing {
 				m.form.paste(msg.String())
 			}
 		}
