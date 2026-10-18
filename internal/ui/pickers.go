@@ -650,9 +650,8 @@ func protoWidth(w int) int {
 	return bw
 }
 
-// pickerBox draws a prototype: the title in the top border, the body, a
-// rule and the keys at the bottom.
-func pickerBox(title string, body []string, help string, width int) []string {
+// pickerBox draws a prototype with its contextual help shortcut.
+func pickerBox(title string, body []string, width int) []string {
 	iw := width - 4
 	lines := []string{boxTop(title, width)}
 	for _, l := range body {
@@ -660,7 +659,7 @@ func pickerBox(title string, body []string, help string, width int) []string {
 	}
 	return append(lines,
 		cBorder.Render("├"+strings.Repeat("─", width-2)+"┤"),
-		boxRow(cDim.Render(ansi.Truncate(help, iw, "…")), iw),
+		boxRow(cDim.Render(ansi.Truncate(keyHelpHint, iw, "…")), iw),
 		cBorder.Render("╰"+strings.Repeat("─", width-2)+"╯"),
 	)
 }

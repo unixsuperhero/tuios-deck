@@ -221,10 +221,10 @@ func (m *Model) settleModal() []string {
 // modalBox draws the modal as a box over the body.
 func (m *Model) modalBox(width, maxH int) []string {
 	iw := width - 4
-	title, rows, help := "prompt presets", m.presetRows(), "j/k choose · n new · e edit · d delete · x add the example short-answer preset · esc close"
+	title, rows := "prompt presets", m.presetRows()
 	empty := "no presets: n makes one, x adds the short-answer example"
 	if m.pm.queue {
-		title, rows, help = "queued prompts", m.queueRows(), "j/k choose · enter start · n queue one · e edit · d delete · esc close"
+		title, rows = "queued prompts", m.queueRows()
 		empty = "nothing queued: n queues a prompt for a task"
 	}
 	m.settleModal()
@@ -251,7 +251,7 @@ func (m *Model) modalBox(width, maxH int) []string {
 	}
 	return append(lines,
 		cBorder.Render("├"+strings.Repeat("─", width-2)+"┤"),
-		boxRow(cDim.Render(ansi.Truncate(help, iw, "…")), iw),
+		boxRow(cDim.Render(ansi.Truncate(keyHelpHint, iw, "…")), iw),
 		cBorder.Render("╰"+strings.Repeat("─", width-2)+"╯"),
 	)
 }

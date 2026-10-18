@@ -303,7 +303,6 @@ func (m *Model) glyphBox(width, maxH int) []string {
 	}
 	top := g.preview(g.items[g.sel])
 	top = append(top, cDim.Render(fmt.Sprintf("%s · %s", g.items[g.sel], g.labels[g.sel])))
-	help := "h/j/k/l move · type a glyph to jump to it or add it · enter pick · esc cancel"
 	room := max(maxH-len(top)-5, 1)
 	if len(grid) > room {
 		start := min(max(selLine-room/2, 0), len(grid)-room)
@@ -319,7 +318,7 @@ func (m *Model) glyphBox(width, maxH int) []string {
 	}
 	lines = append(lines,
 		cBorder.Render("├"+strings.Repeat("─", width-2)+"┤"),
-		boxRow(cDim.Render(ansi.Truncate(help, iw, "…")), iw),
+		boxRow(cDim.Render(ansi.Truncate(keyHelpHint, iw, "…")), iw),
 		cBorder.Render("╰"+strings.Repeat("─", width-2)+"╯"),
 	)
 	return lines

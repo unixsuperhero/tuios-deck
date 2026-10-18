@@ -28,7 +28,7 @@ same panes you see in `tuios attach`.
 ▾ side                                      │ ■ turn ended
   AI ○ web  landing  helper      idle claude│
 captured to ~/.local/share/tuios-deck/captures/work-build-20261017-133455.txt
- j/k move · l main area · {/} group · (/) level · [/] or 1-4 tab · J/K scroll · G follow · o group · n agent · t term · p prompt · a assign · c capture · i context · x close · T tasks · C captures · I context · r refresh · q quit
+ F1 keybindings
 ```
 
 ## Install
@@ -144,11 +144,13 @@ seconds use reverse append order; starring, pinning or re-extracting an existing
 item does not make it new. Review completion order and task hierarchy are not
 chronological-list defaults and stay unchanged.
 
-Press `?` on a TUI page, or choose `keybindings and actions…` in the
-palette, to open help at the current page. Page-specific tables cover tasks,
-captures, context, prototypes, review and history, followed by global keys.
-Palette-triggered help uses the page that opened the palette. Tables show
-the current configured keys, action names and scopes. `tab` / `shift+tab` or
+Press `F1` anywhere in the TUI to open the current mode’s keybindings:
+the focused page or detail area, prompt, saved-prompt picker, form, palette,
+confirmation, picker, or focus buffer. Footers show only `F1 keybindings`
+instead of a horizontal list. `?` on a page and the palette’s
+`keybindings and actions…` command still work. Palette-triggered help uses
+the page that opened the palette.
+Tables show the current configured keys, action names and scopes. `tab` / `shift+tab` or
 left/right select another mode, including vim form normal/insert, all page-local
 keys, form editing, modal navigation, or all palette actions. In the actions
 table, `u` limits the list to
@@ -161,12 +163,12 @@ for the ends. Help is centered with at least five blank rows above and below
 and five columns on either side. Below 42 columns or 18 rows, gutters shrink
 to preserve a usable table; very small terminals must clip the help. Browser
 help uses five line-heights vertically and five character-widths horizontally,
-with the same small-viewport fallback and a scrollable table. `esc` closes it
-without moving the underlying selection or scroll. The `help` action can
-itself be rebound. In vim form normal mode, the help key opens form-normal
-help without changing the form. A non-text help binding such as `alt+h` also
-opens help from insert/plain forms at that form mode. In text fields and the
-command palette, `?` remains text; picker previews keep their existing key.
+with the same small-viewport fallback and a scrollable table. `F1` or `esc`
+closes TUI help without changing the underlying draft, filter, selection or
+scroll. The configurable `help` action can still be rebound; `F1` always
+works, including in text fields. In vim normal mode it shows normal-mode
+keys; in prompt insert mode it shows prompt editing and recovery. `?`
+remains text in inputs, and picker previews keep their existing key.
 
 The web header's **Help ?** button and `?` shortcut open the browser
 version at the current page, including when invoked through the palette.
@@ -641,7 +643,7 @@ out until `a` gives it a home.
 The focus is on the rail or on the main area; `h` and `l` move it. The
 selected pane is in reverse video while the rail has focus and keeps a dim
 `▸` while the main area has it, when the tab bar brightens and underlines
-the shown tab. The help line names the keys of the focused area.
+the shown tab. `F1` opens the keys for the focused area.
 
 With the rail focused:
 
@@ -930,7 +932,7 @@ it drives and how it works; the right side lists its keys. `enter` runs it
 for real: an assign row assigns the pane selected on the deck page and
 reports it on the status line the way the assign form does, and a filter
 row filters the context page and goes there. The first six rows assign,
-the next five filter. While a prototype is up the help line names it, and
+the next five filter. While a prototype is up, `F1` opens its keys, and
 `esc` (or `ctrl+c`, which works even where `esc` clears a filter first)
 cancels it and comes back to the page; `esc` on the page goes back to the
 deck. These are parallel takes on one job and will be consolidated into
@@ -1055,8 +1057,8 @@ nothing to the text and does not replace the edit you can undo.
 Prompt stashes are separate from undo: they live in `deck.json` under
 `prompt_stashes` and survive cancelling a form or restarting deck. `ctrl+u`
 stashes the entire draft, including newlines, before clearing a line. Identical
-drafts share one entry; empty drafts are not saved. If saving fails, the draft
-is left untouched.
+drafts share one entry; empty drafts are not saved. The stack has no automatic
+expiry or entry limit. If saving fails, the draft is left untouched.
 
 In a prompt field, `ctrl+r` opens **stashed prompts**. Type to search the full
 text, use arrows or `ctrl+n`/`ctrl+p` to select, and `PgUp`/`PgDn` to scroll
@@ -1131,64 +1133,14 @@ A confirmation (closing a pane, deleting a row, a capture or a context
 item) asks on the status line and defaults to yes, `(Y/n)`: `enter` or `y`
 confirms, `n` or `esc` cancels, and any other key does nothing.
 
-### Help lines
+### Contextual keybindings
 
-The bottom line names the keys of what has focus. On the deck page, rail
-focused:
-
-```
- j/k move · l main area · {/} group · (/) level · [/] or 1-4 tab · J/K scroll · G follow · o group · n agent · t term · p prompt · a assign · c capture · i context · x close · T tasks · C captures · I context · r refresh · q quit
-```
-
-Main area focused, and main area focused on the Turns tab:
-
-```
- main area: h rail · j/k scroll · J/K half page · g top · G follow · [/] or 1-4 tab · p prompt · c capture · T tasks · C captures · q quit
- main area: h rail · j/k row · enter/space expand · y copy · {/} group · g top · G newest · J/K half page · [/] or 1-4 tab · p prompt · T tasks · q quit
-```
-
-The tasks, captures, context and prototypes pages:
-
-```
- j/k select · {/} group · (/) level · N project · n task/subtask · A add many · e edit · s status · m colour · M glyph · a assign pane · enter go to pane · x delete · esc deck · q quit
- j/k select · J/K scroll · G follow · enter go to pane · x delete · r refresh · T tasks · esc deck · q quit
- j/k select · {/} group · s sort · f filter · o/O group · * star · ! pin · a assign · y copy · enter insert · ^o open · w open with · x delete · esc deck · q quit
- j/k select · enter try it for real · T tasks · I context · esc deck · q quit
-```
-
-A form, a confirmation, the palette and a running prototype:
-
-```
- <form title> · the keys are in the box · esc cancel
- enter/y confirm · n/esc cancel
- type to filter · ↑/↓ ctrl+p/n pick · enter run · tab complete · esc close
- <assign <pane> | filter context> · <prototype> · the keys are in the box · ctrl+c cancel
-```
-
-Inside the assign tree, and inside a prototype, the box's last line names
-its keys:
-
-```
-type to filter · j/k ↑/↓ move · h/l close/open · {/} siblings · ( parent · enter pick · esc cancel
-type to filter · ↑/↓ ctrl+n/ctrl+p move · backspace edit · enter pick · esc cancel
-type to filter · ctrl+n/ctrl+p move · enter pick · ? preview · esc cancel
-j/k move · l open · h close · / filter · enter pick · ? preview · esc cancel
-type to filter · ↓/↑ move · enter pick · ? preview · esc clear the filter
-1-9 pick · 0 more… · j/k and enter · esc cancel
-j/k move · l/h next/previous column · enter pick · ? preview · esc cancel
-/ or tab lock · backspace pops · ctrl+n/p move · enter pick · ? preview · esc cancel
-```
-
-Inside a form box the bottom line follows the current field:
-
-```
-1/6 · enter next · tab default · ctrl+s submit · shift+tab back · esc cancel
-6/6 · enter submit · tab default · shift+tab back · esc cancel
-2/6 · ctrl+n/ctrl+p pick · tab accept · enter accept or next · shift+tab back · esc cancel
-6/6 · enter newline · ctrl+s submit · @ a file · shift+tab back · esc cancel
-1/1 · enter newline · tab/shift+tab indent · ctrl+s submit · @ a file · esc cancel
-6/6 · ctrl+n/ctrl+p pick · tab or enter take the path, or open the folder · esc close the list
-```
+Every TUI screen and modal footer offers `F1 keybindings`. Forms also retain
+the field position and INSERT/NORMAL state; these are status, not key lists.
+Help opens for what currently has focus, including saved prompts and picker
+variants, and lists bindings vertically. Use `F1` or `esc` to return without
+changing the underlying input or selection. The help modal lists its own
+navigation keys vertically and shows `F1 close` in its footer.
 
 ## The web page
 

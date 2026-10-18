@@ -426,14 +426,7 @@ func (t *treeView) view(width, height int) []string {
 	for i := range lines {
 		lines[i] = pad(lines[i], listW) + cBorder.Render(" │") + pv[i]
 	}
-	help := "type to filter · j/k ↑/↓ move · h/l close/open · {/} siblings · ( parent · enter pick · esc cancel"
-	if t.typing || t.query != "" {
-		help = "type to filter · ↑/↓ ctrl+n/ctrl+p move · backspace edit · enter pick · esc cancel"
-		if t.purpose == purposeFilter {
-			help = "type: names or item text · ↑/↓ ctrl+n/ctrl+p move · backspace edit · enter filter · esc cancel"
-		}
-	}
-	return pickerBox(t.m.protoRun.title, append(body, lines...), help, width)
+	return pickerBox(t.m.protoRun.title, append(body, lines...), width)
 }
 
 // rowLine draws a row: the indent, the branch mark, the glyph and the name

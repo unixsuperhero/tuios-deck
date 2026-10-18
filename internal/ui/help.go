@@ -11,6 +11,8 @@ import (
 	"github.com/unixsuperhero/tuios-deck/internal/config"
 )
 
+const keyHelpHint = "F1 keybindings"
+
 type keyHelp struct {
 	mode, scroll int
 	unbound      bool
@@ -23,20 +25,11 @@ func helpModes() []string {
 	for p := pageTasks; p <= pageHistory; p++ {
 		modes = append(modes, p.String())
 	}
-	return modes
+	return append(modes, contextHelpModes...)
 }
 
 func (m *Model) openHelp() tea.Cmd {
-	mode := m.page.String()
-	if m.mode == modeForm {
-		mode = "forms"
-		if m.vimModes() {
-			mode = config.ModeFormInsert
-			if m.form.vimNormal {
-				mode = config.ModeFormNormal
-			}
-		}
-	}
+	mode := m.helpContext()
 	m.help = &keyHelp{mode: max(0, slices.Index(helpModes(), mode))}
 	if m.verbs == nil && !m.verbsBusy {
 		m.verbsBusy = true
@@ -48,7 +41,7 @@ func (m *Model) openHelp() tea.Cmd {
 func (m *Model) handleHelpKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	h := m.help
 	switch msg.String() {
-	case "esc", "ctrl+c":
+	case "f1", "esc", "ctrl+c":
 		m.help = nil
 	case "tab", "right", "l":
 		h.mode, h.scroll = (h.mode+1)%len(helpModes()), 0
@@ -75,6 +68,12 @@ func (m *Model) handleHelpKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) helpRows(mode string) []helpRow {
+	if slices.Contains(contextHelpModes, mode) {
+		if m.help.unbound {
+			return nil
+		}
+		return m.contextHelpRows(mode)
+	}
 	c := m.settings
 	if c == nil {
 		c = &config.Config{}
@@ -116,8 +115,10 @@ func (m *Model) helpRows(mode string) []helpRow {
 			helpRow{"enter", "refresh", "deck rail"}, helpRow{"{/}, (/)", "jump group/level", "deck rail"},
 			helpRow{"enter/space", "expand selected turn", "Turns detail"}, helpRow{"y", "copy selected turn", "Turns detail"},
 			helpRow{"U", "picker prototypes", "all pages, not dialogs"})
+	case config.ModeFormInsert:
+		rows = append(rows, m.helpRows("forms")...)
 	case config.ModeFormNormal:
-		rows = append(rows, helpRow{"up/down", "previous/next field", "normal mode"}, helpRow{"ctrl+s", "submit", "normal mode"}, helpRow{"ctrl+c", "cancel", "normal mode"})
+		rows = append(rows, helpRow{"up/down", "previous/next field", "normal mode"}, helpRow{"ctrl+s", "submit", "normal mode"}, helpRow{"ctrl+c", "cancel", "normal mode"}, helpRow{"ctrl+z", "undo field edit", "normal mode"}, helpRow{"ctrl+r", "browse saved prompts", "prompt field"})
 	case "pages":
 		rows = []helpRow{
 			{c.Binding(config.ModeDeck, "reset_view"), "reset filters/sort; no deletion or focus unlock", "context/tasks/review; pages without view controls unchanged"},
@@ -174,7 +175,8 @@ func (m *Model) helpRows(mode string) []helpRow {
 			{"text, ?", "filter commands", "palette"}, {"up/down, ctrl+p/n", "select command", "palette"}, {"enter", "run command", "palette"}, {"tab", "complete command name", "palette"}, {"esc, ctrl+c", "close", "palette"},
 			{"enter, y/Y", "confirm", "confirmation"}, {"esc, ctrl+c, n/N", "cancel", "confirmation"},
 			{"j/k", "select row", "presets/queue"}, {"n/e/d", "new/edit/delete", "presets/queue"}, {"x", "add example preset", "presets"}, {"enter", "start queued prompt", "queue"}, {"esc, ctrl+c", "close", "presets/queue"},
-			{"h/j/k/l", "move", "glyph table"}, {"text", "find or add glyph", "glyph table"}, {"enter", "pick glyph", "glyph table"},
+			{"h/j/k/l, arrows", "move", "glyph table"}, {"text", "find or add glyph", "glyph table"}, {"enter", "pick glyph", "glyph table"},
+			{"backspace", "clear typed or custom glyph", "glyph table"}, {"esc", "cancel", "glyph table"},
 			{"ctrl+n/p, up/down", "select result", "typing pickers"}, {"enter", "pick result", "pickers"}, {"?", "toggle preview (not help)", "preview picker prototypes"}, {"esc", "clear filter or cancel", "pickers"}, {"ctrl+c", "cancel", "pickers/glyph table"},
 		}
 	case "actions":
@@ -242,7 +244,7 @@ func (m *Model) helpView() string {
 	case config.ModeDeck, "pages", "actions":
 		note = "Focus scopes the pane and task lists to a project or task and its descendants. All work tools remain available. New panes default to the focused scope; form targets remain editable. F unlocks."
 	case "modals":
-		note = "After 15 active minutes, the focus buffer takes every key before help, forms or configured bindings. Enter continues; F/Esc unlocks; no continuation within 30 seconds unlocks automatically."
+		note = "After 15 active minutes, the focus buffer pauses work. F1 opens its keybindings without pausing the 30-second unlock deadline."
 	}
 	if note != "" {
 		body = append(body, strings.Split(ansi.Wrap(note, max(1, w-4), ""), "\n")...)
@@ -259,15 +261,21 @@ func (m *Model) helpView() string {
 	if len(rows) == 0 {
 		body = append(body, "No actions without bindings in this mode. Choose actions for palette commands.")
 	}
+	body = append(body, "", "Help navigation")
+	for _, r := range m.helpRows("modals") {
+		if r.scope == "help" {
+			body = append(body, strings.Split(ansi.Wrap(fmt.Sprintf("%-20s %s", r.key, r.action), max(1, w-4), ""), "\n")...)
+		}
+	}
 	room := max(1, h-7)
 	if h < 8 {
-		lines = []string{"Help: " + mode + " · esc close"}
+		lines = []string{"Help: " + mode}
 		room = max(1, h-2)
 	}
 	m.help.scroll = min(m.help.scroll, max(0, len(body)-room))
 	end := min(len(body), m.help.scroll+room)
 	lines = append(lines, body[m.help.scroll:end]...)
-	lines = append(lines, cDim.Render(fmt.Sprintf("esc close · tab mode · u unbound · ↑↓ scroll · %d-%d/%d", m.help.scroll+1, end, len(body))))
+	lines = append(lines, cDim.Render(fmt.Sprintf("F1 close · %d-%d/%d", m.help.scroll+1, end, len(body))))
 	if w >= 8 && h >= 8 {
 		box := []string{boxTop("help", w)}
 		for _, l := range lines {

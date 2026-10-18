@@ -122,7 +122,7 @@ func (m *Model) promptRecoveryBox(width, maxH int) []string {
 		preview := strings.Split(ansi.Hardwrap(ansi.Strip(text), iw, true), "\n")
 		room := max(0, avail-len(body)-1)
 		p.scroll = min(p.scroll, max(0, len(preview)-max(1, room)))
-		body = append(body, cDim.Render(fmt.Sprintf("Preview %d/%d · lines %d–%d/%d · PgUp/PgDn scroll", p.selected+1, len(p.matches), p.scroll+1, min(len(preview), p.scroll+room), len(preview))))
+		body = append(body, cDim.Render(fmt.Sprintf("Preview %d/%d · lines %d–%d/%d", p.selected+1, len(p.matches), p.scroll+1, min(len(preview), p.scroll+room), len(preview))))
 		body = append(body, preview[p.scroll:min(len(preview), p.scroll+room)]...)
 	}
 	lines := []string{boxTop("stashed prompts", width)}
@@ -131,7 +131,7 @@ func (m *Model) promptRecoveryBox(width, maxH int) []string {
 	}
 	return append(lines,
 		cBorder.Render("├"+strings.Repeat("─", max(0, width-2))+"┤"),
-		boxRow(cDim.Render(ansi.Truncate("↑↓ select · type search · enter restore · esc back", iw, "…")), iw),
+		boxRow(cDim.Render(ansi.Truncate(keyHelpHint, iw, "…")), iw),
 		cBorder.Render("╰"+strings.Repeat("─", max(0, width-2))+"╯"),
 	)
 }

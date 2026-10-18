@@ -118,6 +118,5 @@ func (f *fuzzyPicker) view(width, height int) []string {
 	} else {
 		body = append(listLines, rule, query)
 	}
-	help := "type to filter · ctrl+n/ctrl+p move · enter pick · ? preview · esc cancel"
-	return pickerBox(f.m.protoRun.title, body, help, width)
+	return pickerBox(f.m.protoRun.title, body, width)
 }

@@ -102,24 +102,6 @@ func (m *Model) vimFormKey(msg tea.KeyPressMsg) (tea.KeyPressMsg, bool) {
 	return msg, true
 }
 
-// vimFormHelp is the form's key line with the mode in it.
-func (m *Model) vimFormHelp(plain string) string {
-	if !m.vimModes() || m.form == nil {
-		return plain
-	}
-	key := func(mode, action string) string { return m.settings.Binding(mode, action) }
-	if m.form.vimNormal {
-		pos, _, _ := strings.Cut(plain, " · ")
-		return pos + " · NORMAL · " + key(config.ModeFormNormal, "insert") + " insert · " +
-			key(config.ModeFormNormal, "next_field") + "/" + key(config.ModeFormNormal, "prev_field") + " field · " +
-			key(config.ModeFormNormal, "submit") + " submit · " + key(config.ModeFormNormal, "clear") + " clear · " +
-			key(config.ModeFormNormal, "cancel") + " cancel"
-	}
-	esc := key(config.ModeFormInsert, "leave_insert")
-	pos, rest, _ := strings.Cut(plain, " · ")
-	return pos + " · INSERT · " + strings.Replace(strings.Replace(rest, "esc cancel", esc+" normal mode", 1), "esc close the list", esc+" close the list", 1)
-}
-
 // openSettingsForm edits the settings: vim modes on or off, and one
 // rebinding at a time (an action with an empty key goes back to its
 // default). The change is checked, saved to the settings file, and takes

@@ -256,10 +256,8 @@ func (t *treePicker) view(width, height int) []string {
 			lines[i] = pad(lines[i], listW) + cBorder.Render(" │") + pv[i]
 		}
 	}
-	help := "j/k move · l open · h close · / filter · enter pick · ? preview · esc cancel"
 	if t.filtering {
 		lines = append(lines, cBorder.Render(strings.Repeat("─", iw)), " "+cStatus.Render("/")+" "+t.query+"▏")
-		help = "type to filter · ↓/↑ move · enter pick · ? preview · esc clear the filter"
 	}
-	return pickerBox(t.m.protoRun.title, lines, help, width)
+	return pickerBox(t.m.protoRun.title, lines, width)
 }

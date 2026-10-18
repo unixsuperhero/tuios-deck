@@ -116,9 +116,6 @@ func (m *Model) currentField(fl field, iw, room int) []string {
 		}
 		out = append(out, ansi.Truncate(cStatus.Render(label)+value, iw, "…"))
 	}
-	if fl.Prompt {
-		out = append(out, cDim.Render(ansi.Truncate("    ctrl+u stash · ctrl+r saved prompts · ctrl+z undo", iw, "…")))
-	}
 	// A multiline field keeps its hint's lines, so the hint can show an
 	// example of what to type.
 	switch {
@@ -209,30 +206,17 @@ func (m *Model) outlineView(iw, rows int) []string {
 	return out
 }
 
-// formHelp names the keys the current field answers.
-func (m *Model) formHelp() string { return m.vimFormHelp(m.formHelpPlain()) }
-
-func (m *Model) formHelpPlain() string {
+func (m *Model) formHelp() string {
 	f := m.form
-	cur := f.Fields[f.Cur]
-	pos := fmt.Sprintf("%d/%d · ctrl+z undo", f.Cur+1, len(f.Fields))
-	switch {
-	case cur.at > 0:
-		return pos + " · ctrl+n/ctrl+p pick · tab or enter take the path, or open the folder · esc close the list"
-	case cur.sl > 0:
-		return pos + " · ctrl+n/ctrl+p pick · tab or enter take the command · esc close the list"
-	case len(f.list()) > 0:
-		return pos + " · ctrl+n/ctrl+p pick · tab accept · enter accept or next · shift+tab back · esc cancel"
-	case cur.Multi && cur.Outline:
-		return pos + " · ↑↓←→ move · enter split · tab/shift+tab indent · ctrl+u clear line · ctrl+s submit · esc cancel"
-	case cur.Attach:
-		return pos + " · enter newline · ctrl+s submit · @ attach a file · ctrl+o pick files · / command · shift+tab back · esc cancel"
-	case cur.Multi:
-		return pos + " · enter newline · ctrl+s submit · @ a file · shift+tab back · esc cancel"
-	case f.Cur+1 < len(f.Fields):
-		return pos + " · enter next · tab default · ctrl+s submit · shift+tab back · esc cancel"
+	state := fmt.Sprintf("%d/%d", f.Cur+1, len(f.Fields))
+	if m.vimModes() {
+		if f.vimNormal {
+			state += " · NORMAL"
+		} else {
+			state += " · INSERT"
+		}
 	}
-	return pos + " · enter submit · tab default · shift+tab back · esc cancel"
+	return state + " · " + keyHelpHint
 }
 
 // tail keeps the end of s when it is wider than w, so the cursor stays in

@@ -239,7 +239,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.PasteMsg:
-		if m.focus != nil && !m.focus.clock.BufferUntil.IsZero() {
+		if m.help != nil || m.focus != nil && !m.focus.clock.BufferUntil.IsZero() {
 			return m, nil
 		}
 		if m.mode == modeForm && m.form != nil {

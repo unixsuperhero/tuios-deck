@@ -52,12 +52,12 @@ func (m *Model) View() tea.View {
 		v.SetContent(m.focusScreen(pad("resize terminal", m.width)))
 		return v
 	}
-	if m.focus != nil && !m.focus.clock.BufferUntil.IsZero() {
-		v.SetContent(m.focusBufferView())
-		return v
-	}
 	if m.help != nil {
 		v.SetContent(m.focusScreen(m.helpView()))
+		return v
+	}
+	if m.focus != nil && !m.focus.clock.BufferUntil.IsZero() {
+		v.SetContent(m.focusBufferView())
 		return v
 	}
 	left := min(m.leftWidth(), m.width-2)
@@ -137,7 +137,7 @@ func (m *Model) View() tea.View {
 func (m *Model) titleLine() string {
 	if m.focus != nil {
 		name, _ := m.focusTarget()
-		s := " FOCUS · " + name + " · F unlock · T tasks"
+		s := " FOCUS · " + name
 		if m.page == pageDeck {
 			s += " · sort: " + m.railSort.String()
 		}
@@ -154,7 +154,7 @@ func (m *Model) titleLine() string {
 	}
 	s := cTitle.Render(" tuios-deck ") + cTabOn.Render(" "+m.page.String()+" ")
 	if m.page == pageTasks && m.easyOnly {
-		s += " · focus plan: saved easy tasks · E toggle easy · F focus · ctrl+f all tasks"
+		s += " · focus plan: saved easy tasks"
 	}
 	if m.page == pageDeck && !m.grouping.bySession() {
 		s += " by " + m.grouping.String()
@@ -378,50 +378,7 @@ func (m *Model) statusLine() string {
 }
 
 func (m *Model) helpLine() string {
-	if m.mode == modeNormal {
-		key := "?"
-		if m.settings != nil {
-			key = m.settings.Binding("deck", "help")
-		}
-		return cDim.Render(" "+key+" help · ") + m.pageHelpLine()
-	}
-	return m.pageHelpLine()
-}
-
-func (m *Model) pageHelpLine() string {
-	switch m.mode {
-	case modeForm:
-		return cDim.Render(" " + m.form.Title + " · the keys are in the box · esc cancel")
-	case modeConfirm:
-		return cDim.Render(" enter/y confirm · n/esc cancel")
-	case modePrompts, modeGlyph:
-		return cDim.Render(" the keys are in the box · esc close")
-	case modePalette:
-		return cDim.Render(" type to filter · ↑/↓ ctrl+p/n pick · enter run · tab complete · esc close")
-	case modeProto:
-		return cDim.Render(" " + m.protoRun.title + " · the keys are in the box · ctrl+c cancel")
-	}
-	switch m.page {
-	case pageReviews:
-		return cDim.Render(" j/k highlight · enter open and review · tab queue/history · J/K scroll · r refresh · esc deck · q quit")
-	case pageHistory:
-		return cDim.Render(" j/k select · g/G first/last · J/K detail scroll · r refresh · enter go to pane · esc deck · q quit")
-	case pageTasks:
-		return cDim.Render(" j/k select · {/} group · (/) level · N project · n task/subtask · A add many · e edit · s status · m colour · M glyph · a assign pane · enter go to pane · x delete · esc deck · q quit")
-	case pageCaptures:
-		return cDim.Render(" j/k select · J/K scroll · G follow · enter go to pane · x delete · r refresh · T tasks · esc deck · q quit")
-	case pageProtos:
-		return cDim.Render(" j/k select · enter try it for real · T tasks · I context · esc deck · q quit")
-	case pageContext:
-		return cDim.Render(" j/k select · {/} group · t scope · s sort · f filter · o/O group · * star · ! pin · a assign · y copy · enter insert · ^o open · w open with · x delete · esc deck · q quit")
-	}
-	if m.focusMain && m.tab == tabTurns && m.result == nil {
-		return cDim.Render(" main area: h rail · j/k row · enter/space expand · y copy · {/} group · g top · G newest · J/K half page · [/] or 1-4 tab · p prompt · T tasks · q quit")
-	}
-	if m.focusMain {
-		return cDim.Render(" main area: h rail · j/k scroll · J/K half page · g top · G follow · [/] or 1-4 tab · p prompt · c capture · T tasks · C captures · q quit")
-	}
-	return cDim.Render(" j/k move · l main area · {/} group · (/) level · [/] or 1-4 tab · J/K scroll · G follow · o group · n agent · t term · p prompt · a assign · c capture · i context · x close · T tasks · C captures · I context · r refresh · q quit")
+	return cDim.Render(" " + keyHelpHint)
 }
 
 // pad fits s to width: truncated when longer, padded with spaces when shorter.

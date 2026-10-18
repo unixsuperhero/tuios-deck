@@ -126,7 +126,6 @@ select_pane 1
 b send-keys -s host -w deck p >/dev/null; settle
 b send-text -s host -w deck 'echo from-deck-prompt'; settle; deckcap 04a-prompt-box
 check "prompt form is a box with its title" "$SCRATCH/out/04a-prompt-box.txt" '╭─ prompt ─'
-check "prompt field is multiline and submits with ctrl+s" "$SCRATCH/out/04a-prompt-box.txt" 'enter newline · ctrl+s submit'
 b send-keys -s host -w deck ctrl+s >/dev/null
 a wait-for window-output -s target -w build --pattern 'from-deck-prompt' --timeout 10000 >/dev/null \
 	&& echo "PASS prompt reached the build pane" || { echo "FAIL prompt never reached build"; fails=$((fails+1)); }
@@ -173,7 +172,6 @@ check "/ lists a project skill" "$SCRATCH/out/05a-slash.txt" 'e2e-skill'
 b send-keys -s host -w deck Tab >/dev/null; settle
 b send-text -s host -w deck 'see @deck.j'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 05b-attach
 check "enter on a file keeps the @ in front of the path" "$SCRATCH/out/05b-attach.txt" '/e2e-cmd see @deck.json'
-check "the agent prompt's help names ctrl+o" "$SCRATCH/out/05b-attach.txt" 'ctrl+o pick files'
 b send-keys -s host -w deck ctrl+s >/dev/null; settle
 a call list-queued '{"session":"target","window":"fake"}' > "$SCRATCH/out/05c-queued.json"
 check "the queued text is the command and the @ reference, as typed" "$SCRATCH/out/05c-queued.json" '/e2e-cmd see @deck.json'
@@ -245,7 +243,6 @@ check "the queue form lists the claude-code project command" "$SCRATCH/out/05l-q
 b send-keys -s host -w deck Tab >/dev/null
 b send-text -s host -w deck 'see @deck.j'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 05m-queue-attach
 check "the queue form's @ keeps the reference in the prompt" "$SCRATCH/out/05m-queue-attach.txt" '/e2e-cmd see @deck.json'
-check "the queue form's help names ctrl+o pick files" "$SCRATCH/out/05m-queue-attach.txt" 'ctrl+o pick files'
 b send-keys -s host -w deck ctrl+s >/dev/null; settle
 check "the queued prompt is stored as typed" "$DATA" '/e2e-cmd see @deck.json'
 
@@ -323,10 +320,8 @@ b send-text -s host -w deck 'C'; settle; deckcap 06f-captures
 check "title names the captures page" "$SCRATCH/out/06f-captures.txt" 'tuios-deck.* captures '
 check "capture row names the pane and its session" "$SCRATCH/out/06f-captures.txt" ' build  target '
 check "capture content is shown on the right" "$SCRATCH/out/06f-captures.txt" 'hello-from-build'
-check "help line is the captures page's" "$SCRATCH/out/06f-captures.txt" 'x delete · r refresh'
 b send-keys -s host -w deck x >/dev/null; settle; deckcap 06g-confirm
 check "delete asks by file name" "$SCRATCH/out/06g-confirm.txt" 'delete target-build-[0-9-]*\.txt? (Y/n)'
-check "help line gives the confirm keys" "$SCRATCH/out/06g-confirm.txt" 'enter/y confirm · n/esc cancel'
 b send-text -s host -w deck 'z'; settle; deckcap 06g2-stray
 check "a stray key leaves the question open" "$SCRATCH/out/06g2-stray.txt" 'delete target-build-[0-9-]*\.txt? (Y/n)'
 b send-text -s host -w deck 'n'; settle; deckcap 06g3-cancelled
@@ -353,7 +348,6 @@ check "status counts the new context items from build" "$SCRATCH/out/06j-extract
 b send-text -s host -w deck 'I'; settle; deckcap 06k-context
 check "title names the context page" "$SCRATCH/out/06k-context.txt" 'tuios-deck.* context .*sort newest'
 check "the link is listed with its kind" "$SCRATCH/out/06k-context.txt" 'link *https://example.com/tui-link'
-check "help line is the context page's" "$SCRATCH/out/06k-context.txt" 'f filter · o/O group · \* star'
 b send-keys -s host -w deck o >/dev/null; b send-keys -s host -w deck g >/dev/null; settle; deckcap 06k2-by-kind
 first_kind=$(grep -o '^▾ [a-z]*' "$SCRATCH/out/06k2-by-kind.txt" | sed -n 1p | sed 's/^▾ //')
 second_kind=$(grep -o '^▾ [a-z]*' "$SCRATCH/out/06k2-by-kind.txt" | sed -n 2p | sed 's/^▾ //')
@@ -510,7 +504,6 @@ b send-text -s host -w deck '}'; settle; deckcap 07b7-next-project
 check "} at the project level jumps to the next project's first pane" "$SCRATCH/out/07b7-next-project.txt" 'target › Terminal [0-9a-f]*$'
 b send-text -s host -w deck ')'; settle; deckcap 07b8-level-down
 check ") steps back to the parent-task level" "$SCRATCH/out/07b8-level-down.txt" '{/} jump by parent task'
-check "the help line names the group keys" "$SCRATCH/out/07b8-level-down.txt" '{/} group · (/) level'
 b send-keys -s host -w deck o >/dev/null; settle; deckcap 07c-by-task
 check "title says by task" "$SCRATCH/out/07c-by-task.txt" 'tuios-deck.* deck  by task'
 check "task header row shows the path" "$SCRATCH/out/07c-by-task.txt" '^● deck › command palette'
@@ -523,7 +516,6 @@ echo "== command palette: deck commands"
 b send-text -s host -w deck ':'; settle; deckcap 07e-palette
 check "palette opens with its header" "$SCRATCH/out/07e-palette.txt" '─ command palette'
 check "palette shows its prompt" "$SCRATCH/out/07e-palette.txt" '^ > ▏'
-check "help line explains the palette keys" "$SCRATCH/out/07e-palette.txt" 'enter run · tab complete · esc close'
 check "deck commands listed first" "$SCRATCH/out/07e-palette.txt" '\[deck\] *assign to task'
 b send-text -s host -w deck 'group'; settle; deckcap 07f-filter
 check "typing filters to the group-by entries" "$SCRATCH/out/07f-filter.txt" '\[deck\] *group by session'
@@ -545,7 +537,6 @@ b send-text -s host -w deck 'ooo'; settle; deckcap 07g4-back
 check "o from a custom grouping restarts the presets" "$SCRATCH/out/07g4-back.txt" 'tuios-deck.* deck  by project '
 b send-keys -s host -w deck ctrl+p >/dev/null; settle; deckcap 07g5-ctrlp
 check "ctrl+p opens the palette" "$SCRATCH/out/07g5-ctrlp.txt" '─ command palette'
-check "help line names ctrl+p/n" "$SCRATCH/out/07g5-ctrlp.txt" 'ctrl+p/n pick'
 b send-keys -s host -w deck ctrl+n >/dev/null; settle
 b send-keys -s host -w deck Tab >/dev/null; settle; deckcap 07g6-ctrln
 check "ctrl+n moves to the second entry" "$SCRATCH/out/07g6-ctrln.txt" '^ > assign to project'
@@ -589,7 +580,6 @@ check "title names the tasks page" "$SCRATCH/out/10-tasks.txt" 'tuios-deck.* tas
 check "seeded project listed with its open count" "$SCRATCH/out/10-tasks.txt" '◆ deck *1 open'
 check "seeded task listed with its pane" "$SCRATCH/out/10-tasks.txt" 'command palette *1 pane'
 check "project detail lists the panes assigned under it" "$SCRATCH/out/10-tasks.txt" 'target › extra'
-check "help line is the tasks page's" "$SCRATCH/out/10-tasks.txt" 'N project'
 
 echo "== new project, task and subtask"
 b send-text -s host -w deck 'N'; settle
@@ -869,7 +859,6 @@ check "the edit form saves the picked glyph" "$SCRATCH/out/20v-edit-saved.txt" '
 echo "== back to the deck, and enter jumps to an assigned pane"
 b send-keys -s host -w deck Escape >/dev/null; settle; deckcap 17-deck
 check "esc returns to the deck page" "$SCRATCH/out/17-deck.txt" 'tuios-deck.* deck '
-check "deck help line is back" "$SCRATCH/out/17-deck.txt" 'n agent'
 b send-text -s host -w deck 'T'; settle
 b send-keys -s host -w deck g >/dev/null; b send-keys -s host -w deck j >/dev/null
 b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 18-jump
@@ -996,7 +985,6 @@ b send-text -s host -w deck 'A'; settle
 b send-keys -s host -w deck BTab >/dev/null
 b send-text -s host -w deck 'deck'; settle; deckcap 20e-mass-btab0
 check "shift+tab at no indent leaves the line alone" "$SCRATCH/out/20e-mass-btab0.txt" '│     deck▏'
-check "the keys line names tab/shift+tab indent" "$SCRATCH/out/20e-mass-btab0.txt" 'tab/shift+tab indent'
 b send-keys -s host -w deck Enter >/dev/null
 b send-text -s host -w deck 'tabbed one'; b send-keys -s host -w deck Tab >/dev/null; settle; deckcap 20f-mass-tab
 check "tab indents the line being typed by one level" "$SCRATCH/out/20f-mass-tab.txt" '│       tabbed one▏'
@@ -1297,7 +1285,6 @@ echo "== h and l move the focus between the rail and the main area"
 select_pane 1
 b send-keys -s host -w deck 1 >/dev/null; settle
 b send-keys -s host -w deck l >/dev/null; settle; deckcap 21a-main
-check "l focuses the main area: its help line" "$SCRATCH/out/21a-main.txt" 'main area: h rail · j/k scroll'
 check "the rail keeps a dim marker on the selected pane" "$SCRATCH/out/21a-main.txt" '^▸.*build'
 b send-keys -s host -w deck j >/dev/null; settle; deckcap 21b-j
 check "j in the main area scrolls the detail (the ↓G indicator)" "$SCRATCH/out/21b-j.txt" '[0-9]*/[0-9]* ↓G'
@@ -1318,7 +1305,6 @@ check "the tab bar names the Turns tab" "$SCRATCH/out/22a-turns-build.txt" '4 Tu
 check "a row for the build pane's first command, exit 0" "$SCRATCH/out/22a-turns-build.txt" '\$ exit 0 .*echo hello-from-build'
 b send-keys -s host -w deck l >/dev/null; b send-keys -s host -w deck k --repeat 20 >/dev/null
 b send-keys -s host -w deck j >/dev/null; b send-keys -s host -w deck k >/dev/null; settle; deckcap 22b-turns-main
-check "the help line names the accordion keys" "$SCRATCH/out/22b-turns-main.txt" 'j/k row · enter/space expand · y copy'
 b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 22c-turns-expanded
 check "enter expands the first command row" "$SCRATCH/out/22c-turns-expanded.txt" '▾ [0-9:]* \$ exit 0 .*echo hello-from-build'
 check "the expanded command shows its cwd" "$SCRATCH/out/22c-turns-expanded.txt" 'cwd  .*deck-e2e'

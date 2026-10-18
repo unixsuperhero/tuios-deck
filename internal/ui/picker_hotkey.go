@@ -147,6 +147,5 @@ func (h *hotkeyPicker) view(width, height int) []string {
 		body = append(body, line)
 	}
 	body = append(body, "", cStatus.Render(" 0 ")+"  more… "+cDim.Render("every target in the single fuzzy list"))
-	help := "1-9 pick · 0 more… · j/k and enter · esc cancel"
-	return pickerBox(h.m.protoRun.title, body, help, width)
+	return pickerBox(h.m.protoRun.title, body, width)
 }

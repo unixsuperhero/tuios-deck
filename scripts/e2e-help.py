@@ -39,13 +39,13 @@ def keys(value, session="host"):
     run("B", "send-keys", "-s", session, "-w", "deck", value)
 
 
-def screen(tag, pattern, session="host"):
+def screen(tag, pattern, session="host", previous=None):
     # tuios wait-for does not read the deck's alternate screen.
     deadline = time.monotonic() + 15
     while True:
         text = run("B", "capture-pane", "-s", session, "-w", "deck")
         (OUT / (tag + ".txt")).write_text(text)
-        if pattern in text:
+        if pattern in text and text != previous:
             return text
         if time.monotonic() > deadline:
             raise AssertionError(f"{tag}: missing {pattern!r}; see {OUT}")
@@ -107,7 +107,7 @@ try:
     text = screen("review-action", "go to review queue")
     assert "V" == next(line for line in text.splitlines() if "go to review queue" in line).strip("│ ").split()[0]
     keys("u")
-    text = screen("unbound", "settings…")
+    text = screen("unbound", "Mode: actions · unbound only")
     assert "(unbound)" in text and "new agent" not in text and "go to review queue" not in text
     print("PASS catalog includes Review with its binding, not as unbound", flush=True)
     keys("End")
@@ -145,11 +145,62 @@ try:
         screen(mode + "-palette", "Mode: " + mode)
         keys("Escape Escape")
     print("PASS active-page and palette help scopes", flush=True)
+    plain = SCRATCH / "plain"
+    (plain / "tuios-deck").mkdir(parents=True)
+    (plain / "tuios-deck/config").write_text("{}")
+    launch("contextual", 120, 45, plain)
+    keys("F1", "contextual")
+    screen("f1-page", "Mode: deck", "contextual")
+    keys("F1 p", "contextual")
+    run("B", "send-text", "-s", "contextual", "-w", "deck", "recover this?")
+    screen("draft-before-help", "recover this?", "contextual")
+    keys("F1", "contextual")
+    screen("f1-prompt", "browse, search and restore saved prompts", "contextual")
+    run("B", "send-text", "-s", "contextual", "-w", "deck", "\x1b[200~hidden edit\x1b[201~")
+    keys("F1", "contextual")
+    text = screen("draft-after-help", "recover this?", "contextual")
+    assert "hidden edit" not in text
+    keys("ctrl+u ctrl+r", "contextual")
+    run("B", "send-text", "-s", "contextual", "-w", "deck", "recover")
+    screen("stash-query", "recover this?", "contextual")
+    keys("F1", "contextual")
+    screen("f1-stashes", "Mode: saved prompts", "contextual")
+    keys("Escape Enter", "contextual")
+    screen("stash-restored-after-help", "recover this?", "contextual")
+    keys("Escape :", "contextual")
+    run("B", "send-text", "-s", "contextual", "-w", "deck", "keybindings")
+    keys("F1", "contextual")
+    screen("f1-palette", "Mode: palette", "contextual")
+    keys("F1", "contextual")
+    screen("palette-query-preserved", "> keybindings", "contextual")
+    keys("Escape x F1", "contextual")
+    screen("f1-confirmation", "Mode: confirmation", "contextual")
+    keys("Escape n", "contextual")
+    screen("confirmation-cancelled", "tuios-deck", "contextual")
+    keys("a F1", "contextual")
+    screen("f1-picker", "Mode: picker", "contextual")
+    keys("F1 ctrl+c", "contextual")
+    screen("picker-cancelled", "tuios-deck", "contextual")
+    keys("l F1", "contextual")
+    screen("f1-detail", "Mode: detail", "contextual")
+    keys("F1 4 F1", "contextual")
+    screen("f1-turns", "Mode: turns", "contextual")
+    keys("F1 h T M F1", "contextual")
+    screen("f1-glyph", "Mode: glyph table", "contextual")
+    keys("F1 Escape Escape", "contextual")
+    for command, mode in [("prompt presets", "presets"), ("queued prompts", "queue")]:
+        keys(":", "contextual")
+        run("B", "send-text", "-s", "contextual", "-w", "deck", command)
+        screen(mode + "-command", "> " + command, "contextual")
+        keys("Enter F1", "contextual")
+        screen("f1-" + mode, "Mode: " + mode, "contextual")
+        keys("F1 Escape", "contextual")
+    print("PASS F1 contexts, draft/paste protection, stash recovery, palette query and cancellation", flush=True)
     launch("small", 36, 10, config)
     keys("?", "small")
     before = screen("small-help", "Mode: deck", "small")
     keys("PageDown", "small")
-    after = screen("small-scrolled", "esc close", "small")
+    after = screen("small-scrolled", "Mode: deck", "small", previous=before)
     assert before != after
     assert len(after.splitlines()) <= 10 and all(len(line) <= 36 for line in after.splitlines())
     keys("Escape", "small")
@@ -166,7 +217,7 @@ try:
     keys("Escape p", "remapped")
     run("B", "send-text", "-s", "remapped", "-w", "deck", "keep?")
     keys("alt+h", "remapped")
-    screen("form-insert-default", "Mode: form_insert", "remapped")
+    screen("form-insert-default", "Mode: prompt", "remapped")
     keys("Escape", "remapped")
     screen("form-insert-restored", "keep?", "remapped")
     keys("Escape", "remapped")

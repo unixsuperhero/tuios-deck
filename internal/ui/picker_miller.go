@@ -187,6 +187,5 @@ func (c *millerPicker) view(width, height int) []string {
 		}
 	}
 	body = append(body, grid...)
-	help := "j/k move · l/h next/previous column · enter pick · ? preview · esc cancel"
-	return pickerBox(c.m.protoRun.title, body, help, width)
+	return pickerBox(c.m.protoRun.title, body, width)
 }

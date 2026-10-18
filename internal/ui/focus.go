@@ -153,6 +153,6 @@ func (m *Model) focusBufferKey(key string) (bool, tea.Cmd) {
 
 func (m *Model) focusBufferView() string {
 	seconds := max(0, int(time.Until(m.focus.clock.BufferUntil).Seconds()+0.999))
-	text := fmt.Sprintf("15 active minutes — continue focus?\n\nEnter continues for a fresh cycle.\nF or Esc unlocks now.\n\nUnlocking in %d seconds.", seconds)
+	text := fmt.Sprintf("15 active minutes — continue focus?\n\nEnter continues for a fresh cycle.\nF or Esc unlocks now.\n\nUnlocking in %d seconds.\n\n%s", seconds, keyHelpHint)
 	return m.focusScreen(lipgloss.NewStyle().Width(m.width).Height(m.height).Align(lipgloss.Center, lipgloss.Center).Render(text))
 }

@@ -205,6 +205,5 @@ func (c *chipsPicker) view(width, height int) []string {
 	for i := range body {
 		body[i] = ansi.Truncate(body[i], iw, "")
 	}
-	help := "/ or tab lock · backspace pops · ctrl+n/p move · enter pick · ? preview · esc cancel"
-	return pickerBox(c.m.protoRun.title, body, help, width)
+	return pickerBox(c.m.protoRun.title, body, width)
 }
