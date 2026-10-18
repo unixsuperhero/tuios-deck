@@ -20,6 +20,7 @@ import (
 	"github.com/unixsuperhero/tuios-deck/internal/capture"
 	"github.com/unixsuperhero/tuios-deck/internal/config"
 	"github.com/unixsuperhero/tuios-deck/internal/daemon"
+	"github.com/unixsuperhero/tuios-deck/internal/history"
 	"github.com/unixsuperhero/tuios-deck/internal/reminders"
 	"github.com/unixsuperhero/tuios-deck/internal/review"
 	"github.com/unixsuperhero/tuios-deck/internal/store"
@@ -164,6 +165,7 @@ func runTUI(args []string) error {
 	c.startAutoCapture(ctx, client, dir, nil)
 	c.startReminders(ctx, client, st, nil)
 	go review.Run(ctx, client, st, nil)
+	go history.Run(ctx, client, st)
 	m := ui.New(client, st, version, dir)
 	m.SetSettings(cfg, config.DefaultPath())
 	defer m.Close()
@@ -198,6 +200,7 @@ func runWeb(args []string) error {
 	c.startAutoCapture(ctx, client, dir, func(msg string) { web.Log.Print(msg) })
 	c.startReminders(ctx, client, st, func(msg string) { web.Log.Print(msg) })
 	go review.Run(ctx, client, st, func(msg string) { web.Log.Print(msg) })
+	go history.Run(ctx, client, st)
 	srv := &http.Server{Addr: *listen, Handler: s.Handler(), ReadHeaderTimeout: 10 * time.Second}
 	go func() {
 		<-ctx.Done()

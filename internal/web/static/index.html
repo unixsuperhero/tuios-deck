@@ -173,6 +173,8 @@ dialog .hint.err:empty { display: none; }
 #dlg-help th { color: var(--muted); }
 #dlg-help td:first-child { font-family: ui-monospace, monospace; }
 #dlg-help .help-controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 12px 0; }
+.history-row { width: 100%; text-align: left; border-radius: 0; background: transparent; }
+#history-list { position: relative; }
 </style>
 </head>
 <body>
@@ -185,6 +187,7 @@ dialog .hint.err:empty { display: none; }
     <button data-page="context">Context</button>
     <button data-page="reminders">Reminders</button>
     <button data-page="review">Review</button>
+    <button data-page="history" title="History timeline (H)">History</button>
   </nav>
   <span class="meta" id="meta">connecting…</span>
   <span class="badge needs" id="needs" hidden></span>
@@ -310,6 +313,32 @@ dialog .hint.err:empty { display: none; }
       <div class="hint">Reminders fire only while deck web or deck tui is running.</div>
       <div id="remlist"><div class="empty">loading…</div></div>
     </div>
+  </div>
+  <div class="page split" id="page-history">
+    <aside>
+      <div class="railhead filters">
+        <input type="search" id="history-q" aria-label="Search history" placeholder="Search history…">
+        <select id="history-kind" aria-label="History event kind">
+          <option value="">All events</option>
+          <option value="prompt-submitted">Prompts</option>
+          <option value="prompt-queued">Queued prompts</option>
+          <option value="input-submitted">Terminal input</option>
+          <option value="response-completed">Responses</option>
+          <option value="command-started">Observed command starts</option>
+          <option value="command-submitted">Retained command submissions</option>
+          <option value="command-completed">Command completions</option>
+          <option value="agent-state">Agent states</option>
+          <option value="window-created">Opened panes</option>
+          <option value="window-closed">Closed panes</option>
+        </select>
+      </div>
+      <div class="rail" id="history-list" aria-label="History entries"></div>
+    </aside>
+    <section>
+      <div class="toolbar"><span class="who spacer" id="history-count">History</span><button id="history-refresh">Refresh</button><button id="history-pane">Go to pane</button></div>
+      <div class="detail"><pre class="text" id="history-text"></pre></div>
+      <div class="hint" id="history-boundary" role="status"></div>
+    </section>
   </div>
 </main>
 <footer>
@@ -498,7 +527,7 @@ const DOTS = { working: '◐', needs_input: '●', errored: '✗', idle: '○', 
 // A grouping is a list of levels joined by " > ", the first outermost.
 const LEVELS = ['session', 'project', 'task', 'parent task', 'top-level task', 'cwd', 'harness', 'state', 'kind'];
 const GROUPS = ['session', 'task tree', 'project', 'project > parent task', 'task', 'top-level task', 'harness > project > parent task', 'cwd', 'harness', 'state', 'kind'];
-const PAGES = ['deck', 'tasks', 'captures', 'context', 'reminders', 'review'];
+const PAGES = ['deck', 'tasks', 'captures', 'context', 'reminders', 'review', 'history'];
 const state = {
   sessions: [], panes: {}, order: [], selected: null, tab: 'screen', transcripts: false,
   detailKey: '', detailText: '', pollTimer: null, refreshTimer: null, lastStatusErr: false,
@@ -879,6 +908,7 @@ function setPage(name, fromHash) {
   if (name === 'context') { const p = state.panes[state.selected]; if (p) state.ctxPane = { session: p.session, id: p.id, name: p.name }; loadContext(); }
   if (name === 'reminders') loadReminders();
   if (name === 'review') reviewPage.load(true);
+  if (name === 'history') loadHistory();
   if (name === 'tasks') { renderTree(); renderTaskInfo(); }
 }
 for (const b of document.querySelectorAll('#nav button')) b.onclick = () => setPage(b.dataset.page);
@@ -2000,6 +2030,73 @@ $('rem-new').onclick = newReminder;
 // Redraws only the list, never the dialogs, so nothing typed is lost.
 setInterval(() => { if (state.page === 'reminders' && !document.querySelector('dialog[open]')) loadReminders(); }, 5000);
 
+// ---------------------------------------------------------------- history timeline
+const timeline = { entries: [], selected: '', snapshot: '', request: 0 };
+async function loadHistory() {
+  const request = ++timeline.request;
+  const q = new URLSearchParams({ q: $('history-q').value, kind: $('history-kind').value });
+  try {
+    const result = await api('/api/history?' + q);
+    if (request !== timeline.request) return;
+    $('history-boundary').textContent = result.observation_error ? 'History error: ' + result.observation_error : result.boundary;
+    const snapshot = JSON.stringify(result.entries);
+    if (snapshot === timeline.snapshot) return;
+    timeline.snapshot = snapshot;
+    const list = $('history-list'), top = list.scrollTop;
+    const focusedID = list.contains(document.activeElement) ? document.activeElement.dataset.id : null;
+    const anchor = [...list.children].find(el => el.offsetTop + el.offsetHeight > top);
+    const anchorID = anchor?.dataset.id, offset = anchor ? anchor.offsetTop - top : 0;
+    timeline.entries = result.entries;
+    const selected = timeline.entries.some(e => e.id === timeline.selected) ? timeline.selected : timeline.entries[0]?.id || '';
+    list.replaceChildren();
+    for (const entry of timeline.entries) {
+      const row = document.createElement('button'); row.type = 'button'; row.className = 'caprow history-row'; row.dataset.id = entry.id;
+      const title = document.createElement('span'); title.className = 'cname'; title.textContent = entry.summary;
+      const meta = document.createElement('span'); meta.className = 'cmeta'; meta.textContent = new Date(entry.at).toLocaleString() + ' · ' + (entry.session || 'daemon') + ' · ' + entry.kind;
+      row.append(title, meta); row.onclick = () => selectHistory(entry.id); list.append(row);
+    }
+    if (!timeline.entries.length) { const empty = document.createElement('div'); empty.className = 'empty'; empty.textContent = 'No matching history. Only reported activity and observed events are available.'; list.append(empty); }
+    selectHistory(selected);
+    if (focusedID) [...list.children].find(row => row.dataset.id === focusedID)?.focus({ preventScroll: true });
+    const kept = [...list.children].find(el => el.dataset.id === anchorID);
+    list.scrollTop = kept ? kept.offsetTop - offset : top;
+  } catch (e) { $('history-boundary').textContent = 'History error: ' + e.message; }
+}
+function selectHistory(id) {
+  const changed = timeline.selected !== id;
+  timeline.selected = id;
+  for (const row of $('history-list').children) { const selected = row.dataset.id === id; row.classList.toggle('selected', selected); if (row.dataset.id) row.setAttribute('aria-pressed', String(selected)); }
+  const e = timeline.entries.find(e => e.id === id);
+  const text = e ? [e.summary, new Date(e.at).toISOString(), '', 'Session: ' + (e.session || ''), 'Window: ' + (e.window || ''), 'Source: ' + e.source, 'Identity: ' + e.source_id, 'Observed: ' + new Date(e.observed).toISOString(), '', e.detail].join("\n") : 'Select a history entry';
+  const pre = $('history-text');
+  if (pre.textContent !== text) { const top = pre.scrollTop; pre.textContent = text; pre.scrollTop = changed ? 0 : top; }
+  $('history-pane').disabled = !e?.window;
+  $('history-count').textContent = timeline.entries.length + ' entries · newest first';
+}
+function historyKey(e) {
+  const i = timeline.entries.findIndex(row => row.id === timeline.selected);
+  let next = i;
+  if (e.key === 'j' || e.key === 'ArrowDown') next++;
+  else if (e.key === 'k' || e.key === 'ArrowUp') next--;
+  else if (e.key === 'g' || e.key === 'Home') next = 0;
+  else if (e.key === 'G' || e.key === 'End') next = timeline.entries.length - 1;
+  else if (e.key === 'r') { loadHistory(); return; }
+  else if (e.key === 'Enter') { $('history-pane').click(); return; }
+  else return;
+  e.preventDefault();
+  const entry = timeline.entries[Math.max(0, Math.min(next, timeline.entries.length - 1))];
+  if (entry) { selectHistory(entry.id); [...$('history-list').children].find(row => row.dataset.id === entry.id)?.scrollIntoView({ block: 'nearest' }); }
+}
+$('history-refresh').onclick = loadHistory;
+$('history-q').oninput = loadHistory;
+$('history-kind').onchange = loadHistory;
+$('history-pane').onclick = () => {
+  const entry = timeline.entries.find(e => e.id === timeline.selected);
+  if (!entry) return;
+  if (!state.panes[entry.window]) { setStatus('The history source pane is not open now', true); return; }
+  setPage('deck'); select(entry.window);
+};
+setInterval(() => { if (state.page === 'history' && !document.querySelector('dialog[open]')) loadHistory(); }, 2000);
 // ---------------------------------------------------------------- command palette
 function deckCommands() {
   const cmds = [
@@ -2012,6 +2109,7 @@ function deckCommands() {
     { label: 'go to context', run: () => setPage('context') },
     { label: 'go to review queue', run: () => setPage('review') },
     { label: 'go to reminders', run: () => setPage('reminders') },
+    { label: 'go to history', desc: 'persisted timeline (H)', run: () => setPage('history') },
     { label: 'new reminder…', run: newReminder },
     { label: 'context scope: toggle current pane / all', run: () => { state.ctxScope = state.ctxScope === 'all' ? 'current' : 'all'; setPage('context'); } },
     { label: 'extract context from selected pane', run: extractContext },
@@ -2181,6 +2279,7 @@ const webKeys = [
   ['C', 'go to captures', 'pages', () => setPage('captures')],
   ['I', 'go to context', 'pages', () => setPage('context')],
   ['V', 'go to review queue', 'pages', () => setPage('review')],
+  ['H', 'go to history timeline', 'pages', () => setPage('history')],
   ['Escape', 'go to deck', 'pages', () => setPage('deck')],
   ['j', 'next pane', 'deck', () => { const i = state.order.indexOf(state.selected); if (i < state.order.length - 1) select(state.order[i + 1]); }],
   ['k', 'previous pane', 'deck', () => { const i = state.order.indexOf(state.selected); if (i > 0) select(state.order[i - 1]); }],
@@ -2248,6 +2347,7 @@ document.addEventListener('keydown', (e) => {
   const binding = webKeys.find(([key, , scope]) => key === e.key && (scope === 'pages' || state.page === 'deck'));
   if (binding) { e.preventDefault(); binding[3](); }
   else if (state.page === 'review') { reviewPage.key(e); }
+  else if (state.page === 'history') { historyKey(e); }
 });
 
 const reviewPage = createReviewPage(api, setStatus, () => state.page === 'review');

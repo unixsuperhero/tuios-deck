@@ -148,11 +148,17 @@ func (c *Client) Subscribe(ctx context.Context, session string, types []string) 
 	if len(types) > 0 {
 		params["types"] = types
 	}
-	if _, err := request(conn, r, "subscribe", params); err != nil {
+	result, err := request(conn, r, "subscribe", params)
+	if err != nil {
 		conn.Close()
 		return nil, err
 	}
 	ch := make(chan Event, 64)
+	var subscribed Event
+	if json.Unmarshal(result, &subscribed) == nil && subscribed.Type == "subscribed" {
+		subscribed.Raw = result
+		ch <- subscribed
+	}
 	go func() {
 		defer close(ch)
 		defer conn.Close()

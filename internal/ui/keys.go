@@ -110,6 +110,12 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "U":
 		m.openProtos()
 		return m, nil
+	case "H":
+		m.openHistory()
+		return m, nil
+	}
+	if m.page == pageHistory {
+		return m.handleHistoryKey(msg)
 	}
 	if m.page == pageReviews {
 		return m.handleReviewsKey(msg)

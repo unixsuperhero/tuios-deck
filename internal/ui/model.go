@@ -41,10 +41,11 @@ const (
 	pageContext
 	pageProtos
 	pageReviews
+	pageHistory
 )
 
 func (p page) String() string {
-	return [...]string{"deck", "tasks", "captures", "context", "prototypes", "review"}[p]
+	return [...]string{"deck", "tasks", "captures", "context", "prototypes", "review", "history"}[p]
 }
 
 type tab int
@@ -109,6 +110,7 @@ type Model struct {
 
 	cx      ctxPage // the context page
 	reviews reviewPage
+	history historyPage
 
 	protoSel   int              // the prototypes page's highlighted row
 	proto      picker           // the prototype that is up
@@ -384,6 +386,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.rebuildReviews()
 		}
 		var cmds []tea.Cmd
+		if m.page == pageHistory {
+			m.loadHistory()
+		}
 		if m.mode != modeConfirm && m.page == pageDeck {
 			cmds = append(cmds, m.loadDetail(false))
 		}

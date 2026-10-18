@@ -51,6 +51,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /", http.FileServer(http.FS(sub)))
 	mux.HandleFunc("GET /api/state", s.state)
 	mux.HandleFunc("GET /api/events", s.events)
+	mux.HandleFunc("GET /api/history", s.history)
 	mux.HandleFunc("GET /api/dirs", s.dirs)
 	mux.HandleFunc("GET /api/preview", s.preview)
 	mux.HandleFunc("GET /api/files", s.files)
@@ -339,6 +340,7 @@ func (s *Server) prompt(w http.ResponseWriter, r *http.Request) {
 		if res.Delivering {
 			status = "prompt delivering"
 		}
+		status += s.Store.RecordSubmission(session, id, in.Text, "queued")
 		writeJSON(w, 200, map[string]any{"status": status, "queue": res})
 		return
 	}
@@ -346,7 +348,7 @@ func (s *Server) prompt(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
-	writeJSON(w, 200, map[string]any{"status": "sent"})
+	writeJSON(w, 200, map[string]any{"status": "sent" + s.Store.RecordSubmission(session, id, in.Text, "terminal")})
 }
 
 func (s *Server) capture(w http.ResponseWriter, r *http.Request) {
@@ -419,6 +421,7 @@ func (s *Server) startAgent(w http.ResponseWriter, r *http.Request) {
 	if res.PromptStatus != "" {
 		status += "; prompt " + res.PromptStatus
 	}
+	status += s.Store.RecordSubmission(res.Session, res.WindowID, in.Prompt, res.PromptStatus)
 	status = s.assignNew(res.WindowID, res.Session, taskID, projectID, status)
 	writeJSON(w, 200, map[string]any{"status": status, "result": res, "assignment": s.assignmentJSON(res.WindowID)})
 }

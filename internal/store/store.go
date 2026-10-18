@@ -51,17 +51,20 @@ type Assignment struct {
 
 // Store is the file's contents plus where it lives.
 type Store struct {
-	path        string
-	mu          sync.Mutex
-	projects    []Project
-	tasks       []Task
-	assignments map[string]Assignment
-	contexts    []ContextItem
-	reminders   []Reminder
-	notes       []Note
-	presets     []Preset
-	queue       []QueuedPrompt
-	reviews     []Review
+	path         string
+	mu           sync.Mutex
+	projects     []Project
+	tasks        []Task
+	assignments  map[string]Assignment
+	contexts     []ContextItem
+	reminders    []Reminder
+	notes        []Note
+	presets      []Preset
+	queue        []QueuedPrompt
+	history      []HistoryEntry
+	historyIDs   map[string]bool
+	historyError string
+	reviews      []Review
 }
 
 // file is the JSON shape on disk.
@@ -76,6 +79,7 @@ type file struct {
 	Presets     []Preset              `json:"prompt_presets"`
 	Queue       []QueuedPrompt        `json:"queued_prompts"`
 	Reviews     []Review              `json:"reviews"`
+	History     []HistoryEntry        `json:"history"`
 }
 
 const version = 1
@@ -138,6 +142,7 @@ func Open(path string) (*Store, error) {
 	s.presets = f.Presets
 	s.queue = f.Queue
 	s.reviews = f.Reviews
+	s.history = f.History
 	return s, nil
 }
 
@@ -153,7 +158,7 @@ func (s *Store) Save() error {
 }
 
 func (s *Store) save() error {
-	f := file{Version: version, Projects: s.projects, Tasks: s.tasks, Assignments: s.assignments, Contexts: s.contexts, Reminders: s.reminders, Notes: s.notes, Presets: s.presets, Queue: s.queue, Reviews: s.reviews}
+	f := file{Version: version, Projects: s.projects, Tasks: s.tasks, Assignments: s.assignments, Contexts: s.contexts, Reminders: s.reminders, Notes: s.notes, Presets: s.presets, Queue: s.queue, Reviews: s.reviews, History: s.history}
 	if f.Projects == nil {
 		f.Projects = []Project{}
 	}

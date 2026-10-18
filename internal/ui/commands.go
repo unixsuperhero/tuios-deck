@@ -230,6 +230,7 @@ func (m *Model) startAgent(session, agent, name, cwd, prompt, taskID, projectID 
 		if res.Session == "" {
 			res.Session = session
 		}
+		s += m.store.RecordSubmission(res.Session, res.WindowID, prompt, res.PromptStatus)
 		return m.assign(res.WindowID, res.Session, taskID, projectID, s)
 	}
 }
@@ -274,15 +275,16 @@ func (m *Model) sendPrompt(session, id, name string, isAgent bool, text string) 
 			if err != nil {
 				return actionMsg{err: err}
 			}
+			warning := m.store.RecordSubmission(session, id, text, "queued")
 			if res.Delivering {
-				return actionMsg{status: "prompt delivering to " + name}
+				return actionMsg{status: "prompt delivering to " + name + warning}
 			}
-			return actionMsg{status: fmt.Sprintf("prompt queued for %s at position %d", name, res.Position)}
+			return actionMsg{status: fmt.Sprintf("prompt queued for %s at position %d", name, res.Position) + warning}
 		}
 		if err := m.client.SendText(ctx, session, id, text+"\n"); err != nil {
 			return actionMsg{err: err}
 		}
-		return actionMsg{status: "sent to " + name}
+		return actionMsg{status: "sent to " + name + m.store.RecordSubmission(session, id, text, "terminal")}
 	}
 }
 

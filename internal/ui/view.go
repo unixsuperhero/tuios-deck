@@ -75,6 +75,8 @@ func (m *Model) View() tea.View {
 		leftLines, rightLines = m.contextListLines(left, bodyH), m.contextDetailLines(right, bodyH)
 	case pageProtos:
 		leftLines, rightLines = m.protoListLines(left, bodyH), m.protoDetailLines(right, bodyH)
+	case pageHistory:
+		leftLines, rightLines = m.historyListLines(left, bodyH), m.historyDetailLines(right, bodyH)
 	}
 	// The palette lies over the lower part of the body, full width.
 	var under []string
@@ -380,6 +382,8 @@ func (m *Model) pageHelpLine() string {
 	switch m.page {
 	case pageReviews:
 		return cDim.Render(" j/k highlight · enter open and review · tab queue/history · J/K scroll · r refresh · esc deck · q quit")
+	case pageHistory:
+		return cDim.Render(" j/k select · g/G first/last · J/K detail scroll · r refresh · enter go to pane · esc deck · q quit")
 	case pageTasks:
 		return cDim.Render(" j/k select · {/} group · (/) level · N project · n task/subtask · A add many · e edit · s status · m colour · M glyph · a assign pane · enter go to pane · x delete · esc deck · q quit")
 	case pageCaptures:

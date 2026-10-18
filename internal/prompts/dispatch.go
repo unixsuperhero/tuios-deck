@@ -34,13 +34,14 @@ func Dispatch(ctx context.Context, c *daemon.Client, st *store.Store, q store.Qu
 		if err != nil {
 			return "", fmt.Errorf("not sent, kept in the queue: %w", err)
 		}
+		warning := st.RecordSubmission(q.Session, q.Window, q.Text, "queued")
 		if err := st.DequeuePrompt(q.ID); err != nil {
 			return "", err
 		}
 		if res.Delivering {
-			return "prompt delivering to " + q.Window, nil
+			return "prompt delivering to " + q.Window + warning, nil
 		}
-		return fmt.Sprintf("prompt queued at position %d in %s", res.Position, q.Window), nil
+		return fmt.Sprintf("prompt queued at position %d in %s", res.Position, q.Window) + warning, nil
 	}
 	if strings.TrimSpace(q.Agent) == "" {
 		return "", errors.New("not sent, kept in the queue: no agent to start")
@@ -61,6 +62,7 @@ func Dispatch(ctx context.Context, c *daemon.Client, st *store.Store, q store.Qu
 			assigned = "; not assigned: " + err.Error()
 		}
 	}
+	assigned += st.RecordSubmission(res.Session, res.WindowID, q.Text, res.PromptStatus)
 	switch {
 	case !res.Ready:
 		return "", fmt.Errorf("%s is not ready (%s); the prompt is kept in the queue, check the pane before starting it again%s", where, res.Reason, assigned)

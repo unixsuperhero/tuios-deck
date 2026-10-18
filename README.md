@@ -157,7 +157,7 @@ whose action moved elsewhere does nothing; swapping two keys is allowed.
 
 | Mode | Where | Actions |
 | --- | --- | --- |
-| `deck` | the dashboard; `help` `quit` `palette` `tasks` `captures` `add_many` `context` on every page, the rest on the deck page only | `help quit palette tasks captures add_many context left right down up top bottom scroll_down scroll_up next_tab prev_tab refresh group_next group_prev new_agent new_terminal prompt assign capture extract close` |
+| `deck` | the dashboard; `help` `quit` `palette` `tasks` `captures` `add_many` `context` `review` `history` on every page, the rest on the deck page only | `help quit palette tasks captures add_many context review history left right down up top bottom scroll_down scroll_up next_tab prev_tab refresh group_next group_prev new_agent new_terminal prompt assign capture extract close` |
 | `form_normal` | forms, vim modes on, normal mode | `insert append next_field prev_field clear submit cancel` |
 | `form_insert` | forms, vim modes on, insert mode | `leave_insert` (never a printable key, so no key that types can leave the mode) |
 
@@ -448,6 +448,58 @@ The captures page (`C`) lists the folder newest first, with the kind of an
 automatic capture after its session, shows a file and deletes one; the web
 page has the same.
 
+## History timeline
+
+Open History with `H` in either front end, or choose `go to history` in the
+command palette. The TUI's configurable `history` action appears in
+`deck config keys`. The web page also has a History navigation button.
+Entries are newest first, with source time, observation time, session, window,
+source identity and detail. They remain in `deck.json` after panes close and
+after the deck restarts. Re-reading retained sources does not duplicate entries.
+
+The timeline records:
+
+- Prompt hook reports and completed response hook reports from `agent-activity`.
+  A completion's text is the harness's turn-end report, which may only be a
+  summary or may be empty. It is labeled accordingly, not presented as a full
+  transcript.
+- Shell command submissions and completions from OSC 133 events and
+  `command-history`, including reported exit status, duration and working
+  directory. Sending text to a terminal is recorded separately as input, not
+  proof that a shell executed a command.
+  Live starts and retained submissions are labeled as separate source observations.
+  The start event does not carry the command sequence, so the deck does not guess
+  their identity by matching text or rounded timestamps.
+- Successful deck prompt acknowledgements, including prompts dispatched from
+  the saved queue and initial prompts for new agents. Daemon queue acceptance
+  is labeled separately from confirmed delivery. A later harness prompt report
+  is another source observation, not a second deck submission.
+- Observed pane and session creation/closure, pane exit, retitle, workspace
+  moves, minimize/restore, agent state changes and activity session/subagent
+  events. These include actions performed outside the deck too.
+
+On the TUI, `j/k` or arrows select, `g/G` select first/last, `J/K` or
+Page Down/Up scroll the detail, `r` refreshes, and Enter goes to the source
+pane if it is still open. Escape returns to the deck. The web page adds text
+search and event-kind filtering; `j/k`, `g/G`, `r` and Enter work there
+when focus is outside an input. Both keep the selected event and the detail
+scroll when new events arrive.
+
+Recording runs while the deck runs, even with `-auto-capture=false`. On
+startup and reconnect it reads each live pane's retained activity and command
+history. Those rings are bounded: activity retains 256 entries; command history
+retains 200 commands and collapses repeat command lines to their latest run.
+Closed panes, expired entries, commands without shell integration and prompts
+never reported by a harness cannot be backfilled. Live repeat commands are
+kept separately. Stream gaps are recorded when the daemon reports them; an
+offline interval is not claimed to be complete. Existing capture files are
+screen snapshots, so they are not treated as proof of a submission or response.
+
+The deck stores submitted prompt text, including text that the daemon has not
+masked, in the same private 0600 store as queued prompts. History currently
+has no retention limit. Use one deck process per data file; the store's mutex
+coordinates goroutines within a process, not separate TUI and web processes.
+
 ## Transcript needs the person's presence
 
 The transcript tab reads `agent-transcript`, which the daemon only serves to
@@ -464,8 +516,8 @@ and context extraction leaves the transcript out.
 The deck page is the one at the top of this file:
 the panes on the left, the selected pane's screen, activity, transcript or
 turns on the right. On every page `T` opens the tasks page, `C` the
-captures page, `I` the context page, `U` the prototypes page, `V` the review
-queue, `A` the mass-add screen, `:` or
+captures page, `I` the context page, `H` the history timeline, `U` the
+prototypes page, `V` the review queue, `A` the mass-add screen, `:` or
 `ctrl+p` the command palette, and `q` quits; `esc` comes back to the deck.
 The title line names the page and, on the deck, the grouping when it is not
 by session; on the context page, its sort, grouping and filter.
@@ -1047,7 +1099,7 @@ it and `esc` closes it. A tuios verb's parameters become a form, required
 ones first, each with its description as the placeholder and the sessions
 and windows offered as you type; the result replaces the detail text under
 a `result` tab until another tab or pane is picked. When the focus is not
-in the terminal or a field, `o` `O` cycle the grouping, `T` `C` `I` and
+in the terminal or a field, `o` `O` cycle the grouping, `T` `C` `I` `H` and
 `esc` switch pages, and on the deck page `j` `k` move the selection, `1` to
 `4` switch tabs, `i` extracts context, and `n` `t` `p` `a` `c` press the
 buttons.
@@ -1066,6 +1118,7 @@ tab needs the browser to reach the internet once.
 ```
 GET    /api/state                              sessions, panes, daemon, whether transcripts work
 GET    /api/events                             server-sent events relayed from subscribe
+GET    /api/history?kind=&q=&window=           newest-first persisted entries, source boundary and observation error
 GET    /api/dirs?path=                         folders under a path, for the picker
 GET    /api/panes/{session}/{id}/screen        capture-pane, recent, ?lines=
 GET    /api/panes/{session}/{id}/activity      agent-activity as lines plus the recap
@@ -1141,6 +1194,9 @@ recurrence, disable, persistence and the OS notifier's arguments.
 `scripts/e2e-setup.sh` runs
 `deck setup` against a scratch HOME and drives the omp extension under bun
 with a fake pi and a fake tuios.
+`scripts/e2e-history.sh` exercises retained and live history, repeated commands,
+queue acknowledgement, filtering, restart deduplication, pane closure and TUI
+navigation with selection preservation against isolated daemons.
 
 Run `scripts/e2e-turns.py` alone for the focused shell → command-history →
 Turns row/expansion check. It needs an already-built `.dev/deck` (or `DECK`),
@@ -1157,6 +1213,7 @@ It uses `SCRATCH` and `PORT` (default 18963).
 go build -o .dev/deck ./cmd/deck
 scripts/e2e.sh && scripts/e2e-web.sh && scripts/e2e-setup.sh
 SCRATCH=/tmp/deck-e2e-mine PORT=18799 scripts/e2e-web.sh   # a second run beside the first
+SCRATCH=/tmp/deck-history-check PORT=18849 scripts/e2e-history.sh
 ```
 
 `SCRATCH` names the scratch folder and `PORT` the web suite's port. On

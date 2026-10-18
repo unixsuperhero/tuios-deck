@@ -351,6 +351,7 @@ func (m *Model) deckCommands() []palItem {
 		{"deck", "go to captures", "the captures folder page (C)", func() tea.Cmd { m.openCaptures(); return nil }},
 		{"deck", "go to review queue", "completed prompts, oldest completion first (V)", m.openReviews},
 		{"deck", "go to context", "the context items page (I)", func() tea.Cmd { m.openContext(); return nil }},
+		{"deck", "go to history", "the persisted history timeline", func() tea.Cmd { m.openHistory(); return nil }},
 		{"deck", "filter context…", "filter the context page by kind, project, task or item text (f on the page)", func() tea.Cmd { m.openContext(); return m.openContextFilter() }},
 		{"deck", "prototypes", "try the picker prototypes for assign and filter (U)", func() tea.Cmd { m.openProtos(); return nil }},
 		{"deck", "context scope: current pane / all", "toggle the context page between the selected pane's items and all (t on the page)", func() tea.Cmd {
