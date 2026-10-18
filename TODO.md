@@ -1,3 +1,51 @@
+# Open Items
+
+## Priority
+
+- [ ] migrate data store to an sqlite db
+
+
+## Standard Importance
+
+- [ ] give cli more subcommands.  one for each concept/object (context, agent,
+etc.) and give each one a set of subcommands that basically mirrors the apis to
+make deck controllable from a cli.  might want to add a rule to AGENTS.md as
+well
+- [ ] Create an abstraction and utility for catalog modal and a meta catalog
+  - [ ] need a modal whose options are a list of each type of catalog we have
+  - [ ] options are nested modals...i only want to replace the current modal's
+  contents with the new modal's contents, or close current one, and open new
+  one.  the point: only 1 modal at a time.
+- [ ] our handling of input fields and form modals suck.  for plain input, can
+  we use nvim, either directly within the tui, or use a headless server somehow,
+  that would be ideal.  worst case, i want to write a modal input library that
+  takes a config: (set of modes, set of keybindings...some which transition modes)
+  it works like this...you initialize it with the config and an initial mode.
+  then it just takes a series of keys/string of input, and it tracks mode/state
+  based on that input.  the config probably needs 2 more things...a struct or
+  object to manage, and a mapping of actions to methods that affect the object.
+  it's important to say that keybindings should define the key and the action it
+  triggers.  so: key -> action -> method on object.
+- [ ] form inputs - change look and feel.  should occupy something **like** top
+  8 lines of window...pushing content down and shrinking by 8 lines.  instead of
+  input "fields" they should look more like buttons with one character in name a
+  diff color.  that char is the key that sets focus to that data point's input.
+  should have fuzzyfind autocomplete, when an option has focus as we move thru
+the list...the content below the top 8 lines should temporarily preview the
+object in the list item as a selection in left rail, and details on the main
+right content pane.
+- [ ] keybinding modal should be filterable after typing `/` to search
+- [ ] add keybinding for filterable content after typing `/` to search to most
+screens/panes
+
+
+## wait for explicit instructions to do
+
+- [ ] time the test suites and do everything possible to make them quicker
+
+
+# Closed Items
+
 i have a ton of change i want to make.  i will give you a list.  use subagents to implement them and commit each one separately.
 
 - [x] introduce the concept of a project
@@ -134,9 +182,4 @@ leaf or if it can be locked to a high-level item like a project
 unlocks but has a buffer screen for 30s that will let the user hit enter and
 continue
 - [x] focus plan mode - let user mark easy tasks
-
-# wait for explicit instructions to do
-
-- [ ] time the test suites and do everything possible to make them quicker
-
 
