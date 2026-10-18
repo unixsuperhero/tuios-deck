@@ -1,13 +1,13 @@
 // Package store holds the deck's projects, tasks and pane assignments in one
-// JSON file under the user's data folder. Tasks and subtasks share one
+// sqlite database under the user's data folder. Tasks and subtasks share one
 // self-referencing table: a task with an empty parent_id is top-level and
 // carries the project_id; a subtask's project is its root's.
 package store
 
 import (
 	"crypto/rand"
+	"database/sql"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -51,9 +51,11 @@ type Assignment struct {
 	ProjectID string `json:"project_id"`
 }
 
-// Store is the file's contents plus where it lives.
+// Store is the deck's data: every table in memory, mirrored to one sqlite
+// database (sqlite.go).
 type Store struct {
 	path         string
+	db           *sql.DB
 	mu           sync.Mutex
 	projects     []Project
 	tasks        []Task
@@ -68,9 +70,12 @@ type Store struct {
 	historyError string
 	marks        map[string]int64 // review marks: history id → reviewed_at ms
 	stashes      []StashedPrompt
+	tables
+	afterCommit []func()
 }
 
-// file is the JSON shape on disk.
+// file is the old JSON file's shape: what a database is migrated from, and
+// what deck export writes and deck import reads.
 type file struct {
 	Version     int                   `json:"version"`
 	Projects    []Project             `json:"projects"`
@@ -98,131 +103,6 @@ func DataDir() string {
 		base = filepath.Join(home, ".local", "share")
 	}
 	return filepath.Join(base, "tuios-deck")
-}
-
-// DefaultPath is the store file: $TUIOS_DECK_DATA, else <DataDir>/deck.json.
-func DefaultPath() string {
-	if p := os.Getenv("TUIOS_DECK_DATA"); p != "" {
-		return p
-	}
-	return filepath.Join(DataDir(), "deck.json")
-}
-
-// Open reads the store at path. A missing file is an empty store.
-func Open(path string) (*Store, error) {
-	s := &Store{path: path, assignments: map[string]Assignment{}, marks: map[string]int64{}}
-	data, err := os.ReadFile(path)
-	if errors.Is(err, os.ErrNotExist) {
-		return s, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	var f file
-	if err := json.Unmarshal(data, &f); err != nil {
-		return nil, fmt.Errorf("%s: %w", path, err)
-	}
-	if f.Version > version {
-		return nil, fmt.Errorf("%s: version %d is newer than this deck knows", path, f.Version)
-	}
-	s.projects = f.Projects
-	s.tasks = f.Tasks
-	// Files written before projects had a status read as open.
-	for i := range s.projects {
-		if s.projects[i].Status == "" {
-			s.projects[i].Status = "open"
-		}
-	}
-	for i := range s.tasks {
-		if s.tasks[i].Status == "" {
-			s.tasks[i].Status = "open"
-		}
-	}
-	if f.Assignments != nil {
-		s.assignments = f.Assignments
-	}
-	s.contexts = f.Contexts
-	s.reminders = f.Reminders
-	s.notes = f.Notes
-	s.presets = f.Presets
-	s.queue = f.Queue
-	s.history = pruneHistory(f.History)
-	s.marks = f.Marks
-	if s.marks == nil {
-		s.marks = map[string]int64{}
-	}
-	s.migrateReviews(f.Reviews)
-	s.pruneMarks()
-	s.stashes = f.Stashes
-	return s, nil
-}
-
-// File is the path the store reads and writes.
-func (s *Store) File() string { return s.path }
-
-// Save writes the store to its file through a temp file and a rename, so a
-// reader never sees a partial file.
-func (s *Store) Save() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.save()
-}
-
-func (s *Store) save() error {
-	f := file{Version: version, Projects: s.projects, Tasks: s.tasks, Assignments: s.assignments, Contexts: s.contexts, Reminders: s.reminders, Notes: s.notes, Presets: s.presets, Queue: s.queue, Marks: s.marks, History: s.history, Stashes: s.stashes}
-	if f.Projects == nil {
-		f.Projects = []Project{}
-	}
-	if f.Tasks == nil {
-		f.Tasks = []Task{}
-	}
-	if f.Contexts == nil {
-		f.Contexts = []ContextItem{}
-	}
-	if f.Reminders == nil {
-		f.Reminders = []Reminder{}
-	}
-	if f.Notes == nil {
-		f.Notes = []Note{}
-	}
-	if f.Presets == nil {
-		f.Presets = []Preset{}
-	}
-	if f.Queue == nil {
-		f.Queue = []QueuedPrompt{}
-	}
-	if f.Marks == nil {
-		f.Marks = map[string]int64{}
-	}
-	data, err := json.MarshalIndent(f, "", "  ")
-	if err != nil {
-		return err
-	}
-	dir := filepath.Dir(s.path)
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return err
-	}
-	tmp, err := os.CreateTemp(dir, ".deck-*.json")
-	if err != nil {
-		return err
-	}
-	name := tmp.Name()
-	_, werr := tmp.Write(append(data, '\n'))
-	if cerr := tmp.Chmod(0o600); werr == nil {
-		werr = cerr
-	}
-	if cerr := tmp.Close(); werr == nil {
-		werr = cerr
-	}
-	if werr != nil {
-		os.Remove(name)
-		return werr
-	}
-	if err := os.Rename(name, s.path); err != nil {
-		os.Remove(name)
-		return err
-	}
-	return nil
 }
 
 func (s *Store) newID(prefix string) string {

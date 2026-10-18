@@ -2,6 +2,7 @@ package store
 
 import (
 	"crypto/rand"
+	"database/sql"
 	"encoding/hex"
 	"sort"
 	"strings"
@@ -23,10 +24,9 @@ type HistoryEntry struct {
 	Detail   string `json:"detail"`
 }
 
-// maxHistory bounds the timeline. Every save writes the whole store, so an
-// unbounded history makes each save, and the CPU the deck burns, grow with
-// every event; a store once reached 46,000 entries and 35 MB. The oldest
-// entries go first.
+// maxHistory bounds the timeline the deck keeps, in memory and in the
+// database; Reviews walks all of it on every call. The oldest entries go
+// first.
 const maxHistory = 10000
 
 // droppedHistoryKinds were recorded by earlier decks and are pruned on load.
@@ -50,7 +50,8 @@ func pruneHistory(h []HistoryEntry) []HistoryEntry {
 
 // AddHistory atomically keeps new observations. Re-reading a retained source
 // never duplicates an entry or changes its first observation. Callers batch
-// entries: one call is one save of the whole store.
+// entries: one call is one transaction that inserts the new entries and
+// deletes the ones the cap pushes out.
 func (s *Store) AddHistory(entries ...HistoryEntry) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -60,8 +61,8 @@ func (s *Store) AddHistory(entries ...HistoryEntry) error {
 			s.historyIDs[e.ID] = true
 		}
 	}
-	before := append([]HistoryEntry(nil), s.history...)
-	added := 0
+	before := s.history
+	var added []HistoryEntry
 	for _, e := range entries {
 		if s.historyIDs[e.ID] {
 			continue
@@ -69,24 +70,33 @@ func (s *Store) AddHistory(entries ...HistoryEntry) error {
 		if e.Observed == 0 {
 			e.Observed = time.Now().UnixMilli()
 		}
-		s.history = append(s.history, e)
+		added = append(added, e)
 		s.historyIDs[e.ID] = true
-		added++
 	}
-	if added == 0 {
+	if len(added) == 0 {
 		return nil
 	}
-	if n := len(s.history) - maxHistory; n > 0 {
-		for _, e := range s.history[:n] {
-			delete(s.historyIDs, e.ID)
-		}
-		s.history = append([]HistoryEntry(nil), s.history[n:]...)
+	next := append(append(make([]HistoryEntry, 0, len(s.history)+len(added)), s.history...), added...)
+	var dropped []HistoryEntry
+	if n := len(next) - maxHistory; n > 0 {
+		dropped = next[:n]
+		next = next[n:]
 	}
-	if err := s.save(); err != nil {
+	err := s.inTx(func(tx *sql.Tx) error {
+		if err := insertHistory(tx, added); err != nil {
+			return err
+		}
+		return deleteHistory(tx, dropped)
+	})
+	if err != nil {
 		s.history = before
 		s.historyIDs = nil
 		return err
 	}
+	for _, e := range dropped {
+		delete(s.historyIDs, e.ID)
+	}
+	s.history = next
 	return nil
 }
 
