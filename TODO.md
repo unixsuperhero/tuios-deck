@@ -12,7 +12,7 @@ independently.  if they are separate and modular, then we will probbaly need an
 orchestrator, right?
 - [ ] need to mark agents/terminals as stale and suggest to close them if no
 activity exceeding a certain threshold
-- [ ] from any item on the deck page, i want to be able to open a modal that
+- [x] from any item on the deck page, i want to be able to open a modal that
 will let me review all items in it's task tree...project, task, subtask etc. and
 manage each of those
 
