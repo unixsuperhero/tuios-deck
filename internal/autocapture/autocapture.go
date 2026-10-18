@@ -1,15 +1,18 @@
 // Package autocapture saves a pane's recent output to the captures folder
 // on its own: when an agent's turn ends (it leaves working for idle,
 // needs_input, done or errored) and when a shell command finishes under
-// shell integration. It runs beside a front end and never touches its view.
+// shell integration. It is a handler of the process's event stream
+// (internal/events) and never touches a front end's view.
 package autocapture
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/unixsuperhero/tuios-deck/internal/capture"
 	"github.com/unixsuperhero/tuios-deck/internal/daemon"
+	"github.com/unixsuperhero/tuios-deck/internal/events"
 	"github.com/unixsuperhero/tuios-deck/internal/panes"
 )
 
@@ -22,6 +25,11 @@ const callTimeout = 10 * time.Second
 // turnEnds are the states that end a turn when the agent was working.
 var turnEnds = map[string]bool{"idle": true, "needs_input": true, "done": true, "errored": true}
 
+var eventTypes = []string{
+	"agent-state", "command-finished", "window-created", "window-closed",
+	"window-retitled", "session-closed",
+}
+
 // pane is what the watcher keeps per window.
 type pane struct {
 	session string
@@ -32,58 +40,39 @@ type pane struct {
 	timer   *time.Timer // a capture scheduled for the end of the gap
 }
 
+// watcher is the handler. The dispatcher calls Handle and Resync one at a
+// time; the gap timers fire on their own goroutines, so mu guards the panes.
 type watcher struct {
 	client *daemon.Client
 	dir    string
 	log    func(string)
-	fire   chan string
+	mu     sync.Mutex
+	ctx    context.Context // the dispatcher's, for the timers' captures
 	panes  map[string]*pane
 	names  map[string]string // window id → pane name
 	stale  bool              // names need a fresh listing
 }
 
-// Run watches every session until ctx ends, writing captures to dir and
-// reporting each one, and each failure, through log (which may be nil).
-// A stream that closes is reopened with a growing backoff.
-func Run(ctx context.Context, client *daemon.Client, dir string, log func(string)) {
+// New is the auto-capture handler for every session, writing captures to
+// dir and reporting each one, and each failure, through log (which may be nil).
+func New(client *daemon.Client, dir string, log func(string)) events.Handler {
 	if log == nil {
 		log = func(string) {}
 	}
-	w := &watcher{client: client, dir: dir, log: log, fire: make(chan string, 16),
+	return &watcher{client: client, dir: dir, log: log, ctx: context.Background(),
 		panes: map[string]*pane{}, names: map[string]string{}, stale: true}
-	backoff := time.Second
-	var events <-chan daemon.Event
-	retry := time.After(0)
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-retry:
-			retry = nil
-			ch, err := client.Subscribe(ctx, "", []string{
-				"agent-state", "command-finished", "window-created", "window-closed",
-				"window-retitled", "session-closed",
-			})
-			if err != nil {
-				retry = time.After(backoff)
-				backoff = min(backoff*2, 30*time.Second)
-				continue
-			}
-			backoff = time.Second
-			events = ch
-			w.stale = true
-			w.list(ctx)
-		case ev, ok := <-events:
-			if !ok {
-				events = nil
-				retry = time.After(backoff)
-				continue
-			}
-			w.handle(ctx, ev)
-		case win := <-w.fire:
-			w.capture(ctx, win)
-		}
-	}
+}
+
+func (w *watcher) Types() []string { return eventTypes }
+
+// Resync reads the panes again: a fresh stream, or one that lost events,
+// may have missed windows coming and going.
+func (w *watcher) Resync(ctx context.Context, _ string) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.ctx = ctx
+	w.stale = true
+	w.list(ctx)
 }
 
 // list reads the panes once when the names are stale: their names, and
@@ -123,7 +112,10 @@ func (w *watcher) pane(session, win string) *pane {
 	return p
 }
 
-func (w *watcher) handle(ctx context.Context, ev daemon.Event) {
+func (w *watcher) Handle(ctx context.Context, ev daemon.Event) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.ctx = ctx
 	if ev.Window == "" {
 		if ev.Type == "session-closed" {
 			w.stale = true
@@ -168,12 +160,17 @@ func (w *watcher) trigger(ctx context.Context, win, kind string) {
 		w.capture(ctx, win)
 		return
 	}
-	p.timer = time.AfterFunc(wait, func() {
-		select {
-		case w.fire <- win:
-		case <-ctx.Done():
-		}
-	})
+	p.timer = time.AfterFunc(wait, func() { w.fired(win) })
+}
+
+// fired is the end of a gap: the capture the timer waited for.
+func (w *watcher) fired(win string) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.ctx.Err() != nil {
+		return
+	}
+	w.capture(w.ctx, win)
 }
 
 // capture writes the pane's whole recent buffer, unless nothing changed

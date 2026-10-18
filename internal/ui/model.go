@@ -164,9 +164,7 @@ type Model struct {
 	status   string
 	statusAt time.Time
 
-	events    <-chan daemon.Event
-	eventsCtx context.CancelFunc
-	eventsErr string
+	events <-chan daemon.Event // the dispatcher's tap, set before the program runs
 
 	nonce       string
 	nonceErr    string
@@ -194,9 +192,13 @@ func New(client *daemon.Client, st *store.Store, version, captureDir string) *Mo
 	}
 }
 
-// Init starts the first listing, the event stream and the presence.
+// SetEvents gives the model the event channel a dispatcher tap opened with
+// EventTypes. Its subscribed events, one per (re)connect, refresh the list.
+func (m *Model) SetEvents(ch <-chan daemon.Event) { m.events = ch }
+
+// Init starts the first listing, the event reads and the presence.
 func (m *Model) Init() tea.Cmd {
-	return tea.Batch(m.hello(), m.refreshList(), m.subscribe(), m.presence(), tick())
+	return tea.Batch(m.hello(), m.refreshList(), m.waitEvent(), m.presence(), tick())
 }
 
 // Update is the message loop.
@@ -353,26 +355,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// A state change or a window coming and going is what the person
 		// watches for; refresh at once.
 		return m, tea.Batch(m.refreshList(), m.waitEvent())
-
-	case eventsClosedMsg:
-		if msg.ch != m.events {
-			return m, nil // an older stream closed; the current one is live
-		}
-		m.events = nil
-		m.eventsErr = "event stream closed; reconnecting"
-		return m, tea.Tick(2*time.Second, func(time.Time) tea.Msg { return resubscribeMsg{} })
-
-	case resubscribeMsg:
-		return m, m.subscribe()
-
-	case subscribedMsg:
-		if msg.err != nil {
-			m.eventsErr = "events: " + msg.err.Error()
-			return m, tea.Tick(5*time.Second, func(time.Time) tea.Msg { return resubscribeMsg{} })
-		}
-		m.eventsErr = ""
-		m.events = msg.ch
-		return m, m.waitEvent()
 
 	case presenceMsg:
 		if msg.err != nil {
@@ -584,11 +566,8 @@ func cwdDefault(p *panes.Pane) string {
 	return wd
 }
 
-// Close releases the event stream and the presence.
+// Close releases the presence.
 func (m *Model) Close() {
-	if m.eventsCtx != nil {
-		m.eventsCtx()
-	}
 	if m.presenceCtx != nil {
 		m.presenceCtx()
 	}

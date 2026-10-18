@@ -1,5 +1,6 @@
 // Package history persists the daemon's retained activity and live lifecycle
-// events. It runs beside the front end and never changes its selection or scroll.
+// events. It is a handler of the process's event stream (internal/events)
+// and never changes a front end's selection or scroll.
 package history
 
 import (
@@ -8,9 +9,11 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/unixsuperhero/tuios-deck/internal/daemon"
+	"github.com/unixsuperhero/tuios-deck/internal/events"
 	"github.com/unixsuperhero/tuios-deck/internal/panes"
 	"github.com/unixsuperhero/tuios-deck/internal/store"
 )
@@ -28,82 +31,119 @@ var eventTypes = []string{"agent-activity", "command-started", "command-finished
 // save when it ends. A lone event is never delayed; only a storm is batched.
 const flushEvery = time.Second
 
-// Run subscribes before recovering retained sources, so recovery cannot miss
-// events that arrive while the sources are being read. Stable IDs deduplicate both.
-func Run(ctx context.Context, client *daemon.Client, st *store.Store) {
-	for ctx.Err() == nil {
-		err := watch(ctx, client, st)
-		if ctx.Err() != nil {
-			return
+// recorder is the handler of the process's event stream (internal/events).
+// The dispatcher calls Handle, Resync and Close one at a time; the flush
+// timer fires on its own goroutine, so mu guards the batch.
+type recorder struct {
+	client   *daemon.Client
+	st       *store.Store
+	mu       sync.Mutex
+	ctx      context.Context // the dispatcher's, for the timer's flush
+	pending  []store.HistoryEntry
+	lastSave time.Time
+	due      *time.Timer // armed while a batch waits
+	recover  bool        // a failure left the sources unread; read them before the next event
+}
+
+// New is the history handler: it records live events, batched into one save
+// a second, and re-reads the retained rings when the dispatcher asks.
+func New(client *daemon.Client, st *store.Store) events.Handler {
+	return &recorder{client: client, st: st, ctx: context.Background()}
+}
+
+func (r *recorder) Types() []string { return eventTypes }
+
+// Resync reads the retained sources: on the first subscribed reply and after
+// a gap. Stable IDs deduplicate what the live stream also carried.
+func (r *recorder) Resync(ctx context.Context, bootID string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.ctx = ctx
+	r.flushLocked()
+	r.recoverLocked(ctx, bootID)
+}
+
+// recoverLocked reads the retained sources and reports the outcome in the
+// store. Called with mu held.
+func (r *recorder) recoverLocked(ctx context.Context, bootID string) {
+	if err := recoverSources(ctx, r.client, r.st, bootID); err != nil {
+		r.recover = true
+		r.st.SetHistoryError("history observation interrupted: " + err.Error())
+		return
+	}
+	r.recover = false
+	r.lastSave = time.Now()
+	r.st.SetHistoryError("")
+}
+
+// Handle records one live event. A harness report (a prompt, a turn end) is
+// rare and is what the person waits to see, so it is written at once;
+// command and window events come in storms and wait for the batch.
+func (r *recorder) Handle(ctx context.Context, ev daemon.Event) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.ctx = ctx
+	if r.recover {
+		// An earlier failure (the daemon away, a store write refused) left
+		// the sources unread; the stream being back is the moment to retry.
+		r.recoverLocked(ctx, ev.BootID)
+	}
+	entries, err := observe(ctx, r.client, ev)
+	if err != nil {
+		r.st.SetHistoryError("history observation interrupted: " + err.Error())
+		r.recover = true
+		return
+	}
+	r.pending = append(r.pending, entries...)
+	if len(r.pending) > 0 {
+		urgent := ev.Type == "agent-activity" || ev.Type == "gap"
+		if wait := flushEvery - time.Since(r.lastSave); urgent || wait <= 0 || len(r.pending) >= 1000 {
+			if err := r.flushLocked(); err != nil {
+				r.st.SetHistoryError("history observation interrupted: " + err.Error())
+				r.recover = true
+				return
+			}
+		} else if r.due == nil {
+			r.due = time.AfterFunc(wait, r.flushDue)
 		}
-		st.SetHistoryError("history observation interrupted: " + err.Error())
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(3 * time.Second):
-		}
+	}
+	if !r.recover {
+		r.st.SetHistoryError("")
 	}
 }
 
-func watch(ctx context.Context, client *daemon.Client, st *store.Store) error {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	events, err := client.Subscribe(ctx, "", eventTypes)
-	if err != nil {
-		return err
+// flushDue is the end of a batch's second.
+func (r *recorder) flushDue() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.due = nil
+	if err := r.flushLocked(); err != nil {
+		r.st.SetHistoryError("history observation interrupted: " + err.Error())
+		r.recover = true
 	}
-	var pending []store.HistoryEntry
-	var lastSave time.Time
-	var due <-chan time.Time // armed while a batch waits; nil blocks the case
-	flush := func() error {
-		due = nil
-		lastSave = time.Now()
-		if len(pending) == 0 {
-			return nil
-		}
-		err := st.AddHistory(pending...)
-		pending = pending[:0]
-		return err
+}
+
+// flushLocked writes the batch. Called with mu held.
+func (r *recorder) flushLocked() error {
+	if r.due != nil {
+		r.due.Stop()
+		r.due = nil
 	}
-	for {
-		select {
-		case <-ctx.Done():
-			flush()
-			return ctx.Err()
-		case <-due:
-			if err := flush(); err != nil {
-				return err
-			}
-		case ev, ok := <-events:
-			if !ok {
-				flush()
-				return fmt.Errorf("daemon stream closed; retained sources will be read on reconnect")
-			}
-			if ev.Type == "subscribed" {
-				err = recoverSources(ctx, client, st, ev.BootID)
-				lastSave = time.Now()
-			} else {
-				var entries []store.HistoryEntry
-				entries, err = observe(ctx, client, st, ev)
-				pending = append(pending, entries...)
-				if err == nil && len(pending) > 0 {
-					// A harness report (a prompt, a turn end) is rare and is
-					// what the person waits to see, so it is written at once;
-					// command and window events come in storms and wait.
-					urgent := ev.Type == "agent-activity"
-					if wait := flushEvery - time.Since(lastSave); urgent || wait <= 0 || len(pending) >= 1000 {
-						err = flush()
-					} else if due == nil {
-						due = time.After(wait)
-					}
-				}
-			}
-			if err != nil {
-				return err
-			}
-			st.SetHistoryError("")
-		}
+	r.lastSave = time.Now()
+	if len(r.pending) == 0 {
+		return nil
 	}
+	err := r.st.AddHistory(r.pending...)
+	r.pending = r.pending[:0]
+	return err
+}
+
+// Close writes the last batch; the dispatcher's done channel waits for it,
+// so a cancel cannot lose the events of the last second.
+func (r *recorder) Close() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.flushLocked()
 }
 
 func recoverSources(ctx context.Context, client *daemon.Client, st *store.Store, boot string) error {
@@ -186,8 +226,8 @@ func command(boot string, c daemon.HistoryEntry) []store.HistoryEntry {
 }
 
 // observe turns one live event into the entries it records. The caller
-// batches them into one save; only a gap saves here, through recovery.
-func observe(ctx context.Context, client *daemon.Client, st *store.Store, ev daemon.Event) ([]store.HistoryEntry, error) {
+// batches them into one save; a gap's recovery is the dispatcher's resync.
+func observe(ctx context.Context, client *daemon.Client, ev daemon.Event) ([]store.HistoryEntry, error) {
 	var raw struct {
 		Time       int64                `json:"time"`
 		Entry      daemon.ActivityEntry `json:"entry"`
@@ -239,14 +279,7 @@ func observe(ctx context.Context, client *daemon.Client, st *store.Store, ev dae
 	if ev.Type == "gap" {
 		h.Summary = "History gap: " + ev.Reason
 	}
-	entries = append(entries, h)
-	if ev.Type == "gap" {
-		if err := st.AddHistory(entries...); err != nil {
-			return nil, err
-		}
-		return nil, recoverSources(ctx, client, st, ev.BootID)
-	}
-	return entries, nil
+	return append(entries, h), nil
 }
 
 func vanished(err error) bool {

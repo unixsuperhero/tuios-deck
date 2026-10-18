@@ -20,6 +20,7 @@ import (
 	"github.com/unixsuperhero/tuios-deck/internal/capture"
 	"github.com/unixsuperhero/tuios-deck/internal/config"
 	"github.com/unixsuperhero/tuios-deck/internal/daemon"
+	"github.com/unixsuperhero/tuios-deck/internal/events"
 	"github.com/unixsuperhero/tuios-deck/internal/history"
 	"github.com/unixsuperhero/tuios-deck/internal/reminders"
 	"github.com/unixsuperhero/tuios-deck/internal/store"
@@ -112,12 +113,17 @@ func (c *common) bind(fs *flag.FlagSet) {
 	fs.BoolVar(&c.remindOS, "reminders-os", true, "also show each due reminder as an OS notification")
 }
 
-// startAutoCapture runs the automatic captures in their own goroutine when
-// the flag asks for them, apart from any front end's state.
-func (c *common) startAutoCapture(ctx context.Context, client *daemon.Client, dir string, log func(string)) {
+// dispatcher builds the process's one daemon event stream with the
+// background recorders behind it: the automatic captures when the flag asks
+// for them, and history always. Both run apart from any front end's state;
+// the front end taps the same stream. Start runs it.
+func (c *common) dispatcher(client *daemon.Client, dir string, st *store.Store, log func(string)) *events.Runner {
+	var handlers []events.Handler
 	if c.autoCapture {
-		go autocapture.Run(ctx, client, dir, log)
+		handlers = append(handlers, autocapture.New(client, dir, log))
 	}
+	handlers = append(handlers, history.New(client, st))
+	return events.New(client, log, handlers...)
 }
 
 // startReminders delivers due reminders in their own goroutine, for as long
@@ -161,29 +167,21 @@ func runTUI(args []string) error {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	c.startAutoCapture(ctx, client, dir, nil)
 	c.startReminders(ctx, client, st, nil)
-	historyDone := startHistory(ctx, client, st)
+	// The deck has no logger: nothing may write over its screen.
+	r := c.dispatcher(client, dir, st, nil)
+	ch, _ := r.Tap(ui.EventTypes) // before Start, so the first dial carries the deck's types
+	done := r.Start(ctx)
 	m := ui.New(client, st, version, dir)
+	m.SetEvents(ch)
 	m.SetSettings(cfg, config.DefaultPath())
 	defer m.Close()
 	_, err = tea.NewProgram(m).Run()
 	cancel()
-	<-historyDone
+	// The handlers finish first: history batches a storm of events into one
+	// save, so a cancel alone could lose the events of the last second.
+	<-done
 	return err
-}
-
-// startHistory runs the history recorder and returns a channel that closes
-// once it has written its last batch, which a front end waits on before it
-// exits: the recorder batches a storm of events into one save, so a cancel
-// alone could lose the events of the last second.
-func startHistory(ctx context.Context, client *daemon.Client, st *store.Store) <-chan struct{} {
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		history.Run(ctx, client, st)
-	}()
-	return done
 }
 
 func runWeb(args []string) error {
@@ -208,11 +206,13 @@ func runWeb(args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
-	s := &web.Server{Client: client, Store: st, Version: version, CaptureDir: dir}
+	log := func(msg string) { web.Log.Print(msg) }
+	r := c.dispatcher(client, dir, st, log)
+	r.Include(web.EventTypes...) // the browser tabs' taps, before the first dial
+	s := &web.Server{Client: client, Store: st, Events: r, Version: version, CaptureDir: dir}
 	s.HoldPresence(ctx)
-	c.startAutoCapture(ctx, client, dir, func(msg string) { web.Log.Print(msg) })
-	c.startReminders(ctx, client, st, func(msg string) { web.Log.Print(msg) })
-	historyDone := startHistory(ctx, client, st)
+	c.startReminders(ctx, client, st, log)
+	done := r.Start(ctx)
 	srv := &http.Server{Addr: *listen, Handler: s.Handler(), ReadHeaderTimeout: 10 * time.Second}
 	go func() {
 		<-ctx.Done()
@@ -223,7 +223,7 @@ func runWeb(args []string) error {
 	web.Log.Printf("serving http://%s for daemon %s", *listen, client.Socket)
 	err = srv.ListenAndServe()
 	stop()
-	<-historyDone
+	<-done
 	if err != nil && err != http.ErrServerClosed {
 		return err
 	}

@@ -123,19 +123,31 @@ func (c *Client) Call(ctx context.Context, verb string, params any, out any) err
 
 // Event is one line of the subscribe stream.
 type Event struct {
-	Type    string          `json:"type"`
-	Seq     int64           `json:"seq"`
-	BootID  string          `json:"boot_id"`
-	Session string          `json:"session"`
-	Window  string          `json:"window"`
-	State   string          `json:"state"`
-	Reason  string          `json:"reason"`
-	Raw     json.RawMessage `json:"-"`
+	Type     string          `json:"type"`
+	Seq      int64           `json:"seq"`
+	BootID   string          `json:"boot_id"`
+	Session  string          `json:"session"`
+	Window   string          `json:"window"`
+	State    string          `json:"state"`
+	Reason   string          `json:"reason"`
+	Replayed int64           `json:"replayed"` // on a subscribed reply with resume: events replayed first
+	Raw      json.RawMessage `json:"-"`
 }
 
-// Subscribe opens the event stream. The channel closes when the stream ends;
-// cancel ctx to end it.
-func (c *Client) Subscribe(ctx context.Context, session string, types []string) (<-chan Event, error) {
+// Resume names where an earlier stream of the same daemon stopped: the seq
+// of the last event received and the boot_id it came with. The daemon
+// replays the retained events after that seq, or starts the stream with a
+// gap event (reason boot_changed when it restarted) when it cannot.
+type Resume struct {
+	AfterSeq int64
+	BootID   string
+}
+
+// Subscribe opens the event stream. The first event on the channel is the
+// subscribed reply (type "subscribed", with the seq and boot_id to resume
+// from); with resume the stream first replays what the daemon retained.
+// The channel closes when the stream ends; cancel ctx to end it.
+func (c *Client) Subscribe(ctx context.Context, session string, types []string, resume *Resume) (<-chan Event, error) {
 	conn, err := c.dial(ctx)
 	if err != nil {
 		return nil, err
@@ -147,6 +159,10 @@ func (c *Client) Subscribe(ctx context.Context, session string, types []string) 
 	}
 	if len(types) > 0 {
 		params["types"] = types
+	}
+	if resume != nil && resume.BootID != "" {
+		params["after_seq"] = resume.AfterSeq
+		params["boot_id"] = resume.BootID
 	}
 	result, err := request(conn, r, "subscribe", params)
 	if err != nil {

@@ -22,6 +22,7 @@ import (
 
 	"github.com/unixsuperhero/tuios-deck/internal/capture"
 	"github.com/unixsuperhero/tuios-deck/internal/daemon"
+	"github.com/unixsuperhero/tuios-deck/internal/events"
 	"github.com/unixsuperhero/tuios-deck/internal/panes"
 	"github.com/unixsuperhero/tuios-deck/internal/store"
 )
@@ -31,10 +32,12 @@ var static embed.FS
 
 const callTimeout = 10 * time.Second
 
-// Server holds the daemon client, the store and the presence.
+// Server holds the daemon client, the store, the event dispatcher and the
+// presence.
 type Server struct {
 	Client     *daemon.Client
 	Store      *store.Store
+	Events     *events.Runner // the process's one daemon stream; each browser tab taps it
 	Version    string
 	CaptureDir string
 
@@ -222,21 +225,28 @@ func (s *Server) decorate(sessions []panes.Session, hidden map[string]bool) []se
 	return out
 }
 
-// events relays the daemon's event stream as server-sent events.
+// EventTypes is what the page listens for on /api/events; the tap carries
+// these, plus every subscribed and gap event, which the page ignores.
+var EventTypes = []string{
+	"agent-state", "attention", "window-created", "window-closed", "window-exit",
+	"window-retitled", "session-created", "session-closed", "command-started", "command-finished",
+}
+
+// events relays the process's event stream to one browser tab as
+// server-sent events: a tap on the dispatcher, not a daemon connection of
+// its own. The tap closes only when the server stops.
 func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 	fl, ok := w.(http.Flusher)
 	if !ok {
 		http.Error(w, "streaming unsupported", 500)
 		return
 	}
-	ch, err := s.Client.Subscribe(r.Context(), "", []string{
-		"agent-state", "attention", "window-created", "window-closed", "window-exit",
-		"window-retitled", "session-created", "session-closed", "command-started", "command-finished",
-	})
-	if err != nil {
-		writeErr(w, err)
+	if s.Events == nil {
+		http.Error(w, "no event dispatcher", 500)
 		return
 	}
+	ch, stop := s.Events.Tap(EventTypes)
+	defer stop()
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	fmt.Fprint(w, "event: open\ndata: {}\n\n")

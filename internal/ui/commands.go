@@ -34,13 +34,7 @@ type (
 		isTurns  bool
 		empty    string // what the Turns tab says when it has no rows
 	}
-	eventMsg        daemon.Event
-	eventsClosedMsg struct{ ch <-chan daemon.Event }
-	resubscribeMsg  struct{}
-	subscribedMsg   struct {
-		ch  <-chan daemon.Event
-		err error
-	}
+	eventMsg    daemon.Event
 	presenceMsg struct {
 		nonce string
 		err   error
@@ -156,21 +150,16 @@ func (m *Model) loadDetail(force bool) tea.Cmd {
 	}
 }
 
-func (m *Model) subscribe() tea.Cmd {
-	if m.eventsCtx != nil {
-		m.eventsCtx()
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	m.eventsCtx = cancel
-	return func() tea.Msg {
-		ch, err := m.client.Subscribe(ctx, "", []string{
-			"agent-state", "attention", "window-created", "window-closed", "window-exit",
-			"window-retitled", "session-created", "session-closed", "command-started", "command-finished",
-		})
-		return subscribedMsg{ch: ch, err: err}
-	}
+// EventTypes is what the deck page watches: the stream the dispatcher taps
+// for the model carries these, plus every subscribed and gap event.
+var EventTypes = []string{
+	"agent-state", "attention", "window-created", "window-closed", "window-exit",
+	"window-retitled", "session-created", "session-closed", "command-started", "command-finished",
 }
 
+// waitEvent reads the next event of the tap. The dispatcher reconnects on
+// its own and closes the channel only when the process ends, so a closed
+// channel asks for nothing more.
 func (m *Model) waitEvent() tea.Cmd {
 	ch := m.events
 	if ch == nil {
@@ -179,7 +168,7 @@ func (m *Model) waitEvent() tea.Cmd {
 	return func() tea.Msg {
 		ev, ok := <-ch
 		if !ok {
-			return eventsClosedMsg{ch}
+			return nil
 		}
 		return eventMsg(ev)
 	}

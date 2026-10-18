@@ -174,9 +174,6 @@ func (m *Model) titleLine() string {
 	if attention > 0 {
 		right = cErr.Render(fmt.Sprintf("%d need you", attention)) + "  " + right
 	}
-	if m.eventsErr != "" {
-		right = cErr.Render(m.eventsErr) + "  " + right
-	}
 	gap := m.width - ansi.StringWidth(s) - ansi.StringWidth(right) - 1
 	if gap < 1 {
 		gap = 1
