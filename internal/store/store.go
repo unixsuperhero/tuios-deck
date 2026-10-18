@@ -57,6 +57,7 @@ type Store struct {
 	tasks       []Task
 	assignments map[string]Assignment
 	contexts    []ContextItem
+	reminders   []Reminder
 }
 
 // file is the JSON shape on disk.
@@ -66,6 +67,7 @@ type file struct {
 	Tasks       []Task                `json:"tasks"`
 	Assignments map[string]Assignment `json:"assignments"`
 	Contexts    []ContextItem         `json:"context_items"`
+	Reminders   []Reminder            `json:"reminders"`
 }
 
 const version = 1
@@ -123,6 +125,7 @@ func Open(path string) (*Store, error) {
 		s.assignments = f.Assignments
 	}
 	s.contexts = f.Contexts
+	s.reminders = f.Reminders
 	return s, nil
 }
 
@@ -138,7 +141,7 @@ func (s *Store) Save() error {
 }
 
 func (s *Store) save() error {
-	f := file{Version: version, Projects: s.projects, Tasks: s.tasks, Assignments: s.assignments, Contexts: s.contexts}
+	f := file{Version: version, Projects: s.projects, Tasks: s.tasks, Assignments: s.assignments, Contexts: s.contexts, Reminders: s.reminders}
 	if f.Projects == nil {
 		f.Projects = []Project{}
 	}
@@ -147,6 +150,9 @@ func (s *Store) save() error {
 	}
 	if f.Contexts == nil {
 		f.Contexts = []ContextItem{}
+	}
+	if f.Reminders == nil {
+		f.Reminders = []Reminder{}
 	}
 	data, err := json.MarshalIndent(f, "", "  ")
 	if err != nil {
@@ -184,7 +190,7 @@ func (s *Store) newID(prefix string) string {
 		b := make([]byte, 3)
 		rand.Read(b)
 		id := prefix + hex.EncodeToString(b)
-		if s.projectIndex(id) < 0 && s.taskIndex(id) < 0 && s.contextIndex(id) < 0 {
+		if s.projectIndex(id) < 0 && s.taskIndex(id) < 0 && s.contextIndex(id) < 0 && s.reminderIndex(id) < 0 {
 			return id
 		}
 	}

@@ -20,6 +20,7 @@ import (
 	"github.com/unixsuperhero/tuios-deck/internal/capture"
 	"github.com/unixsuperhero/tuios-deck/internal/config"
 	"github.com/unixsuperhero/tuios-deck/internal/daemon"
+	"github.com/unixsuperhero/tuios-deck/internal/reminders"
 	"github.com/unixsuperhero/tuios-deck/internal/store"
 	"github.com/unixsuperhero/tuios-deck/internal/ui"
 	"github.com/unixsuperhero/tuios-deck/internal/web"
@@ -97,6 +98,8 @@ type common struct {
 	captures    string
 	data        string
 	autoCapture bool
+	remind      bool
+	remindOS    bool
 }
 
 func (c *common) bind(fs *flag.FlagSet) {
@@ -104,6 +107,8 @@ func (c *common) bind(fs *flag.FlagSet) {
 	fs.StringVar(&c.captures, "captures", "", "folder for saved captures (default "+capture.Dir()+")")
 	fs.StringVar(&c.data, "data", store.DefaultPath(), "file holding projects, tasks and pane assignments")
 	fs.BoolVar(&c.autoCapture, "auto-capture", true, "capture a pane when an agent turn or a shell command ends")
+	fs.BoolVar(&c.remind, "reminders", true, "deliver due reminders while the deck runs")
+	fs.BoolVar(&c.remindOS, "reminders-os", true, "also show each due reminder as an OS notification")
 }
 
 // startAutoCapture runs the automatic captures in their own goroutine when
@@ -111,6 +116,14 @@ func (c *common) bind(fs *flag.FlagSet) {
 func (c *common) startAutoCapture(ctx context.Context, client *daemon.Client, dir string, log func(string)) {
 	if c.autoCapture {
 		go autocapture.Run(ctx, client, dir, log)
+	}
+}
+
+// startReminders delivers due reminders in their own goroutine, for as long
+// as the deck runs.
+func (c *common) startReminders(ctx context.Context, client *daemon.Client, st *store.Store, log func(string)) {
+	if c.remind {
+		go reminders.Run(ctx, client, st, c.remindOS, log)
 	}
 }
 
@@ -148,6 +161,7 @@ func runTUI(args []string) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	c.startAutoCapture(ctx, client, dir, nil)
+	c.startReminders(ctx, client, st, nil)
 	m := ui.New(client, st, version, dir)
 	m.SetSettings(cfg, config.DefaultPath())
 	defer m.Close()
@@ -180,6 +194,7 @@ func runWeb(args []string) error {
 	s := &web.Server{Client: client, Store: st, Version: version, CaptureDir: dir}
 	s.HoldPresence(ctx)
 	c.startAutoCapture(ctx, client, dir, func(msg string) { web.Log.Print(msg) })
+	c.startReminders(ctx, client, st, func(msg string) { web.Log.Print(msg) })
 	srv := &http.Server{Addr: *listen, Handler: s.Handler(), ReadHeaderTimeout: 10 * time.Second}
 	go func() {
 		<-ctx.Done()
