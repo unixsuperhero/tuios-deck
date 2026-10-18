@@ -108,6 +108,9 @@ check "session target listed" "$SCRATCH/out/01-start.txt" 'target'
 check "build pane listed" "$SCRATCH/out/01-start.txt" 'build'
 check "fake agent listed idle" "$SCRATCH/out/01-start.txt" 'fake.*idle'
 check "screen tab shows the shell output" "$SCRATCH/out/01-start.txt" 'hello-from-build'
+check "the fake agent's row opens with the agent tag" "$SCRATCH/out/01-start.txt" '^  AI ○ !!!! fake'
+check "the agent's harness follows its state, dimmed" "$SCRATCH/out/01-start.txt" 'fake  *idle claude-code'
+check "the build row opens with the terminal tag" "$SCRATCH/out/01-start.txt" '^  \$  · !!!! build'
 
 echo "== tabs"
 select_pane 2
@@ -421,7 +424,7 @@ wait_store "\"$EXTRA\"" present 10 && echo "PASS store holds an assignment for e
 python3 -c 'import json,sys; a=json.load(open(sys.argv[1]))["assignments"][sys.argv[2]]; sys.exit(0 if a["task_id"]=="t_e2e001" and a["session"]=="target" else 1)' "$DATA" "$EXTRA" \
 	&& echo "PASS extra is assigned to the task in session target" || { echo "FAIL extra assignment is not the task"; fails=$((fails+1)); }
 select_pane 3; deckcap 06d-assigned
-check "list row leads with the project's four letters and the task title" "$SCRATCH/out/06d-assigned.txt" '^  . deck command palette  extra'
+check "list row leads with the project's four letters and the task title" "$SCRATCH/out/06d-assigned.txt" '^  \$  . deck command palette  extra'
 check "detail bar shows project › task" "$SCRATCH/out/06d-assigned.txt" 'deck › command palette'
 
 echo "== assign a pane with a"
@@ -450,8 +453,8 @@ settle; deckcap 07-agent
 check "sleeper listed" "$SCRATCH/out/07-agent.txt" 'sleeper'
 SLEEPER=$(window_id sleeper)
 wait_store "\"$SLEEPER\"" present 10 && echo "PASS store holds an assignment for sleeper" || { echo "FAIL no assignment for $SLEEPER in $DATA"; fails=$((fails+1)); }
-check "unassigned fake agent row shows !!!!" "$SCRATCH/out/07-agent.txt" '^  . !!!! fake'
-check "sleeper row leads with the project's four letters" "$SCRATCH/out/07-agent.txt" '^  . deck sleeper'
+check "unassigned fake agent row shows !!!!" "$SCRATCH/out/07-agent.txt" '^  AI . !!!! fake'
+check "sleeper row leads with the project's four letters" "$SCRATCH/out/07-agent.txt" '^  \(AI\|\$ \) . deck sleeper'
 
 echo "== group the left rail with o and O"
 # o first reaches task tree, checked after the mass add below; the second
@@ -466,7 +469,7 @@ b send-keys -s host -w deck o >/dev/null; settle; deckcap 07b2-by-parent
 check "title says by project > parent task" "$SCRATCH/out/07b2-by-parent.txt" 'tuios-deck.* deck  by project > parent task'
 check "project header at the outer level" "$SCRATCH/out/07b2-by-parent.txt" '^◆ deck '
 check "parent-task header indented under the project" "$SCRATCH/out/07b2-by-parent.txt" '^  ● command palette'
-check "pane indented under the parent-task header" "$SCRATCH/out/07b2-by-parent.txt" '^    · deck command palette  extra'
+check "pane indented under the parent-task header" "$SCRATCH/out/07b2-by-parent.txt" '^    \$  · deck command palette  extra'
 # deck › command palette holds extra; deck › (none) holds build and sleeper;
 # the (none) project holds a Terminal pane and fake.
 b send-keys -s host -w deck g >/dev/null; settle
@@ -1036,15 +1039,15 @@ check "Terminal is assigned to the subtask" "$SCRATCH/out/23b-assign-sub.txt" 'a
 b send-keys -s host -w deck o >/dev/null; settle; deckcap 23c-tree
 check "one o from session is task tree" "$SCRATCH/out/23c-tree.txt" 'tuios-deck.* deck  by task tree'
 check "the project header at depth 0, just its glyph and name" "$SCRATCH/out/23c-tree.txt" '^◆ deck *│'
-check "a pane with only the project sits right under it" "$SCRATCH/out/23c-tree.txt" '^  · deck  *build'
+check "a pane with only the project sits right under it" "$SCRATCH/out/23c-tree.txt" '^  \$  · deck  *build'
 check "the task header indented under the project" "$SCRATCH/out/23c-tree.txt" '^  ● command palette *│'
-check "a later task sorts after the earlier one, its pane one level below it" "$SCRATCH/out/23c-tree.txt" '^    · deck brand new task  extra'
+check "a later task sorts after the earlier one, its pane one level below it" "$SCRATCH/out/23c-tree.txt" '^    \$  · deck brand new task  extra'
 check "the subtask header under the task" "$SCRATCH/out/23c-tree.txt" '^    . verb autocomplete *│'
-check "the pane under the subtask" "$SCRATCH/out/23c-tree.txt" '^      · deck verb autocompl.*Terminal'
+check "the pane under the subtask" "$SCRATCH/out/23c-tree.txt" '^      \$  · deck verb autoc.*Terminal'
 check "the selection stays on Terminal" "$SCRATCH/out/23c-tree.txt" 'target › Terminal [0-9a-f]*  '
 awk '/│/ && /^[^ │]/ { last = $0 } END { exit !(last ~ /^▾ \(none\)/) }' "$SCRATCH/out/23c-tree.txt" \
 	&& echo "PASS (none) is the last top-level header" || { echo "FAIL (none) is not the last top-level header"; fails=$((fails+1)); }
-check "fake sits under (none)" "$SCRATCH/out/23c-tree.txt" '^  . !!!! fake'
+check "fake sits under (none)" "$SCRATCH/out/23c-tree.txt" '^  AI . !!!! fake'
 if grep -q 'captures page\|landing\|◆ web' "$SCRATCH/out/23c-tree.txt"; then echo "FAIL a project or task with no pane shows"; fails=$((fails+1)); else echo "PASS projects and tasks with no pane under them are left out"; fi
 b send-text -s host -w deck '('; settle; deckcap 23d-up-task
 check "( climbs to the task level" "$SCRATCH/out/23d-up-task.txt" '{/} jump by task'

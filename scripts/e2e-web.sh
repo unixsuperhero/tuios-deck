@@ -57,6 +57,8 @@ check "state lists the fake agent as idle" "$SCRATCH/out/state.json" '"name":"fa
 check "presence held, transcripts on" "$SCRATCH/out/state.json" '"transcripts":true'
 curl -s "$base/" > "$SCRATCH/out/index.html"
 check "page served" "$SCRATCH/out/index.html" '<title>tuios deck</title>'
+check "pane rows carry an agent kind tag" "$SCRATCH/out/index.html" "'kind-agent'"
+check "pane rows carry a terminal kind tag" "$SCRATCH/out/index.html" "'kind-terminal'"
 
 echo "== detail endpoints"
 curl -s "$base/api/panes/target/$BUILD/screen?lines=50" > "$SCRATCH/out/screen.json"

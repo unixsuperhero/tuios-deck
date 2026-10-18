@@ -22,11 +22,11 @@ same panes you see in `tuios attach`.
 ```
  tuios-deck tuios 1.4.0  /run/user/1000/tuios/tuios.sock                            1 need you  3 agents
 ▾ work                                      │ 1 Screen   2 Activity   3 Transcript   4 Turns   work › reviewer
-  ◐ deck command palette  reviewer   working│ you> review the diff on this branch
-  ● deck captures page  tests    needs_input│ → Bash go test ./...
-  · !!!! build                              │   ok Bash
+  AI ◐ deck command palette  reviewer working│ you> review the diff on this branch
+  AI ● deck captures page  tests needs_input│ → Bash go test ./...
+  $  · !!!! build                           │   ok Bash
 ▾ side                                      │ ■ turn ended
-  ○ web  landing  helper                idle│
+  AI ○ web  landing  helper      idle claude│
 captured to ~/.local/share/tuios-deck/captures/work-build-20261017-133455.txt
  j/k move · l main area · {/} group · (/) level · [/] or 1-4 tab · J/K scroll · G follow · o group · n agent · t term · p prompt · a assign · c capture · i context · x close · T tasks · C captures · I context · r refresh · q quit
 ```
@@ -384,10 +384,19 @@ by session; on the context page, its sort, grouping and filter.
 
 ### The deck page
 
-Each pane's row in the left rail carries its state dot, the first four
-letters of its project in the project's colour, its task's title in the
-task's colour, its name, and its state flush right. A narrow rail cuts the
-task title first, then the name. A pane assigned to nothing shows `!!!!`
+Each pane's row in the left rail opens with its kind, a bold cyan `AI`
+for an agent or a dim `$` for a terminal, then carries its state dot, the
+first four letters of its project in the project's colour, its task's title
+in the task's colour, its name, and its state flush right. An agent's
+harness follows the state, dimmed, when the rail has room for it:
+
+```
+  AI ○ web  landing  helper      idle claude
+  $  · deck build                       zsh
+```
+
+A narrow rail drops the harness first, then cuts the task title, then the
+name. A pane assigned to nothing shows `!!!!`
 in place of the project, and its name, in bold black on red, so it stands
 out until `a` gives it a home.
 
@@ -833,7 +842,8 @@ Inside a form box the bottom line follows the current field:
 badges follow the daemon's event stream; the detail re-reads every two
 seconds without touching the list, the selection, an open dialog or a
 scroll position that is not at the bottom. Its rows read like the TUI's:
-the project's first four letters and the task title in their theme
+the kind tag (`AI` or `$`, classes `kind-agent` and `kind-terminal`), the
+project's first four letters and the task title in their theme
 colours, and `!!!!` with the name in black on red for an unassigned pane.
 
 | Tab | Shows |

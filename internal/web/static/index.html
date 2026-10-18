@@ -51,7 +51,7 @@ aside { border-right: 1px solid var(--line); background: var(--panel); display: 
 .rail { overflow: auto; min-height: 0; }
 .session { padding: 8px 12px 4px; font-weight: 600; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; display: flex; justify-content: space-between; gap: 8px; }
 .session span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pane { display: grid; grid-template-columns: 14px 1fr auto; gap: 8px; align-items: center; padding: 6px 12px; cursor: pointer; border-left: 3px solid transparent; }
+.pane { display: grid; grid-template-columns: 2ch 14px 1fr auto; gap: 8px; align-items: center; padding: 6px 12px; cursor: pointer; border-left: 3px solid transparent; }
 .pane:hover { background: var(--hover); }
 .pane.selected { background: var(--sel); border-left-color: var(--accent); }
 .pane .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -61,6 +61,10 @@ aside { border-right: 1px solid var(--line); background: var(--panel); display: 
 .pane .task { margin-right: 8px; }
 .unassigned { color: #000; background: #cd0000; font-weight: 700; }
 .dot { font-size: 12px; text-align: center; }
+.kind { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; white-space: pre; }
+.kind-agent { font-weight: 700; color: #00cdcd; }
+.kind-terminal { color: var(--muted); }
+.pane .harness { opacity: .7; margin-left: 4px; }
 .s-working { color: var(--working); } .s-needs_input, .s-errored { color: var(--needs); } .s-idle { color: var(--idle); } .s-done { color: var(--done); }
 section { display: grid; grid-template-rows: auto 1fr; min-height: 0; }
 .toolbar { display: flex; gap: 8px; align-items: center; padding: 8px 16px; border-bottom: 1px solid var(--line); flex-wrap: wrap; background: var(--panel); }
@@ -692,9 +696,13 @@ function renderList() {
     const dot = p.is_agent ? (DOTS[p.state] || '?') : '·';
     let st = p.is_agent ? p.state : (p.foreground || '');
     if (p.queued) st += ` +${p.queued}`;
-    el.innerHTML = `<span class="dot"></span><span class="name"></span><span class="state"></span>`;
-    el.children[0].textContent = dot; el.children[0].className = 'dot s-' + (p.is_agent ? p.state : 'none');
-    const name = el.children[1];
+    // The kind leads the row: AI for an agent, $ for a terminal.
+    el.innerHTML = `<span class="kind"></span><span class="dot"></span><span class="name"></span><span class="state"></span>`;
+    el.children[0].textContent = p.is_agent ? 'AI' : '$';
+    el.children[0].className = 'kind ' + (p.is_agent ? 'kind-agent' : 'kind-terminal');
+    el.children[0].title = p.is_agent ? 'agent' : 'terminal';
+    el.children[1].textContent = dot; el.children[1].className = 'dot s-' + (p.is_agent ? p.state : 'none');
+    const name = el.children[2];
     // The project's first four letters and the task title lead the
     // name, each in its own theme colour. An unassigned pane shows !!!!
     // and its name in white on red.
@@ -715,7 +723,11 @@ function renderList() {
     if (!a) nm.className = 'unassigned';
     name.append(nm);
     name.title = (p.cwd || '') + (state.group !== 'session' ? `\n${p.session}` : '');
-    el.children[2].textContent = st; el.children[2].className = 'state s-' + (p.is_agent ? p.state : 'none');
+    el.children[3].textContent = st; el.children[3].className = 'state s-' + (p.is_agent ? p.state : 'none');
+    if (p.is_agent && p.harness) {
+      const hn = document.createElement('span'); hn.className = 'harness'; hn.textContent = p.harness;
+      el.children[3].append(hn);
+    }
     el.onclick = () => select(p.id);
     list.append(el);
   }

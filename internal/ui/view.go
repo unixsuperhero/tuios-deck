@@ -202,28 +202,56 @@ func (m *Model) listLines(width, height int) []string {
 	return lines
 }
 
-// paneRow is a pane's line in the rail, indented by its depth: its state
-// dot, the project's first four letters and the task title in their theme
-// colours, the pane name, and the state flush right. A narrow rail truncates the task title first, then
-// the name. An unassigned pane shows !!!! and its name in black on red. The
-// selected row is drawn in reverse over each part's own colours, so the
-// theme colours stay visible.
+// Every pane row opens with its kind: AI for an agent, $ for a terminal.
+// Both are two columns wide so the rows stay lined up.
+var (
+	kindAgent    = "AI"
+	kindTerminal = "$ "
+	cKindAgent   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("6"))
+)
+
+// paneRow is a pane's line in the rail, indented by its depth: its kind
+// tag, its state dot, the project's first four letters and the task title in
+// their theme colours, the pane name, and the state flush right, followed by
+// an agent's harness, dimmed, when the rail has room for it. A narrow rail
+// drops the harness first, then truncates the task title, then the name. An
+// unassigned pane shows !!!! and its name in black on red. The selected row
+// is drawn in reverse over each part's own colours, so the theme colours
+// stay visible.
 func (m *Model) paneRow(p *panes.Pane, dot, state string, depth, width int, sel bool) string {
 	plain := lipgloss.NewStyle()
 	chip, chipStyle, task, taskStyle, nameStyle := "!!!!", cUnassigned, "", plain, cUnassigned
 	if a, ok := m.assignmentOf(p.ID); ok {
 		chip, chipStyle, task, taskStyle, nameStyle = a.chip, a.chipStyle, a.task, a.taskStyle, plain
 	}
-	indent := strings.Repeat("  ", max(depth, 1))
-	lead := len(indent) + 7 // the indent, the dot, " ", the chip, " "
-	room := width - lead - ansi.StringWidth(state) - 1
-	name := ansi.Truncate(p.Name, room, "…")
-	if left := room - ansi.StringWidth(name) - 2; task != "" && left >= 4 {
-		task = ansi.Truncate(task, left, "…") + "  "
-	} else {
-		task = ""
+	kind, kindStyle := kindTerminal, cDim
+	if p.IsAgent {
+		kind, kindStyle = kindAgent, cKindAgent
 	}
-	fill := width - lead - ansi.StringWidth(task) - ansi.StringWidth(name) - ansi.StringWidth(state)
+	indent := strings.Repeat("  ", max(depth, 1))
+	lead := len(indent) + 10 // the indent, the kind, " ", the dot, " ", the chip, " "
+	// fit lays out the task title and the name before a right-hand part
+	// tail columns wide, and says whether both kept all their text.
+	fit := func(tail int) (string, string, bool) {
+		room := width - lead - tail - 1
+		name := ansi.Truncate(p.Name, room, "…")
+		t := ""
+		if left := room - ansi.StringWidth(name) - 2; task != "" && left >= 4 {
+			t = ansi.Truncate(task, left, "…") + "  "
+		}
+		whole := name == p.Name && (task == "" || t == task+"  ")
+		return t, name, whole
+	}
+	harness := ""
+	if p.IsAgent && p.Harness != "" {
+		harness = " " + p.Harness
+	}
+	shownTask, name, whole := fit(ansi.StringWidth(state + harness))
+	if harness != "" && !whole {
+		harness = ""
+		shownTask, name, _ = fit(ansi.StringWidth(state))
+	}
+	fill := width - lead - ansi.StringWidth(shownTask) - ansi.StringWidth(name) - ansi.StringWidth(state+harness)
 	if fill < 1 {
 		fill = 1
 	}
@@ -233,8 +261,9 @@ func (m *Model) paneRow(p *panes.Pane, dot, state string, depth, width int, sel 
 		}
 		return s.Render(text)
 	}
-	return r(plain, indent) + r(stateStyle(p.State), dot) + r(plain, " ") + r(chipStyle, chip) + r(plain, " ") +
-		r(taskStyle, task) + r(nameStyle, name) + r(plain, strings.Repeat(" ", fill)) + r(stateStyle(p.State), state)
+	return r(plain, indent) + r(kindStyle, kind) + r(plain, " ") + r(stateStyle(p.State), dot) + r(plain, " ") +
+		r(chipStyle, chip) + r(plain, " ") + r(taskStyle, shownTask) + r(nameStyle, name) +
+		r(plain, strings.Repeat(" ", fill)) + r(stateStyle(p.State), state) + r(cDim, harness)
 }
 
 func (m *Model) detailLines(width, height int) []string {
