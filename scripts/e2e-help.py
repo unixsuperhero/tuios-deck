@@ -71,11 +71,15 @@ try:
     config = SCRATCH / "settings"
     (config / "tuios-deck").mkdir(parents=True)
     (config / "tuios-deck/config").write_text(json.dumps({"vim_modes": True, "keys": {"deck": {"quit": "Z", "new_agent": "v"}, "form_normal": {"next_field": "n"}}}))
-    launch("host", 110, 30, config)
+    launch("host", 110, 40, config)
     keys("g j")
     screen("selected", "help-selection-proof")
     keys("?")
     text = screen("help", "Keybindings and actions")
+    occupied = [(y, line) for y, line in enumerate(text.splitlines()) if line.strip()]
+    assert occupied[0][0] >= 5 and occupied[-1][0] < 35
+    assert all(len(line) - len(line.lstrip()) >= 5 and len(line.rstrip()) <= 105 for _, line in occupied)
+    print("PASS five-row/column help gutters", flush=True)
     assert "Z" in next(line for line in text.splitlines() if "quit:" in line)
     assert "V" == next(line for line in text.splitlines() if "review:" in line).strip("│ ").split()[0]
     print("PASS help shows configured quit key", flush=True)
@@ -116,6 +120,10 @@ try:
     run("B", "send-text", "-s", "host", "-w", "deck", "why?")
     text = screen("question-input", "why?")
     assert "Keybindings and actions" not in text
+    keys("Escape ?")
+    screen("form-normal-default", "Mode: form_normal")
+    keys("Escape i")
+    screen("form-restored", "why?")
     keys("Escape Escape")
     keys(":")
     run("B", "send-text", "-s", "host", "-w", "deck", "?")
@@ -123,6 +131,20 @@ try:
     assert "Keybindings and actions" not in text
     keys("Escape")
     print("PASS question mark stays text in forms and palette", flush=True)
+    for key, mode, action in [("T", "tasks", "cycle task status"), ("I", "context", "cycle sort"),
+                              ("H", "history", "go to source pane"), ("V", "review", "mark reviewed"),
+                              ("C", "captures", "scroll capture")]:
+        keys(key + " ?")
+        text = screen(mode + "-default", "Mode: " + mode)
+        assert action in text
+        if mode != "tasks":
+            assert "cycle task status" not in text
+        keys("Escape :")
+        run("B", "send-text", "-s", "host", "-w", "deck", "keybindings")
+        keys("Enter")
+        screen(mode + "-palette", "Mode: " + mode)
+        keys("Escape Escape")
+    print("PASS active-page and palette help scopes", flush=True)
     launch("small", 36, 10, config)
     keys("?", "small")
     before = screen("small-help", "Mode: deck", "small")
@@ -134,14 +156,23 @@ try:
     screen("small-restored", "tuios-deck", "small")
     print("PASS help scrolls and clips at 36x10", flush=True)
     # A separately configured help key must replace ?, not shadow text fields.
-    (config / "tuios-deck/config").write_text('{"keys":{"deck":{"help":"alt+h"}}}')
-    launch("remapped", 100, 25, config)
+    (config / "tuios-deck/config").write_text(
+        '{"vim_modes":true,"keys":{"deck":{"help":"alt+h"}}}')
+    launch("remapped", 100, 40, config)
     keys("alt+h", "remapped")
     text = screen("remapped-help", "Keybindings and actions", "remapped")
     assert "alt+h" == next(line for line in text.splitlines() if "help:" in line).strip("│ ").split()[0]
     print("PASS help itself follows configured binding", flush=True)
+    keys("Escape p", "remapped")
+    run("B", "send-text", "-s", "remapped", "-w", "deck", "keep?")
+    keys("alt+h", "remapped")
+    screen("form-insert-default", "Mode: form_insert", "remapped")
+    keys("Escape", "remapped")
+    screen("form-insert-restored", "keep?", "remapped")
+    keys("Escape", "remapped")
     keys("Escape T F", "remapped")
     keys("alt+h", "remapped")
+    screen("focused-mode", "Mode: deck", "remapped")
     text = screen("focused-help", "unavailable in current focus", "remapped")
     assert "palette:" in text
     print("PASS help stays reachable in focus and labels unavailable actions", flush=True)

@@ -122,10 +122,13 @@ default) and saves the file; the change applies at once.
 ### Key bindings
 
 Press `?` on a TUI page, or choose `keybindings and actions…` in the
-palette, to open help. Its tables show the current configured keys, action
-names and scopes. `tab` / `shift+tab` or left/right select a mode: deck,
-vim form normal/insert, page-local keys, form editing, modal navigation,
-or all palette actions. In the actions table, `u` limits the list to
+palette, to open help at the current page. Page-specific tables cover tasks,
+captures, context, prototypes, review and history, followed by global keys.
+Palette-triggered help uses the page that opened the palette. Tables show
+the current configured keys, action names and scopes. `tab` / `shift+tab` or
+left/right select another mode, including vim form normal/insert, all page-local
+keys, form editing, modal navigation, or all palette actions. In the actions
+table, `u` limits the list to
 commands without direct shortcuts, including daemon verbs. Empty results
 in another mode mean every listed action has a binding; they do not disable
 keys. `unbind` still restores an action's default key.
@@ -137,11 +140,14 @@ to preserve a usable table; very small terminals must clip the help. Browser
 help uses five line-heights vertically and five character-widths horizontally,
 with the same small-viewport fallback and a scrollable table. `esc` closes it
 without moving the underlying selection or scroll. The `help` action can
-itself be rebound. In text fields and the command palette, `?` remains text;
-picker prototypes that use it for previews keep that behavior.
+itself be rebound. In vim form normal mode, the help key opens form-normal
+help without changing the form. A non-text help binding such as `alt+h` also
+opens help from insert/plain forms at that form mode. In text fields and the
+command palette, `?` remains text; picker previews keep their existing key.
 
 The web header's **Help ?** button and `?` shortcut open the browser
-version. Select a page, Forms, Palette, or Focus and buffer mode and check
+version at the current page, including when invoked through the palette.
+Select a page, Forms, Palette, or Focus and buffer mode and check
 **Unbound only** to inspect its tables. Page tables distinguish browser
 controls from TUI shortcuts, including Review and History navigation.
 The TUI pages table also includes Review and task easy-marking keys; its

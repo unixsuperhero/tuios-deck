@@ -2525,6 +2525,7 @@ function openHelp() {
   $('help-mode').value = state.page;
   $('help-unbound').checked = false;
   renderHelp(); $('dlg-help').showModal();
+  $('dlg-help').scrollTop = 0;
   loadVerbs().then(() => { if ($('dlg-help').open && $('help-mode').value === 'actions') renderHelp(); });
 }
 $('btn-help').onclick = openHelp;

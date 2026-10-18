@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -18,11 +19,25 @@ type keyHelp struct {
 type helpRow struct{ key, action, scope string }
 
 func helpModes() []string {
-	return append(config.Modes(), "pages", "forms", "modals", "actions")
+	modes := append(config.Modes(), "pages", "forms", "modals", "actions")
+	for p := pageTasks; p <= pageHistory; p++ {
+		modes = append(modes, p.String())
+	}
+	return modes
 }
 
 func (m *Model) openHelp() tea.Cmd {
-	m.help = &keyHelp{}
+	mode := m.page.String()
+	if m.mode == modeForm {
+		mode = "forms"
+		if m.vimModes() {
+			mode = config.ModeFormInsert
+			if m.form.vimNormal {
+				mode = config.ModeFormNormal
+			}
+		}
+	}
+	m.help = &keyHelp{mode: max(0, slices.Index(helpModes(), mode))}
 	if m.verbs == nil && !m.verbsBusy {
 		m.verbsBusy = true
 		return m.loadVerbs()
@@ -65,6 +80,23 @@ func (m *Model) helpRows(mode string) []helpRow {
 		c = &config.Config{}
 	}
 	var rows []helpRow
+	for p := pageTasks; p <= pageHistory; p++ {
+		if mode != p.String() {
+			continue
+		}
+		for _, row := range m.helpRows("pages") {
+			scope, _, _ := strings.Cut(row.scope, ";")
+			if slices.Contains(strings.Split(scope, "/"), mode) {
+				rows = append(rows, row)
+			}
+		}
+		for _, row := range m.helpRows(config.ModeDeck) {
+			if strings.HasPrefix(row.scope, "all pages") {
+				rows = append(rows, row)
+			}
+		}
+		return rows
+	}
 	for _, a := range config.ActionsOf(mode) {
 		scope := "deck page"
 		if a.Global {

@@ -18,6 +18,13 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 	switch m.mode {
 	case modeForm:
+		helpKey := (&config.Config{}).Binding(config.ModeDeck, "help")
+		if m.settings != nil {
+			helpKey = m.settings.Binding(config.ModeDeck, "help")
+		}
+		if msg.String() == helpKey && (m.vimModes() && m.form.vimNormal || len([]rune(helpKey)) > 1 && helpKey != "space") {
+			return m, m.openHelp()
+		}
 		if m.form.cwd == "" {
 			m.form.cwd = cwdDefault(m.selected())
 		}
