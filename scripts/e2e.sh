@@ -901,7 +901,7 @@ echo "== w opens the task tree of the selected pane and manages it in place"
 # extra is selected and assigned to deck › command palette. Everything the
 # block changes it puts back: four s are a full status cycle, and the
 # subtask n adds is deleted with x.
-task_field() { python3 -c 'import json,sys; t=[t for t in json.load(open(sys.argv[1]))["tasks"] if t["title"]==sys.argv[2]]; print(t[0][sys.argv[3]] if t else "")' "$DATA" "$1" "$2"; }
+task_field() { python3 -c 'import json,sys; t=[t for t in json.load(open(sys.argv[1]))["tasks"] if t["title"]==sys.argv[2]]; print(t[0][sys.argv[3]] if t else "")' "$(store_json)" "$1" "$2"; }
 b send-text -s host -w deck 'w'; settle; deckcap 18t-tree
 check "w opens the task tree of the pane's project" "$SCRATCH/out/18t-tree.txt" '╭─ task tree · deck'
 check "the tree marks the pane's own node with its pane count" "$SCRATCH/out/18t-tree.txt" '▸ *● *command palette .*pane ◂ this pane'
