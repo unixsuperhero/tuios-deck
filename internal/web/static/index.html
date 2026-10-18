@@ -189,15 +189,7 @@ dialog .hint.err:empty { display: none; }
 #dlg-help .help-controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 12px 0; }
 .history-row { width: 100%; text-align: left; border-radius: 0; background: transparent; }
 #history-list { position: relative; }
-body.focused #nav button:not([data-page="deck"]):not([data-page="tasks"]),
-body.focused #btn-palette, body.focused #btn-agent, body.focused #btn-term,
-body.focused #btn-assign, body.focused #btn-extract, body.focused #btn-close,
-body.focused #tk-newproj, body.focused #tk-newtask, body.focused #tk-rename,
-body.focused #tk-theme, body.focused #tk-delete, body.focused #page-deck .railgroup { display: none; }
-body.focused { --bg: color-mix(in srgb, var(--focus-color) 16%, #101318); --panel: color-mix(in srgb, var(--focus-color) 22%, #171b21); --fg: #f7f8fa; --muted: #d6dbe2; --line: color-mix(in srgb, var(--focus-color) 55%, #aaa); --accent: color-mix(in srgb, var(--focus-color) 65%, #fff); --sel: color-mix(in srgb, var(--focus-color) 40%, #222); --hover: color-mix(in srgb, var(--focus-color) 30%, #222); --term-bg: var(--bg); }
-body.focused .pane .chip, body.focused .pane .task, body.focused .glyph { color: var(--fg) !important; }
-body.focused button.primary, body.focused .nav button.on, body.focused .tabs button.on { color: #101318; }
-body.focused #btn-focus-plan, body.focused #easy-filter, body.focused #tk-easy { display: none; }
+body.focused { border: 1px solid var(--focus-color, var(--accent)); }
 </style>
 </head>
 <body>
@@ -645,7 +637,6 @@ function updateFocusView() {
   const target = focusTarget();
   if (target) document.body.style.setProperty('--focus-color', target.theme.css);
   else document.body.style.removeProperty('--focus-color');
-  if (term) term.options.theme = focusTerminalTheme();
   $('focus-label').textContent = target ? 'FOCUS · ' + (target.title || target.name) : '';
   if (state.selected && !focusPane(state.panes[state.selected])) {
     state.selected = null; closeLive(); state.detailKey = ''; state.detailText = ''; $('text').textContent = '';
@@ -1138,7 +1129,6 @@ document.addEventListener('change', (e) => { if (e.target.matches && e.target.ma
 
 // ---------------------------------------------------------------- pages
 function setPage(name, fromHash) {
-  if (focusScope && !['deck', 'tasks'].includes(name)) name = 'deck';
   if (!PAGES.includes(name)) name = 'deck';
   state.page = name;
   for (const p of PAGES) $('page-' + p).classList.toggle('on', p === name);
@@ -1210,10 +1200,6 @@ function showResult(title, value) {
 setInterval(loadDetail, 2000);
 
 // ---------------------------------------------------------------- live pane
-function focusTerminalTheme() {
-  const t = focusTarget();
-  return t ? {background: t.theme.css, foreground: ['black', 'blue', 'red', 'magenta'].includes(t.theme.color) ? '#ffffff' : '#000000'} : {background: '#0f1115'};
-}
 let term = null, fit = null, ws = null, leaseTimer = null, lastSeq = 0n, bootId = '';
 function openLive() {
   const p = state.panes[state.selected];
@@ -1228,7 +1214,6 @@ function openLive() {
     term.onBinary((d) => send('I', Uint8Array.from(d, (c) => c.charCodeAt(0))));
     new ResizeObserver(() => { if (ws && state.tab === 'live' && $('term').offsetWidth) { fit.fit(); lease(); } }).observe($('term'));
   }
-  term.options.theme = focusTerminalTheme();
   term.reset();
   fit.fit();
   const q = new URLSearchParams({ cols: term.cols, rows: term.rows });
@@ -1499,7 +1484,8 @@ function defaults() {
   return {
     session: p ? p.session : (state.sessions[0]?.name || 'deck'),
     cwd: p?.cwd || state.sessions.find((s) => s.name === p?.session)?.dir || '~',
-    task: '', project: paneProject(p),
+    task: focusScope?.kind === 'task' ? taskPathOf(focusScope.id) : '',
+    project: focusScope ? (focusScope.kind === 'project' ? projectById(focusScope.id)?.name || '' : '') : paneProject(p),
   };
 }
 // targetRule is the API's rule, checked before the request: a task implies
@@ -1632,7 +1618,7 @@ async function editQueued(q, fill) {
   const d = defaults();
   const v = await dialog('dlg-queue', q
     ? { task: q.task, project: q.task ? '' : q.project, agent: q.agent, session: q.session, cwd: q.cwd, window: q.window, text: q.text }
-    : { session: d.session, cwd: '', task: '', project: d.project, ...fill }, targetRule);
+    : { session: d.session, cwd: '', task: d.task, project: d.project, ...fill }, targetRule);
   if (!v) return;
   if (q) delete v.preset;
   try {
@@ -1840,7 +1826,7 @@ function renderTaskInfo() {
     li.append(d, name, st, go); ul2.append(li);
   }
   box.append(ul2);
-  if (!focusScope) renderNotes(box, kind, it.id);
+  renderNotes(box, kind, it.id);
   box.scrollTop = scroll;
 }
 // The notes a project or task sees come from the server, which knows the
@@ -2079,7 +2065,6 @@ $('cap-refresh').onclick = loadCaptures;
 $('cap-delete').onclick = deleteCapture;
 
 async function resetPageView() {
-  if (focusScope && !['deck', 'tasks'].includes(state.page)) return;
   switch (state.page) {
     case 'deck':
       setRailSort('default');
@@ -2432,7 +2417,6 @@ async function loadVerbs() {
 }
 let pal = { items: [], shown: [], active: 0, verb: null };
 async function openPalette() {
-  if (focusScope) return;
   if (document.querySelector('dialog[open]')) return;
   const verbs = await loadVerbs();
   pal.items = [...deckCommands(), ...verbs.map((v) => ({ cat: 'tuios', label: v.verb, desc: v.description, verb: v }))];
@@ -2588,40 +2572,39 @@ const webKeys = [
   ['a', 'assign selected pane to task…', 'deck', () => $('btn-assign').click()],
   ['i', 'extract context from selected pane', 'deck', () => extractContext()],
 ];
-const focusPageKeys = ['F', '?', 'R', 'T', 'Escape', 'j', 'k', '1', '2', '3', '4', 'p', 'c', 's'];
 function renderHelp() {
   const mode = $('help-mode').value;
   let rows = [], note = '';
   if (mode === 'pages' || PAGES.includes(mode)) {
     rows = webKeys.filter((r) => r[2] === 'pages' || mode === 'deck').map(([key, action, scope]) =>
-      [key, action, scope + (focusPageKeys.includes(key) ? '' : '; unavailable during focus')]);
-    rows = [['Ctrl/Meta+k or p', 'command palette', 'outside dialogs and focus; also in inputs and Live'], ...rows];
+      [key, action, scope]);
+    rows = [['Ctrl/Meta+k or p', 'command palette', 'outside dialogs; also in inputs and Live'], ...rows];
     if (mode === 'pages' || ['tasks', 'context', 'history', 'review'].includes(mode)) rows.push(['R / Reset', 'reset page filters/sort; keep data and focus; do not mark reviewed', 'tasks/context/history/review']);
     if (mode === 'pages') rows.push(['s', 'cycle pane rail sort', 'deck'], ['R / Reset view', 'restore session grouping and default sort; keep selection and focus', 'deck']);
-    note = 'Page shortcuts apply outside inputs, dialogs and focused Live. Focus permits only Deck and Tasks; entries marked unavailable require unlocking.';
+    note = 'Page shortcuts apply outside inputs, dialogs and focused Live. All pages and work tools remain available during focus; pane and task lists stay scoped.';
     if (mode !== 'pages') rows.push(
       ['Tab / Shift+Tab', 'next / previous control', mode + '; browser navigation'],
       [mode === 'history' ? 'Space' : 'Enter / Space', 'activate the focused button', mode + (mode === 'review' ? '; outside review-list' : '; browser navigation')],
       ['Arrow keys', 'change the focused select', mode + '; browser navigation'],
     );
     if (mode === 'review') {
-      rows.push(['j/k, ArrowDown/Up', 'next / previous completed prompt', 'review; outside focus'],
-        ['Enter', 'open selected prompt and mark reviewed', 'review; body or review-list focused; outside focus']);
+      rows.push(['j/k, ArrowDown/Up', 'next / previous completed prompt', 'review'],
+        ['Enter', 'open selected prompt and mark reviewed', 'review; body or review-list focused']);
       note += ' Review uses the Review view select for awaiting/reviewed history and the Refresh button to refresh. Tab moves between controls; r is not a Review shortcut.';
     } else if (mode === 'history') {
-      rows.push(['j/k, ArrowDown/Up', 'next / previous history entry', 'history; outside focus'],
-        ['g/G, Home/End', 'first / last entry', 'history; outside focus'],
-        ['r', 'refresh history', 'history; outside focus'], ['Enter', 'go to source pane if still open', 'history; outside focus']);
+      rows.push(['j/k, ArrowDown/Up', 'next / previous history entry', 'history'],
+        ['g/G, Home/End', 'first / last entry', 'history'],
+        ['r', 'refresh history', 'history'], ['Enter', 'go to source pane if still open and in scope', 'history']);
       note += ' Search and kind filters use their input/select controls. Detail scrolling uses the browser, not TUI J/K bindings.';
     } else if (['tasks', 'captures', 'context', 'reminders'].includes(mode)) {
       note += ' No additional page-specific letter shortcuts. Use the page controls.';
-      if (mode === 'tasks') note += ' Mark easy and Saved easy tasks are controls, not E/Ctrl+f shortcuts; both are hidden during focus.';
+      if (mode === 'tasks') note += ' Mark easy and Saved easy tasks are controls, not E/Ctrl+f shortcuts.';
     }
   } else if (mode === 'focus') {
-    note = 'Focus limits navigation to scoped Deck/Tasks and disables the palette, grouping and unrelated actions. After 15 active minutes the buffer takes priority over all other dialogs and shortcuts. No continuation within 30 seconds unlocks automatically; 3 minutes without activity also unlocks focus.';
+    note = 'Focus scopes pane and task lists to a task or project and its descendants, without disabling work tools or pages. New terminals, agents and queued prompts default to that scope; form choices remain editable. The thin border and label mark focus without changing your theme. After 15 active minutes the buffer takes priority over all other dialogs and shortcuts. No continuation within 30 seconds unlocks automatically; 3 minutes without activity also unlocks focus.';
     rows = [webKeys.find(([key]) => key === 'F'),
       ['s', 'cycle sort within the focused pane rail', 'deck; focus remains active'],
-      ['R', 'reset the deck or task view without unlocking focus', 'deck/tasks; focus remains active'],
+      ['R', 'reset the current page view without unlocking focus', 'deck/tasks/context/history/review; focus remains active'],
       ['Enter', 'continue focus for a fresh 15-active-minute cycle', 'focus buffer; even when Unlock now has focus'],
       ['Escape / F', 'unlock focus now', 'focus buffer; fixed keys'],
       ['Tab / Shift+Tab', 'move between Unlock now / Continue focus buttons', 'focus buffer'],
@@ -2636,14 +2619,14 @@ function renderHelp() {
       ['Tab / Enter', 'accept completion', 'open completion list'],
     ];
   } else if (mode === 'palette') {
-    note = 'The command palette is unavailable during focus.';
+    note = 'The command palette and its work actions remain available during focus.';
     rows = [['text, ?', 'filter commands', 'palette'], ['ArrowDown/Up, Ctrl+n/p', 'select command', 'palette'],
       ['Enter', 'run command', 'palette'], ['Escape', 'close', 'palette']];
   } else {
-    note = 'The command palette and its actions are unavailable during focus. Direct shortcuts have their own scope restrictions.';
+    note = 'The command palette and its actions remain available during focus. Direct shortcuts have their own page scopes.';
     rows = deckCommands().map((c) => {
       const key = webKeys.find((r) => r[1] === c.label);
-      return [key ? key[0] : '', c.label, key ? key[2] + '; also palette' + (focusPageKeys.includes(key[0]) ? '' : '; unavailable during focus') : 'palette / buttons'];
+      return [key ? key[0] : '', c.label, key ? key[2] + '; also palette' : 'palette / buttons'];
     });
     rows.push(...(state.verbs || []).map((v) => ['', v.verb, 'daemon command via palette']));
   }
@@ -2678,7 +2661,6 @@ document.addEventListener('keydown', (e) => {
   if (document.querySelector('dialog[open]') || (term && state.tab === 'live' && $('term').contains(document.activeElement))) return;
   if (e.target.matches('input, textarea, select') || e.target.isContentEditable) return;
   if (e.ctrlKey || e.metaKey || e.altKey) return;
-  if (focusScope && !focusPageKeys.includes(e.key)) return;
   if (e.key === 'R' && state.page !== 'deck') { e.preventDefault(); resetPageView(); return; }
   const binding = webKeys.find(([key, , scope]) => key === e.key && (scope === 'pages' || state.page === 'deck'));
   if (binding) { e.preventDefault(); binding[3](); }
