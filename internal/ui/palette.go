@@ -332,7 +332,6 @@ func (m *Model) deckCommands() []palItem {
 		}
 	}
 	items := []palItem{
-		{"deck", "keybindings and actions…", "browse keys by mode, including actions without shortcuts", m.openHelp},
 		{"deck", "assign to task…", "assign the selected pane to a task", needPane(func(*panes.Pane) tea.Cmd { return m.openAssign() })},
 		{"deck", "assign to project…", "assign the selected pane to a project", needPane(func(*panes.Pane) tea.Cmd { return m.openAssign() })},
 		{"deck", "clear assignment", "drop the selected pane's task and project", needPane(func(p *panes.Pane) tea.Cmd { return m.assignPane(p.ID, p.Session, p.Name, "", "") })},
@@ -346,6 +345,7 @@ func (m *Model) deckCommands() []palItem {
 		{"deck", "close pane", "close the selected pane after a confirmation (x)", needPane(m.confirmClose)},
 		{"deck", "refresh", "list the sessions and agents again (r)", m.refreshAll},
 		{"deck", "settings…", "vim modes and key bindings, saved to the settings file", m.openSettingsForm},
+		{"deck", "keybindings and actions…", "browse keys by mode, including actions without shortcuts", m.openHelp},
 		{"deck", "go to deck", "the panes page", func() tea.Cmd { m.page = pageDeck; return m.loadDetail(true) }},
 		{"deck", "go to tasks", "the projects, tasks and subtasks page (T)", func() tea.Cmd { m.page = pageTasks; m.rebuildTasks(); return nil }},
 		{"deck", "go to captures", "the captures folder page (C)", func() tea.Cmd { m.openCaptures(); return nil }},

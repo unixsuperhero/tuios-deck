@@ -2003,7 +2003,6 @@ setInterval(() => { if (state.page === 'reminders' && !document.querySelector('d
 // ---------------------------------------------------------------- command palette
 function deckCommands() {
   const cmds = [
-    { label: 'keybindings and actions…', run: openHelp },
     { label: 'assign selected pane to task…', run: () => assign('task') },
     { label: 'assign selected pane to project…', run: () => assign('project') },
     { label: 'clear assignment of selected pane', run: unassign },
@@ -2031,6 +2030,7 @@ function deckCommands() {
     { label: 'capture selected pane', run: capturePane },
     { label: 'close selected pane', run: closePane },
     { label: 'refresh', run: () => { refresh(); if (state.page === 'captures') loadCaptures(); } },
+    { label: 'keybindings and actions…', run: openHelp },
   );
   return cmds.map((c) => ({ cat: 'deck', ...c }));
 }
