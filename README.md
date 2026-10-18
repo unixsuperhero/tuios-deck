@@ -121,6 +121,32 @@ default) and saves the file; the change applies at once.
 
 ### Key bindings
 
+Press `?` on a TUI page, or choose `keybindings and actions…` in the
+palette, to open help. Its tables show the current configured keys, action
+names and scopes. `tab` / `shift+tab` or left/right select a mode: deck,
+vim form normal/insert, page-local keys, form editing, modal navigation,
+or all palette actions. In the actions table, `u` limits the list to
+commands without direct shortcuts, including daemon verbs. Empty results
+in another mode mean every listed action has a binding; they do not disable
+keys. `unbind` still restores an action's default key.
+
+Use up/down or `j/k` to scroll, PageUp/PageDown for a page, and Home/End
+for the ends. Help wraps and clips to the terminal size. `esc` closes it
+without moving the underlying selection or scroll. The `help` action can
+itself be rebound. In text fields and the command palette, `?` remains text;
+picker prototypes that use it for previews keep that behavior.
+
+The web header's **Help ?** button and `?` shortcut open the browser
+version. Select a mode and check **Unbound only** to inspect its tables.
+These are browser shortcuts, not the configured TUI bindings. Page keys
+do not run in inputs, dialogs, or the focused Live terminal. The palette
+shortcut, Ctrl/Meta+k or Ctrl/Meta+p, also works in inputs and Live when
+no dialog is open. Browser forms retain native Tab and Escape navigation.
+
+`GOWORK=off go build -o .dev/deck ./cmd/deck` followed by
+`python3 scripts/e2e-help.py` checks help against isolated throwaway daemons
+and keeps screen captures under the printed scratch directory.
+
 `keys` maps a mode, then an action, to a key. An action not listed keeps its
 default, so the file only holds the differences. A key is one character, a
 name (`tab`, `shift+tab`, `enter`, `esc`, `up`…) or `ctrl+a` / `alt+a`. A
@@ -131,7 +157,7 @@ whose action moved elsewhere does nothing; swapping two keys is allowed.
 
 | Mode | Where | Actions |
 | --- | --- | --- |
-| `deck` | the dashboard; `quit` `palette` `tasks` `captures` `add_many` `context` on every page, the rest on the deck page only | `quit palette tasks captures add_many context left right down up top bottom scroll_down scroll_up next_tab prev_tab refresh group_next group_prev new_agent new_terminal prompt assign capture extract close` |
+| `deck` | the dashboard; `help` `quit` `palette` `tasks` `captures` `add_many` `context` on every page, the rest on the deck page only | `help quit palette tasks captures add_many context left right down up top bottom scroll_down scroll_up next_tab prev_tab refresh group_next group_prev new_agent new_terminal prompt assign capture extract close` |
 | `form_normal` | forms, vim modes on, normal mode | `insert append next_field prev_field clear submit cancel` |
 | `form_insert` | forms, vim modes on, insert mode | `leave_insert` (never a printable key, so no key that types can leave the mode) |
 

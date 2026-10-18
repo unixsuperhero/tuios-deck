@@ -133,6 +133,7 @@ type Model struct {
 	expanded   map[string]bool // the expanded rows, by id, kept across re-reads
 
 	mode mode
+	help *keyHelp
 	form *form
 	// formStack is the form suspended while the mass-add screen it opened
 	// is up; it comes back when that screen is submitted or cancelled.

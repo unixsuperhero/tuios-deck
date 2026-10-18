@@ -1,0 +1,211 @@
+package ui
+
+import (
+	"fmt"
+	"strings"
+
+	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
+	"github.com/unixsuperhero/tuios-deck/internal/config"
+)
+
+type keyHelp struct {
+	mode, scroll int
+	unbound      bool
+}
+
+type helpRow struct{ key, action, scope string }
+
+func helpModes() []string {
+	return append(config.Modes(), "pages", "forms", "modals", "actions")
+}
+
+func (m *Model) openHelp() tea.Cmd {
+	m.help = &keyHelp{}
+	if m.verbs == nil && !m.verbsBusy {
+		m.verbsBusy = true
+		return m.loadVerbs()
+	}
+	return nil
+}
+
+func (m *Model) handleHelpKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	h := m.help
+	switch msg.String() {
+	case "esc", "ctrl+c":
+		m.help = nil
+	case "tab", "right", "l":
+		h.mode, h.scroll = (h.mode+1)%len(helpModes()), 0
+	case "shift+tab", "left", "h":
+		h.mode, h.scroll = (h.mode+len(helpModes())-1)%len(helpModes()), 0
+	case "u":
+		h.unbound, h.scroll = !h.unbound, 0
+	case "j", "down":
+		h.scroll++
+	case "k", "up":
+		h.scroll = max(0, h.scroll-1)
+	case "pgdown", "ctrl+d":
+		h.scroll += max(1, m.height-7)
+	case "pgup", "ctrl+u":
+		h.scroll = max(0, h.scroll-max(1, m.height-7))
+	case "g", "home":
+		h.scroll = 0
+	case "G", "end":
+		h.scroll = int(^uint(0) >> 1)
+	}
+	return m, nil
+}
+
+func (m *Model) helpRows(mode string) []helpRow {
+	c := m.settings
+	if c == nil {
+		c = &config.Config{}
+	}
+	var rows []helpRow
+	for _, a := range config.ActionsOf(mode) {
+		scope := "deck page"
+		if a.Global {
+			scope = "all pages, not dialogs"
+		}
+		if mode != config.ModeDeck {
+			scope = "forms, vim modes on"
+		}
+		rows = append(rows, helpRow{c.Binding(mode, a.Name), a.Name + ": " + a.Desc, scope})
+	}
+	switch mode {
+	case config.ModeDeck:
+		rows = append(rows, helpRow{"ctrl+c", "quit", "all pages, not dialogs"}, helpRow{"ctrl+p", "command palette", "all pages, not dialogs"},
+			helpRow{"up/down", "previous/next pane or detail row", "deck page"}, helpRow{"left/right", "focus rail/detail", "deck page"},
+			helpRow{"1/2/3/4", "Screen/Activity/Transcript/Turns", "deck page"}, helpRow{"[/]", "previous/next tab", "deck page"},
+			helpRow{"home/end", "first pane/follow detail end", "deck page"}, helpRow{"pgup/pgdown, ctrl+u/d", "scroll detail half a page", "deck page"},
+			helpRow{"enter", "refresh", "deck rail"}, helpRow{"{/}, (/)", "jump group/level", "deck rail"},
+			helpRow{"enter/space", "expand selected turn", "Turns detail"}, helpRow{"y", "copy selected turn", "Turns detail"},
+			helpRow{"U", "picker prototypes", "all pages, not dialogs"})
+	case config.ModeFormNormal:
+		rows = append(rows, helpRow{"up/down", "previous/next field", "normal mode"}, helpRow{"ctrl+s", "submit", "normal mode"}, helpRow{"ctrl+c", "cancel", "normal mode"})
+	case "pages":
+		rows = []helpRow{
+			{"esc", "return to deck", "tasks/captures/context/prototypes"},
+			{"j/k, up/down", "next/previous row", "tasks/captures/context/prototypes"},
+			{"g/G, home/end", "first/last row", "tasks/context"},
+			{"{/}, (/)", "jump group/level", "tasks"}, {"N", "new project", "tasks"}, {"n", "new task/subtask", "tasks"},
+			{"e", "edit", "tasks"}, {"s", "cycle task status", "tasks"}, {"m/M", "colour/glyph", "tasks"}, {"a", "assign selected pane", "tasks"},
+			{"enter", "go to assigned pane", "tasks/captures"}, {"x", "delete selected item", "tasks/captures/context"},
+			{"J/K", "scroll capture", "captures"}, {"G", "follow capture end", "captures"},
+			{"{/}", "jump group", "context"}, {"t", "current pane/all scope", "context"}, {"s", "cycle sort", "context"},
+			{"f", "filter", "context"}, {"o/O", "cycle grouping", "context"}, {"*", "star", "context"}, {"!/P", "pin", "context"},
+			{"a", "assign item", "context"}, {"y", "copy item", "context"}, {"enter", "insert item", "context"}, {"ctrl+o", "open item", "context"}, {"w", "open with", "context"},
+			{"r", "refresh", "tasks/captures/context"}, {"enter", "try selected picker", "prototypes"},
+		}
+	case "forms":
+		rows = []helpRow{
+			{"text, ?", "type in the current field", "plain forms / vim insert"},
+			{"enter", "next field; submit on last field", "single-line, no completion selected"},
+			{"enter", "newline", "multiline"}, {"ctrl+s, ctrl+enter", "submit", "plain forms / vim insert"},
+			{"shift+tab, up", "previous field", "no completion list; not outline"}, {"tab", "accept completion or empty field's default", "plain forms / vim insert"},
+			{"up/down, ctrl+p/n", "previous/next completion", "completion list"}, {"enter", "accept highlighted completion", "text completion list"},
+			{"esc", "close completion first; otherwise cancel", "plain forms"}, {"ctrl+c", "cancel", "forms"},
+			{"backspace", "delete previous character", "plain forms / vim insert"}, {"ctrl+u", "clear field", "non-outline"}, {"ctrl+w", "delete previous word", "plain forms / vim insert"},
+			{"@", "complete path", "multiline, not outline"}, {"/", "complete command at start", "prompt fields"}, {"ctrl+o", "pick attachments", "attachment fields"},
+			{"arrows", "move cursor", "outline"}, {"tab/shift+tab", "indent/outdent", "outline"}, {"ctrl+u", "clear line", "outline"},
+			{"ctrl+h/l", "walk parent up/down", "task form"},
+		}
+	case "modals":
+		rows = []helpRow{
+			{"tab/shift+tab, left/right", "choose mode", "help"}, {"u", "toggle actions without bindings", "help"}, {"j/k, up/down", "scroll", "help"}, {"pgup/pgdown, ctrl+u/d", "scroll page", "help"}, {"home/end, g/G", "first/last help row", "help"}, {"esc, ctrl+c", "close without changing selection", "help"},
+			{"text, ?", "filter commands", "palette"}, {"up/down, ctrl+p/n", "select command", "palette"}, {"enter", "run command", "palette"}, {"tab", "complete command name", "palette"}, {"esc, ctrl+c", "close", "palette"},
+			{"enter, y/Y", "confirm", "confirmation"}, {"esc, ctrl+c, n/N", "cancel", "confirmation"},
+			{"j/k", "select row", "presets/queue"}, {"n/e/d", "new/edit/delete", "presets/queue"}, {"x", "add example preset", "presets"}, {"enter", "start queued prompt", "queue"}, {"esc, ctrl+c", "close", "presets/queue"},
+			{"h/j/k/l", "move", "glyph table"}, {"text", "find or add glyph", "glyph table"}, {"enter", "pick glyph", "glyph table"},
+			{"ctrl+n/p, up/down", "select result", "typing pickers"}, {"enter", "pick result", "pickers"}, {"?", "toggle preview (not help)", "preview picker prototypes"}, {"esc", "clear filter or cancel", "pickers"}, {"ctrl+c", "cancel", "pickers/glyph table"},
+		}
+	case "actions":
+		// Commands without a direct shortcut still remain available in the palette.
+		bound := map[string]string{
+			"go to review queue":       "review",
+			"keybindings and actions…": "help", "assign to task…": "assign", "assign to project…": "assign", "new agent": "new_agent", "new terminal": "new_terminal", "prompt": "prompt", "capture": "capture", "close pane": "close", "refresh": "refresh", "go to tasks": "tasks", "go to captures": "captures", "go to context": "context", "extract context from pane": "extract", "add many…": "add_many",
+		}
+		fixed := map[string]helpRow{
+			"prototypes": {"U", "", "all pages"}, "go to deck": {"esc", "", "other pages"}, "new project": {"N", "", "tasks"}, "filter context…": {"f", "", "context"}, "context scope: current pane / all": {"t", "", "context"}, "delete capture": {"x", "", "captures"},
+		}
+		for _, cmd := range m.deckCommands() {
+			r := helpRow{"", cmd.Name, "palette only"}
+			if action := bound[cmd.Name]; action != "" {
+				r.key, r.scope = c.Binding(config.ModeDeck, action), "deck page; also palette"
+				for _, a := range config.ActionsOf(config.ModeDeck) {
+					if a.Name == action && a.Global {
+						r.scope = "all pages; also palette"
+					}
+				}
+			} else if f, ok := fixed[cmd.Name]; ok {
+				r.key, r.scope = f.key, f.scope+"; also palette"
+			}
+			rows = append(rows, r)
+		}
+		for _, v := range m.verbs {
+			rows = append(rows, helpRow{"", v.Verb, "daemon command via palette"})
+		}
+	}
+	if m.help.unbound {
+		out := rows[:0]
+		for _, r := range rows {
+			if r.key == "" {
+				out = append(out, r)
+			}
+		}
+		rows = out
+	}
+	return rows
+}
+
+func (m *Model) helpView() string {
+	w, h := max(1, m.width), max(1, m.height)
+	mode := helpModes()[m.help.mode]
+	filter := "all actions"
+	if m.help.unbound {
+		filter = "unbound only"
+	}
+	lines := []string{cTitle.Render("Keybindings and actions"), "Mode: " + mode + " · " + filter}
+	if mode == config.ModeFormNormal || mode == config.ModeFormInsert {
+		lines = append(lines, fmt.Sprintf("vim_modes=%t; see forms for editing keys", m.vimModes()))
+	} else {
+		lines = append(lines, "TUI only. Configured keys override defaults; dialogs own their input.")
+	}
+	lines = append(lines, cHeader.Render("KEY                  ACTION / SCOPE"))
+	var body []string
+	for _, r := range m.helpRows(mode) {
+		key := r.key
+		if key == "" {
+			key = "(unbound)"
+		}
+		line := fmt.Sprintf("%-20s %s [%s]", key, r.action, r.scope)
+		body = append(body, strings.Split(ansi.Wrap(line, max(1, w-4), ""), "\n")...)
+	}
+	if len(body) == 0 {
+		body = []string{"No actions without bindings in this mode. Choose actions for palette commands."}
+	}
+	room := max(1, h-7)
+	if h < 8 {
+		lines = []string{"Help: " + mode + " · esc close"}
+		room = max(1, h-2)
+	}
+	m.help.scroll = min(m.help.scroll, max(0, len(body)-room))
+	end := min(len(body), m.help.scroll+room)
+	lines = append(lines, body[m.help.scroll:end]...)
+	lines = append(lines, cDim.Render(fmt.Sprintf("esc close · tab mode · u unbound · ↑↓ scroll · %d-%d/%d", m.help.scroll+1, end, len(body))))
+	if w >= 8 && h >= 8 {
+		box := []string{boxTop("help", w)}
+		for _, l := range lines {
+			box = append(box, boxRow(l, w-4))
+		}
+		box = append(box, cBorder.Render("╰"+strings.Repeat("─", w-2)+"╯"))
+		lines = box
+	}
+	if len(lines) > h {
+		lines = lines[:h]
+	}
+	for i := range lines {
+		lines[i] = pad(lines[i], w)
+	}
+	return strings.Join(lines, "\n")
+}

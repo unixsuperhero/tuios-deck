@@ -10,6 +10,9 @@ import (
 )
 
 func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if m.help != nil {
+		return m.handleHelpKey(msg)
+	}
 	switch m.mode {
 	case modeForm:
 		if m.form.cwd == "" {
@@ -84,6 +87,8 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	// Keys every page answers.
 	switch msg.String() {
+	case "?":
+		return m, m.openHelp()
 	case "q", "ctrl+c":
 		return m, tea.Quit
 	case ":", "ctrl+p":

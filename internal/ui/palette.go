@@ -332,6 +332,7 @@ func (m *Model) deckCommands() []palItem {
 		}
 	}
 	items := []palItem{
+		{"deck", "keybindings and actions…", "browse keys by mode, including actions without shortcuts", m.openHelp},
 		{"deck", "assign to task…", "assign the selected pane to a task", needPane(func(*panes.Pane) tea.Cmd { return m.openAssign() })},
 		{"deck", "assign to project…", "assign the selected pane to a project", needPane(func(*panes.Pane) tea.Cmd { return m.openAssign() })},
 		{"deck", "clear assignment", "drop the selected pane's task and project", needPane(func(p *panes.Pane) tea.Cmd { return m.assignPane(p.ID, p.Session, p.Name, "", "") })},

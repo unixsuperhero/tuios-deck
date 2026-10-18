@@ -48,6 +48,10 @@ func (m *Model) View() tea.View {
 		v.SetContent("loading…")
 		return v
 	}
+	if m.help != nil {
+		v.SetContent(m.helpView())
+		return v
+	}
 	left := m.leftWidth()
 	if m.page == pageProtos {
 		left = m.width / 2
@@ -350,6 +354,17 @@ func (m *Model) statusLine() string {
 }
 
 func (m *Model) helpLine() string {
+	if m.mode == modeNormal {
+		key := "?"
+		if m.settings != nil {
+			key = m.settings.Binding("deck", "help")
+		}
+		return cDim.Render(" "+key+" help · ") + m.pageHelpLine()
+	}
+	return m.pageHelpLine()
+}
+
+func (m *Model) pageHelpLine() string {
 	switch m.mode {
 	case modeForm:
 		return cDim.Render(" " + m.form.Title + " · the keys are in the box · esc cancel")
