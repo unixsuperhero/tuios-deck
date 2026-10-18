@@ -119,12 +119,12 @@ func (m *Model) selectedRow() *trow {
 }
 
 // projectCounts is how many tasks a project holds at any depth, and how
-// many of them are open, that is not done or skipped.
+// many of them are open: not done, skipped or planned.
 func (m *Model) projectCounts(projectID string) (total, open int) {
 	for _, t := range m.store.Tasks() {
 		if m.store.ProjectOf(t.ID) == projectID {
 			total++
-			if !store.IsFinal(t.Status) {
+			if store.IsOpen(t.Status) {
 				open++
 			}
 		}
@@ -193,7 +193,7 @@ func plural(n int, word string) string {
 }
 
 // nextStatus is the status after st in the order s cycles through: open,
-// done, skipped, then open again.
+// done, skipped, planned, then open again.
 func nextStatus(st string) string {
 	for i, s := range store.Statuses {
 		if s == st {
@@ -204,13 +204,15 @@ func nextStatus(st string) string {
 }
 
 // statusMark is the mark drawn before a task's title: ✓ when done, ⊘ when
-// skipped, a space when open.
+// skipped, ◌ when planned, a space when open.
 func statusMark(st string) string {
 	switch st {
 	case "done":
 		return "✓"
 	case "skipped":
 		return "⊘"
+	case "planned":
+		return "◌"
 	}
 	return " "
 }
@@ -664,7 +666,7 @@ func checkStatusField(st string, i int) (int, string) {
 			return 0, ""
 		}
 	}
-	return i, "status is open, done or skipped"
+	return i, "status is open, done, skipped or planned"
 }
 
 // openEditForm edits the selected row in one form: a task's title, parent,
@@ -832,8 +834,10 @@ func (m *Model) taskListLines(width, height int) []string {
 			_, open := m.projectCounts(r.Project.ID)
 			text := fmt.Sprintf(" %d open", open)
 			name := cTitle
-			if store.IsFinal(r.Project.Status) {
+			if !store.IsOpen(r.Project.Status) {
 				text = " " + statusMark(r.Project.Status) + " " + r.Project.Status + " ·" + text
+			}
+			if store.IsFinal(r.Project.Status) {
 				name = cDim
 			}
 			count := cDim.Render(text)
@@ -847,8 +851,11 @@ func (m *Model) taskListLines(width, height int) []string {
 			if t.Easy {
 				title += " [easy]"
 			}
+			if !store.IsOpen(t.Status) {
+				mark = cDim.Render(statusMark(t.Status))
+			}
 			if store.IsFinal(t.Status) {
-				mark, title = cDim.Render(statusMark(t.Status)), cDim.Render(title)
+				title = cDim.Render(title)
 			}
 			count := ""
 			if n := len(m.assignedPanes("", t.ID)); n > 0 {

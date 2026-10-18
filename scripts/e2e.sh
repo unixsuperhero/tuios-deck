@@ -653,6 +653,10 @@ check "status says it is skipped" "$SCRATCH/out/14b-skipped.txt" 'hero text is s
 check "a skipped task does not count as open" "$SCRATCH/out/14b-skipped.txt" '◆ web *1 open'
 python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if [t for t in d["tasks"] if t["title"]=="hero text"][0]["status"]=="skipped" else 1)' "$DATA" \
 	&& echo "PASS store holds the subtask as skipped" || { echo "FAIL hero text is not skipped in $DATA"; fails=$((fails+1)); }
+b send-keys -s host -w deck s >/dev/null; settle; deckcap 14c-planned
+check "s again marks the subtask planned" "$SCRATCH/out/14c-planned.txt" '◌ hero text'
+check "status says it is planned" "$SCRATCH/out/14c-planned.txt" 'hero text is planned'
+check "a planned task does not count as open" "$SCRATCH/out/14c-planned.txt" '◆ web *1 open'
 
 echo "== delete the subtask"
 b send-keys -s host -w deck x >/dev/null; settle; deckcap 15-confirm
@@ -727,8 +731,11 @@ check "a skipped project's header shows it" "$SCRATCH/out/16c-project-skipped.tx
 check "project detail shows its status" "$SCRATCH/out/16c-project-skipped.txt" 'status *skipped'
 python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if [p for p in d["projects"] if p["name"]=="web"][0]["status"]=="skipped" else 1)' "$DATA" \
 	&& echo "PASS store holds the project as skipped" || { echo "FAIL web is not skipped in $DATA"; fails=$((fails+1)); }
+b send-keys -s host -w deck s >/dev/null; settle; deckcap 16d-project-planned
+check "a third s marks the project planned, in colour" "$SCRATCH/out/16d-project-planned.txt" '◆ web ◌ planned · 1 open'
+check "status says the project is planned" "$SCRATCH/out/16d-project-planned.txt" 'web is planned'
 b send-keys -s host -w deck s >/dev/null; settle; deckcap 16d-project-open
-check "a third s opens the project again" "$SCRATCH/out/16d-project-open.txt" 'web is open'
+check "a fourth s opens the project again" "$SCRATCH/out/16d-project-open.txt" 'web is open'
 python3 - "$DATA" <<'PY' && echo "PASS the new project's colour is a palette name, not a black" || { echo "FAIL web's colour is not a usable palette name"; fails=$((fails+1)); }
 import json, sys
 d = json.load(open(sys.argv[1]))
@@ -825,6 +832,7 @@ check "e on a project opens its edit form" "$SCRATCH/out/20f-project-form.txt" '
 b send-keys -s host -w deck Enter >/dev/null; b send-text -s host -w deck 'done'; b send-keys -s host -w deck ctrl+s >/dev/null; settle; deckcap 20g-project-edited
 check "status reports the project's change" "$SCRATCH/out/20g-project-edited.txt" 'deck: status done'
 b send-keys -s host -w deck s >/dev/null; settle   # skipped
+b send-keys -s host -w deck s >/dev/null; settle   # planned
 b send-keys -s host -w deck s >/dev/null; settle   # open again for the checks that follow
 
 echo "== M opens the glyph table: move, jump, pick, cancel"
@@ -1112,7 +1120,7 @@ b send-keys -s host -w deck g >/dev/null; b send-keys -s host -w deck s >/dev/nu
 b send-text -s host -w deck 'A'; b send-keys -s host -w deck Up --repeat 60 >/dev/null; settle; deckcap 20t-tree-done
 check "a done project shows with its status mark" "$SCRATCH/out/20t-tree-done.txt" '│     ▏deck  ✓ done'
 cancel_form
-b send-keys -s host -w deck s >/dev/null; settle; b send-keys -s host -w deck s >/dev/null; settle   # skipped, then open
+b send-keys -s host -w deck s >/dev/null; settle; b send-keys -s host -w deck s >/dev/null; settle; b send-keys -s host -w deck s >/dev/null; settle   # skipped, planned, then open
 cancel_form
 
 echo "== the assign tree ends with + add new…, which opens the mass-add screen"

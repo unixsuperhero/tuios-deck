@@ -183,7 +183,7 @@ func (m *Model) outlineView(iw, rows int) []string {
 	w := iw - 4
 	for j := fl.top; j < end; j++ {
 		l, mark := vl[j], ""
-		if j < len(known) && store.IsFinal(known[j]) {
+		if j < len(known) && !store.IsOpen(known[j]) {
 			mark = "  " + statusMark(known[j]) + " " + known[j]
 		}
 		var s string

@@ -18,8 +18,8 @@ import (
 	"time"
 )
 
-// Project groups tasks. Status is "open", "done" or "skipped", like a
-// task's.
+// Project groups tasks. Status is "open", "done", "skipped" or "planned",
+// like a task's.
 type Project struct {
 	ID      string `json:"id"`
 	Name    string `json:"name"`
@@ -311,7 +311,7 @@ func (s *Store) SetProjectTheme(id string, theme Theme) error {
 	return s.save()
 }
 
-// SetProjectStatus marks a project "open", "done" or "skipped".
+// SetProjectStatus marks a project "open", "done", "skipped" or "planned".
 func (s *Store) SetProjectStatus(id, status string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -457,7 +457,7 @@ func (s *Store) SetTaskTheme(id string, theme Theme) error {
 	return s.save()
 }
 
-// SetTaskStatus marks a task "open", "done" or "skipped".
+// SetTaskStatus marks a task "open", "done", "skipped" or "planned".
 func (s *Store) SetTaskStatus(id, status string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -506,11 +506,17 @@ func (s *Store) SetTaskEasy(id string, easy bool) error {
 
 // Statuses is every status a project or task may have, in the order the
 // TUI cycles through them.
-var Statuses = []string{"open", "done", "skipped"}
+var Statuses = []string{"open", "done", "skipped", "planned"}
 
 // IsFinal says whether a status is finished with: done or skipped. A final
 // item no longer counts as open and no longer holds its theme colour.
 func IsFinal(status string) bool { return status == "done" || status == "skipped" }
+
+// IsOpen says whether a status counts as open work: "open" does, and so
+// does no status at all, which reads as open everywhere. A planned item is
+// not final, so it keeps its colour, but it is not open either, and the
+// open counts leave it out.
+func IsOpen(status string) bool { return status == "open" || status == "" }
 
 func checkStatus(status string) error {
 	for _, st := range Statuses {
@@ -518,7 +524,7 @@ func checkStatus(status string) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("status %q is not open, done or skipped", status)
+	return fmt.Errorf("status %q is not open, done, skipped or planned", status)
 }
 
 // DeleteTask removes a task, its subtasks, and the assignments that pointed

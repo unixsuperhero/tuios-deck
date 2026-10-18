@@ -1786,7 +1786,8 @@ function renderTree() {
     const gl = document.createElement('span'); gl.className = 'glyph'; gl.textContent = item.theme.glyph; gl.style.color = item.theme.css;
     label.append(gl, document.createTextNode(kind === 'project' ? item.name : item.title));
     if (item.easy) label.append(document.createTextNode(' [easy]'));
-    if (item.status === 'done') label.append(document.createTextNode(' ✓'));
+    const marks = { done: ' ✓', skipped: ' ⊘', planned: ' ◌' };
+    if (marks[item.status]) label.append(document.createTextNode(marks[item.status]));
     const count = document.createElement('span'); count.className = 'count';
     count.textContent = kind === 'project' ? `${item.open_tasks} open · ${item.panes} pane${item.panes === 1 ? '' : 's'}` : (item.panes ? `${item.panes} pane${item.panes === 1 ? '' : 's'}` : '');
     el.append(label, count);

@@ -210,6 +210,10 @@ check "PATCH task status skipped" "$SCRATCH/out/task-skip.json" '"status":"skipp
 curl -s "$base/api/projects" > "$SCRATCH/out/projects-skip.json"
 check "project carries its status, open by default" "$SCRATCH/out/projects-skip.json" '"name":"deckproj".*"status":"open"'
 check "done and skipped tasks are not open" "$SCRATCH/out/projects-skip.json" '"open_tasks":0'
+curl -s -X PATCH -H "$J" -d '{"status":"planned"}' "$base/api/tasks/$TID" > "$SCRATCH/out/task-planned.json"
+check "PATCH task status planned" "$SCRATCH/out/task-planned.json" '"status":"planned"'
+curl -s "$base/api/projects" > "$SCRATCH/out/projects-planned.json"
+check "a planned task is not open either" "$SCRATCH/out/projects-planned.json" '"open_tasks":0'
 curl -s -X PATCH -H "$J" -d '{"status":"open"}' "$base/api/tasks/$TID" > /dev/null
 curl -s -X PATCH -H "$J" -d '{"status":"skipped"}' "$base/api/projects/$PID" > "$SCRATCH/out/project-skip.json"
 check "PATCH project status skipped" "$SCRATCH/out/project-skip.json" '"status":"skipped"'

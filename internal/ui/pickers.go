@@ -436,7 +436,7 @@ func nodeStatus(n pnode) string {
 	} else if n.Project != nil {
 		st = n.Project.Status
 	}
-	if store.IsFinal(st) {
+	if !store.IsOpen(st) {
 		return " " + cDim.Render(statusMark(st)+" "+st)
 	}
 	return ""

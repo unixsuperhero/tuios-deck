@@ -109,7 +109,7 @@ func (s *Server) paneCounts() (byTask, byProject map[string]int) {
 func (s *Server) projectJSON(p store.Project, panes int) map[string]any {
 	open := 0
 	for _, t := range s.Store.Tasks() {
-		if !store.IsFinal(t.Status) && s.Store.ProjectOf(t.ID) == p.ID {
+		if store.IsOpen(t.Status) && s.Store.ProjectOf(t.ID) == p.ID {
 			open++
 		}
 	}
