@@ -16,16 +16,18 @@ import (
 // pick a winner later. Nothing here records which one they liked.
 
 // purpose is what a picker's choice does: assign the pane selected on the
-// deck page, filter the context page, or choose a focus scope.
+// deck page, filter the context page, choose a focus scope, or choose the
+// active project or task.
 type purpose int
 
 const (
 	purposeAssign purpose = iota
 	purposeFilter
 	purposeFocus
+	purposeActive
 )
 
-func (p purpose) String() string { return [...]string{"assign", "filter", "focus"}[p] }
+func (p purpose) String() string { return [...]string{"assign", "filter", "focus", "active"}[p] }
 
 // pnode is one thing a picker offers. In the assign purpose it is a
 // project or a task; in the filter purpose it starts with a context kind
@@ -229,6 +231,16 @@ func (m *Model) finishProto(n *pnode) tea.Cmd {
 			return m.startFocus(n.Task.ID, "")
 		}
 		return m.startFocus("", n.Project.ID)
+	case run.purpose == purposeActive:
+		switch {
+		case n.New:
+			return m.openNewProjectForm(true, n.Text)
+		case n.Task != nil:
+			return m.setActive("", n.Task.ID)
+		case n.Project != nil:
+			return m.setActive(n.Project.ID, "")
+		}
+		return nil
 	case n.New:
 		m.protoBack = p
 		return m.openMassAdd(m.protoPrefill(n.Text))
@@ -394,6 +406,8 @@ func (m *Model) nodePath(n pnode) string {
 // nodeName is the node's own name, its last segment.
 func nodeName(n pnode) string {
 	switch {
+	case n.New && n.Kind == "project":
+		return newProject
 	case n.New:
 		return addNew
 	case n.Task != nil:

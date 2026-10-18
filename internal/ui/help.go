@@ -188,7 +188,7 @@ func (m *Model) helpRows(mode string) []helpRow {
 			{"esc", "return to deck", "tasks/captures/context/prototypes/history/review"},
 			{"j/k, up/down", "next/previous row", "tasks/captures/context/prototypes/history/review"},
 			{"g/G, home/end", "first/last row", "tasks/context/history"},
-			{"{/}, (/)", "jump group/level", "tasks"}, {"N", "new project", "tasks"}, {"n", "new task/subtask", "tasks"},
+			{"{/}, (/)", "jump group/level", "tasks"}, {"N", "new project: name, git repo, worktree", "tasks"}, {"n", "new task/subtask", "tasks"},
 			{"e", "edit", "tasks"}, {"s", "cycle task status", "tasks"}, {"m/M", "colour/glyph", "tasks"}, {"a", "assign selected pane", "tasks"},
 			{"E", "toggle saved easy-task mark", "tasks; task selected"},
 			{"z", "snooze until midnight / unsnooze", "tasks; task selected"},

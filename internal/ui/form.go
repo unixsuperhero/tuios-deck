@@ -10,8 +10,12 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-// addNew is the last entry of a project or task field's list.
-const addNew = "+ add new…"
+// addNew is the last entry of a project or task field's list; newProject
+// ends the active-project picker.
+const (
+	addNew     = "+ add new…"
+	newProject = "+ new project…"
+)
 
 // listRows is how many entries of a completion list, and how many lines of
 // a multiline value, the form box shows at once.

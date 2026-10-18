@@ -95,6 +95,13 @@ func (m *Model) previewLines(n *pnode, width, height int) []string {
 	switch {
 	case n == nil:
 		lines = append(lines, cDim.Render("nothing highlighted"))
+	case n.New && m.protoRun.purpose == purposeActive:
+		lines = append(lines, cStatus.Render(newProject))
+		lines = append(lines, "opens the new project form: its name, git repo and worktree;")
+		lines = append(lines, "the project becomes the active one")
+		if n.Text != "" {
+			lines = append(lines, "  named "+n.Text)
+		}
 	case n.New:
 		lines = append(lines, cStatus.Render(addNew))
 		lines = append(lines, "opens the mass-add screen with")

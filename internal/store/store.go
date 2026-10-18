@@ -19,13 +19,35 @@ import (
 )
 
 // Project groups tasks. Status is "open", "done", "skipped" or "planned",
-// like a task's.
+// like a task's. Repo is the git repository the project is based on, its
+// root folder, and Worktree the worktree of it the project works in; both
+// may be empty, and a project with a Repo and no Worktree works in the
+// repository itself.
 type Project struct {
-	ID      string `json:"id"`
-	Name    string `json:"name"`
-	Theme   Theme  `json:"theme"`
-	Status  string `json:"status"`
-	Created int64  `json:"created"`
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Theme    Theme  `json:"theme"`
+	Status   string `json:"status"`
+	Repo     string `json:"repo,omitempty"`
+	Worktree string `json:"worktree,omitempty"`
+	Created  int64  `json:"created"`
+}
+
+// Dir is the folder the project works in: its worktree, else its
+// repository, else "".
+func (p Project) Dir() string {
+	if p.Worktree != "" {
+		return p.Worktree
+	}
+	return p.Repo
+}
+
+// Active is the one project and task the deck works in: new panes default
+// to them and to the project's folder. TaskID may be empty; when set it
+// belongs to ProjectID.
+type Active struct {
+	ProjectID string `json:"project_id"`
+	TaskID    string `json:"task_id"`
 }
 
 // Task is a task or a subtask. ParentID is "" for a top-level task, and
@@ -70,6 +92,8 @@ type Store struct {
 	historyError string
 	marks        map[string]int64 // review marks: history id → reviewed_at ms
 	stashes      []StashedPrompt
+	active       Active
+	activeSnap   Active // the pair last written to meta
 	tables
 	afterCommit []func()
 }
@@ -90,6 +114,7 @@ type file struct {
 	Marks       map[string]int64      `json:"review_marks"`
 	History     []HistoryEntry        `json:"history"`
 	Stashes     []StashedPrompt       `json:"prompt_stashes,omitempty"`
+	Active      *Active               `json:"active,omitempty"`
 }
 
 const version = 1
@@ -179,6 +204,55 @@ func (s *Store) RenameProject(id, name string) error {
 	return s.save()
 }
 
+// SetProjectRepo sets the repository and the worktree a project is based
+// on; either may be empty.
+func (s *Store) SetProjectRepo(id, repo, worktree string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	i := s.projectIndex(id)
+	if i < 0 {
+		return fmt.Errorf("no project %s", id)
+	}
+	s.projects[i].Repo, s.projects[i].Worktree = strings.TrimSpace(repo), strings.TrimSpace(worktree)
+	return s.save()
+}
+
+// Active is the active project and task; both empty when none is set.
+func (s *Store) Active() Active {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.active
+}
+
+// SetActive makes a project, or a task and with it its project, the active
+// one; both empty clears it. The task's project wins over projectID.
+func (s *Store) SetActive(projectID, taskID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if taskID != "" {
+		if s.taskIndex(taskID) < 0 {
+			return fmt.Errorf("no task %s", taskID)
+		}
+		projectID = s.projectOf(taskID)
+	}
+	if projectID != "" && s.projectIndex(projectID) < 0 {
+		return fmt.Errorf("no project %s", projectID)
+	}
+	s.active = Active{ProjectID: projectID, TaskID: taskID}
+	return s.save()
+}
+
+// ActiveDir is the folder of the active project, "" when there is none or
+// it has no repository.
+func (s *Store) ActiveDir() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if i := s.projectIndex(s.active.ProjectID); i >= 0 {
+		return s.projects[i].Dir()
+	}
+	return ""
+}
+
 // SetProjectTheme changes a project's theme.
 func (s *Store) SetProjectTheme(id string, theme Theme) error {
 	s.mu.Lock()
@@ -233,6 +307,9 @@ func (s *Store) DeleteProject(id string) error {
 		if s.contexts[j].ProjectID == id {
 			s.contexts[j].ProjectID, s.contexts[j].TaskID = "", ""
 		}
+	}
+	if s.active.ProjectID == id {
+		s.active = Active{}
 	}
 	s.projects = append(s.projects[:i], s.projects[i+1:]...)
 	return s.save()
@@ -442,6 +519,9 @@ func (s *Store) removeTasks(gone map[string]bool) {
 		}
 	}
 	s.tasks = kept
+	if gone[s.active.TaskID] {
+		s.active.TaskID = ""
+	}
 	s.removeNotes(func(n Note) bool { return n.TaskID != "" && gone[n.TaskID] })
 	s.dropQueued(func(q QueuedPrompt) bool { return gone[q.TaskID] })
 	for w, a := range s.assignments {

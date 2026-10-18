@@ -20,12 +20,14 @@ import (
 // they were, and a mutation writes only the rows it changed, in one
 // transaction (see save). History is appended by AddHistory directly.
 
-const schemaVersion = 1
+// schemaVersion 2 added projects.repo and projects.worktree, and the
+// active_project and active_task keys of meta.
+const schemaVersion = 2
 
 const schema = `
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, theme_color TEXT NOT NULL, theme_glyph TEXT NOT NULL,
-	status TEXT NOT NULL, created INTEGER NOT NULL, seq INTEGER NOT NULL);
+	status TEXT NOT NULL, created INTEGER NOT NULL, seq INTEGER NOT NULL, repo TEXT NOT NULL DEFAULT '', worktree TEXT NOT NULL DEFAULT '');
 CREATE TABLE IF NOT EXISTS tasks (id TEXT PRIMARY KEY, parent_id TEXT NOT NULL, project_id TEXT NOT NULL, title TEXT NOT NULL,
 	theme_color TEXT NOT NULL, theme_glyph TEXT NOT NULL, status TEXT NOT NULL, easy INTEGER NOT NULL, snoozed_until INTEGER NOT NULL,
 	created INTEGER NOT NULL, updated INTEGER NOT NULL, seq INTEGER NOT NULL);
@@ -137,6 +139,12 @@ func (s *Store) init(jsonPath string) error {
 		if err := s.db.QueryRow(`SELECT value FROM meta WHERE key = 'schema_version'`).Scan(&v); err != nil {
 			return err
 		}
+		if v == "1" {
+			if err := s.migrate1to2(); err != nil {
+				return fmt.Errorf("migrating schema 1 to 2: %w", err)
+			}
+			v = "2"
+		}
 		if v != fmt.Sprint(schemaVersion) {
 			return fmt.Errorf("schema version %s is not the %d this deck knows", v, schemaVersion)
 		}
@@ -162,6 +170,20 @@ func (s *Store) init(jsonPath string) error {
 		}
 	}
 	return s.load()
+}
+
+// migrate1to2 gives projects their repo and worktree columns, empty for
+// every project that exists.
+func (s *Store) migrate1to2() error {
+	return s.inTx(func(tx *sql.Tx) error {
+		for _, col := range []string{"repo", "worktree"} {
+			if _, err := tx.Exec(`ALTER TABLE projects ADD COLUMN ` + col + ` TEXT NOT NULL DEFAULT ''`); err != nil {
+				return err
+			}
+		}
+		_, err := tx.Exec(`UPDATE meta SET value = '2' WHERE key = 'schema_version'`)
+		return err
+	})
 }
 
 func (s *Store) empty() (bool, error) {
@@ -227,6 +249,13 @@ func (s *Store) load() error {
 	for i, p := range ps {
 		s.stashes[i] = p.StashedPrompt
 	}
+	s.active = Active{}
+	for key, dst := range map[string]*string{"active_project": &s.active.ProjectID, "active_task": &s.active.TaskID} {
+		if err := s.db.QueryRow(`SELECT value FROM meta WHERE key = ?`, key).Scan(dst); err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+	}
+	s.activeSnap = s.active
 	rows, err := s.db.Query(`SELECT ` + historyCols + ` FROM history ORDER BY rowid`)
 	if err != nil {
 		return err
@@ -304,6 +333,10 @@ func (s *Store) importJSON(data []byte) error {
 	}
 	s.migrateReviews(f.Reviews)
 	s.pruneMarks()
+	s.active = Active{}
+	if f.Active != nil {
+		s.active = *f.Active
+	}
 	// Two stashes with one key cannot both be rows; the first, the newer, stays.
 	seen := map[string]bool{}
 	s.stashes = nil
@@ -348,6 +381,10 @@ func (s *Store) ImportJSON(r io.Reader) error {
 func (s *Store) WriteJSON(w io.Writer) error {
 	s.mu.Lock()
 	f := file{Version: version, Projects: s.projects, Tasks: s.tasks, Assignments: s.assignments, Contexts: s.contexts, Reminders: s.reminders, Notes: s.notes, Presets: s.presets, Queue: s.queue, Marks: s.marks, History: s.history, Stashes: s.stashes}
+	if s.active != (Active{}) {
+		a := s.active
+		f.Active = &a
+	}
 	if f.Projects == nil {
 		f.Projects = []Project{}
 	}
@@ -432,6 +469,15 @@ func (s *Store) syncAll(tx *sql.Tx) error {
 			commits = append(commits, c)
 		}
 	}
+	if s.active != s.activeSnap {
+		for key, val := range map[string]string{"active_project": s.active.ProjectID, "active_task": s.active.TaskID} {
+			if _, err := tx.Exec(`INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)`, key, val); err != nil {
+				return err
+			}
+		}
+		a := s.active
+		commits = append(commits, func() { s.activeSnap = a })
+	}
 	s.afterCommit = append(s.afterCommit, commits...)
 	return nil
 }
@@ -463,6 +509,7 @@ func (s *Store) inTx(f func(*sql.Tx) error) error {
 func (s *Store) resetSnapshots() {
 	s.projectT.snap, s.taskT.snap, s.assignT.snap, s.contextT.snap, s.reminderT.snap = nil, nil, nil, nil, nil
 	s.noteT.snap, s.presetT.snap, s.queueT.snap, s.markT.snap, s.stashT.snap = nil, nil, nil, nil, nil
+	s.activeSnap = Active{"\x00", "\x00"} // never equal to a real pair, so the next sync writes it
 }
 
 // table is one in-memory slice mirrored to one sqlite table. fields gives
@@ -664,9 +711,9 @@ type tables struct {
 func newTables() tables {
 	return tables{
 		projectT: table[Project]{name: "projects", ordered: true,
-			cols: []string{"id", "name", "theme_color", "theme_glyph", "status", "created"},
+			cols: []string{"id", "name", "theme_color", "theme_glyph", "status", "created", "repo", "worktree"},
 			fields: func(p *Project) []any {
-				return []any{&p.ID, &p.Name, &p.Theme.Color, &p.Theme.Glyph, &p.Status, &p.Created}
+				return []any{&p.ID, &p.Name, &p.Theme.Color, &p.Theme.Glyph, &p.Status, &p.Created, &p.Repo, &p.Worktree}
 			}},
 		taskT: table[Task]{name: "tasks", ordered: true,
 			cols: []string{"id", "parent_id", "project_id", "title", "theme_color", "theme_glyph", "status", "easy", "snoozed_until", "created", "updated"},

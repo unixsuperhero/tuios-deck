@@ -134,18 +134,6 @@ func (m *Model) resolvePreset(name string) (*store.Preset, string) {
 	return nil, "no preset " + name + " (tab lists them)"
 }
 
-// presetCwd is where a new agent or terminal starts: the cwd typed, else
-// the preset's, else the selected pane's.
-func presetCwd(typed string, pr *store.Preset, p *panes.Pane) string {
-	switch {
-	case strings.TrimSpace(typed) != "":
-		return typed
-	case pr != nil && pr.Cwd != "":
-		return pr.Cwd
-	}
-	return cwdDefault(p)
-}
-
 // presetPrefix puts the preset's prefix, once, in front of a prompt. An
 // empty prompt stays empty: the prefix alone is not a prompt.
 func presetPrefix(pr *store.Preset, text string) string {
@@ -155,12 +143,12 @@ func presetPrefix(pr *store.Preset, text string) string {
 	return store.ApplyPrefix(pr.Prefix, text)
 }
 
-// cwdHint says where an empty cwd field will start, given the preset the
-// form's preset field names right now.
-func (m *Model) cwdHint(f *form, presetIdx int, p *panes.Pane) func() string {
+// cwdHint says where an empty cwd field will start, given the preset, the
+// task and the project the form's fields name right now.
+func (m *Model) cwdHint(f *form, presetIdx, taskIdx, projectIdx int, p *panes.Pane) func() string {
 	return func() string {
 		pr, _ := m.resolvePreset(f.Fields[presetIdx].Value)
-		return "empty starts in " + presetCwd("", pr, p) + " · ctrl+o chooses a folder"
+		return "empty starts in " + m.startDir("", pr, f.Fields[taskIdx].result(), f.Fields[projectIdx].result(), p) + " · ctrl+o chooses a folder"
 	}
 }
 

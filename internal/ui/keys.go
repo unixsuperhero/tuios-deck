@@ -137,6 +137,8 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "F":
 		return m, m.openFocus()
+	case "S":
+		return m, m.openSwitchActive()
 	case "q", "ctrl+c":
 		m.confirm = confirmState{Text: "quit the deck? the panes stay (Y/n)", Do: tea.Quit}
 		m.mode = modeConfirm
@@ -418,15 +420,15 @@ func (m *Model) openAgentForm() tea.Cmd {
 		Done: func(v []string) tea.Cmd {
 			taskID, projectID, _, _ := m.resolveTarget(v[4], v[5], 4, 5, false)
 			pr, _ := m.resolvePreset(v[6])
-			return m.startAgent(v[0], v[1], v[2], presetCwd(v[3], pr, p), presetPrefix(pr, v[7]), taskID, projectID)
+			return m.startAgent(v[0], v[1], v[2], m.startDir(v[3], pr, v[4], v[5], p), presetPrefix(pr, v[7]), taskID, projectID)
 		},
 	}
 	f := m.form
-	f.Fields[3].HintFn = m.cwdHint(f, 6, p)
+	f.Fields[3].HintFn = m.cwdHint(f, 6, 4, 5, p)
 	m.cwdKey(f, "cwd")
 	f.cwdFn = func() string {
 		pr, _ := m.resolvePreset(f.Fields[6].result())
-		return expandHome(presetCwd(f.Fields[3].result(), pr, p))
+		return expandHome(m.startDir(f.Fields[3].result(), pr, f.Fields[4].result(), f.Fields[5].result(), p))
 	}
 	f.enableAttach(7, func() string { return strings.TrimSpace(f.Fields[1].result()) })
 	return nil
@@ -459,10 +461,10 @@ func (m *Model) openTerminalForm() tea.Cmd {
 		Done: func(v []string) tea.Cmd {
 			taskID, projectID, _, _ := m.resolveTarget(v[3], v[4], 3, 4, false)
 			pr, _ := m.resolvePreset(v[5])
-			return m.newTerminal(v[0], v[1], presetCwd(v[2], pr, p), taskID, projectID)
+			return m.newTerminal(v[0], v[1], m.startDir(v[2], pr, v[3], v[4], p), taskID, projectID)
 		},
 	}
-	m.form.Fields[2].HintFn = m.cwdHint(m.form, 5, p)
+	m.form.Fields[2].HintFn = m.cwdHint(m.form, 5, 3, 4, p)
 	m.cwdKey(m.form, "cwd")
 	return nil
 }

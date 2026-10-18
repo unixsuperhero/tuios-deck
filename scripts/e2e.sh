@@ -611,7 +611,7 @@ check "project detail lists the panes assigned under it" "$SCRATCH/out/10-tasks.
 
 echo "== new project, task and subtask"
 b send-keys -s host -w deck 'N i' >/dev/null; settle
-b send-text -s host -w deck 'web'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 11-project
+b send-text -s host -w deck 'web'; b send-keys -s host -w deck ctrl+s >/dev/null; settle; deckcap 11-project   # enter would move on to the repo field
 check "project added and selected" "$SCRATCH/out/11-project.txt" 'added project web'
 check "project detail shows its theme" "$SCRATCH/out/11-project.txt" 'theme *[a-z-]* ◆'
 b send-keys -s host -w deck 'n i' >/dev/null; settle; deckcap 11b-task-form

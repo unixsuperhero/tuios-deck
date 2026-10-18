@@ -252,6 +252,41 @@ A project holds top-level tasks; a task holds subtasks, to any depth, in
 the same table. A subtask stores no project of its own: its project is its
 root task's.
 
+A project is based on a git repository: its `repo` is the repository's
+root folder and its `worktree` the worktree of it the project works in,
+empty for the repository itself. Both are optional. The new project form
+(`N` on the tasks page, `new project` in the palette, `+ new project…` in
+the active-project picker) asks for the name, the repo folder (`ctrl+o`
+opens the folder dialog) and the worktree, listing the repository's
+worktrees from `git worktree list` once a repo is named. A folder that is
+not a repository is made one with `git init`, created when it is missing,
+and the repo stored is the root git reports. The project edit form (`e`)
+has the same two fields after the glyph. The web API carries `repo` and
+`worktree` on a project and takes them on create and patch, stored as
+given; only the TUI runs git.
+
+### The active project and task
+
+One project, and optionally one of its tasks, is **active**: the title line
+shows it after the page as `▶ ◆ deck › landing`, the tasks page marks its
+row `▶`, and its detail says so. `S` on any page opens the tree picker on
+the current pair: pick a project or a task, and its last row, `+ new
+project…`, opens the new project form and makes the project it adds the
+active one. On the tasks page `S` makes the selected row active at once.
+The palette has `active project or task…` and `clear active project`; the
+pair is kept in the store, so it survives a restart, and it is cleared when
+its project or task is deleted.
+
+The new agent (`n`), new terminal (`t`), queued-prompt and new editor (`v`)
+forms start from the active pair: the task field holds the active task's
+path and the project field defaults to the active project (else to the
+selected pane's project), and an empty cwd starts the pane in the project's
+folder, its worktree else its repo. The order for an empty cwd is: the
+preset's cwd, then the folder of the project the form's task or project
+names, then the selected pane's cwd. The cwd hint under the field says
+which folder that is as you change the fields. Focus mode's prefills win
+over the active pair.
+
 A project's or a task's status is `open`, `done`, `skipped` or `planned`.
 Done and skipped are final: a final task no longer counts as open, and a
 final project or task no longer holds its colour. A planned item is not
@@ -779,8 +814,8 @@ With the rail focused:
 | `s` | Cycle rail sort: default, name, state, harness, session. Configurable as `sort_next`; only on the deck page |
 | `R` | Reset the deck to session grouping and default sort, keeping selection, detail scroll and focus scope |
 | `o` `O` | Group the list the next way, or the previous one (below) |
-| `n` | Start an agent: session, agent command, name, cwd, task or project, first prompt. Waits until it is at its prompt |
-| `t` | Open a terminal: session, name, cwd, task or project. Always an interactive shell, the pane tuios itself opens; send commands to it with `p`. Creates the session when it does not exist |
+| `n` | Start an agent: session, agent command, name, cwd, task or project, first prompt. Waits until it is at its prompt. The task, project and cwd default to the active pair and its folder |
+| `t` | Open a terminal: session, name, cwd, task or project. Always an interactive shell, the pane tuios itself opens; send commands to it with `p`. Creates the session when it does not exist. Defaults like `n` |
 | `p` | Send a prompt. An agent gets it through `queue-prompt`, typed when the agent is at rest; a plain terminal gets the text and Enter |
 | `a` | Assign the pane to a task or a project through the assign tree (below) |
 | `w` | The task tree modal for the selected pane or group header: its whole project, managed in place (below) |
@@ -790,6 +825,7 @@ With the rail focused:
 | `enter` | Go live on the pane: type into it until `ctrl+a d` (below) |
 | `r` | Refresh |
 | `T` `C` `I` `U` `A` | The tasks page, the captures page, the context page, the prototypes page, the mass-add screen |
+| `S` | The active project or task: the tree picker, with `+ new project…` last (see [The active project and task](#the-active-project-and-task)) |
 | `V` | The completed prompt review queue (Enter opens and marks reviewed) |
 | `:` `ctrl+p` | The command palette |
 | `q` | Quit, after a confirmation; the panes stay |
@@ -940,9 +976,10 @@ listing has no reliable recency timestamp.
 | `j` `k` `g` `G` | Select a project or a task |
 | `{` `}` | The previous or next row at the same depth: project to project, task to task |
 | `(` `)` | The parent row (a task's project or parent task), or the first child |
-| `N` | New project: its name |
+| `N` | New project: its name, the git repo it is based on and the worktree to work in |
+| `S` | Make the selected project or task the active one |
 | `n` | New task under the selected project, or a new subtask under the selected task. The form's parent field starts at the row; `ctrl+h` walks it up a level (to the project's top level at most) and `ctrl+l` back down, from any field, so a top-level task is a few keys away from a subtask row |
-| `e` | Edit the row in one form: a task's title, parent, status, colour and glyph; a project's name, status, colour and glyph. The parent lists `(top level of <project>)` for every project and every task but the row and its subtasks, so a task moves within its project or to another, subtasks and all. Only what changed is written, and the status line says what that was |
+| `e` | Edit the row in one form: a task's title, parent, status, colour and glyph; a project's name, status, colour, glyph, repo and worktree. The parent lists `(top level of <project>)` for every project and every task but the row and its subtasks, so a task moves within its project or to another, subtasks and all. Only what changed is written, and the status line says what that was |
 | `s` | Cycle the task's or project's status: open, done, skipped, planned, open |
 | `m` | The next colour for the row's theme: the free ones first, then the rest of the palette |
 | `M` | Pick the row's glyph from the glyph table (above) |
@@ -1435,9 +1472,9 @@ an unassigned pane, for clients from before the store; one that sends them
 empty is refused.
 
 ```
-GET    /api/projects                           {"projects": [{id, name, theme: {color, glyph, css}, status, created, open_tasks, panes}]}
-POST   /api/projects                           {"name", "theme"?: {"color", "glyph"}}
-PATCH  /api/projects/{id}                      {"name"}, {"status": "open"|"done"|"skipped"|"planned"}, {"theme": {"color", "glyph"}}, either half of the theme alone
+GET    /api/projects                           {"projects": [{id, name, theme: {color, glyph, css}, status, repo, worktree, created, open_tasks, panes}]}
+POST   /api/projects                           {"name", "theme"?: {"color", "glyph"}, "repo"?, "worktree"?}; the paths are stored as given
+PATCH  /api/projects/{id}                      {"name"}, {"status": "open"|"done"|"skipped"|"planned"}, {"theme": {"color", "glyph"}}, either half of the theme alone, {"repo"}, {"worktree"}
 DELETE /api/projects/{id}                      with its tasks and their assignments; the answer counts them
 GET    /api/tasks?project=                     {"tasks": [{id, parent_id, project_id, title, path, depth, theme, status, easy, snoozed_until, panes, …}]}
 POST   /api/tasks                              {"project_id", "title"} for a top-level task; {"parent_id", "title"} for a subtask; "theme"?

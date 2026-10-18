@@ -94,20 +94,30 @@ func (m *Model) resolveTarget(task, project string, taskField, projectField int,
 }
 
 // targetFields are the task and project fields a form takes after cwd. The
-// project defaults to the selected pane's project. Focus prefills editable
+// task starts as the active task and the project defaults to the active
+// project, else to the selected pane's project. Focus prefills editable
 // values so creation works with an empty scope and explicit choices still win.
 func (m *Model) targetFields(keep bool) []field {
-	project := ""
-	if p := m.selected(); p != nil {
+	project, task := "", ""
+	if a := m.store.Active(); a.ProjectID != "" {
+		if pr := m.store.Project(a.ProjectID); pr != nil {
+			project = pr.Name
+		}
+		if t := m.store.Task(a.TaskID); t != nil {
+			task = m.taskPath(*t)
+		}
+	}
+	if p := m.selected(); p != nil && project == "" {
 		if pr, _, _ := m.store.Resolve(p.ID); pr != nil {
 			project = pr.Name
 		}
 	}
 	fields := []field{
-		{Label: "task", Keep: true, Options: m.taskOptions, Preview: m.taskPreview, New: "task"},
+		{Label: "task", Keep: true, Value: task, Options: m.taskOptions, Preview: m.taskPreview, New: "task"},
 		{Label: "project", Default: project, Keep: keep, Options: m.projectOptions, Preview: m.projectPreview, New: "project"},
 	}
 	if m.focus != nil {
+		fields[0].Value = ""
 		fields[1].Default = ""
 		if t := m.store.Task(m.focus.taskID); t != nil {
 			fields[0].Value = m.taskPath(*t)

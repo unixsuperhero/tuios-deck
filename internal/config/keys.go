@@ -32,6 +32,7 @@ var actions = map[string][]Action{
 		{"tasks", "T", "go to the tasks page", true},
 		{"focus", "F", "focus a task or project, or unlock", true},
 		{"focus_plan", "ctrl+f", "toggle the saved easy-task focus plan", true},
+		{"active", "S", "choose the active project or task; on the tasks page the selected row becomes active", true},
 		{"captures", "C", "go to the captures page", true},
 		{"add_many", "A", "add projects and tasks from an outline", true},
 		{"context", "I", "go to the context page", true},

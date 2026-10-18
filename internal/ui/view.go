@@ -171,6 +171,9 @@ func (m *Model) titleLine() string {
 		}
 	}
 	s := cTitle.Render(" tuios-deck ") + cTabOn.Render(" "+m.page.String()+" ")
+	if a := m.activeTitle(); a != "" {
+		s += " " + a
+	}
 	if m.live != nil {
 		s += " " + cLive.Render(" LIVE "+m.live.name+" ")
 	}

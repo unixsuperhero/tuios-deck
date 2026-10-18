@@ -355,6 +355,8 @@ func (m *Model) deckCommands() []palItem {
 		{"deck", "go to history", "the persisted history timeline", func() tea.Cmd { m.openHistory(); return nil }},
 		{"deck", "live", "go live: type into the selected pane until the prefix and detach (enter)", needPane(func(*panes.Pane) tea.Cmd { return m.openLive() })},
 		{"deck", "task tree…", "review and manage the selected pane's or group's project tree (w)", m.openTree},
+		{"deck", "active project or task…", "choose the pair new panes default to and start in (S)", m.openSwitchActive},
+		{"deck", "clear active project", "no active pair: new panes start where the selected pane is", func() tea.Cmd { return m.setActive("", "") }},
 		{"deck", "filter context…", "filter the context page by kind, project, task or item text (f on the page)", func() tea.Cmd { m.openContext(); return m.openContextFilter() }},
 		{"deck", "prototypes", "try the picker prototypes for assign and filter (U)", func() tea.Cmd { m.openProtos(); return nil }},
 		{"deck", "context scope: current pane / all", "toggle the context page between the selected pane's items and all (t on the page)", func() tea.Cmd {
@@ -384,7 +386,7 @@ func (m *Model) deckCommands() []palItem {
 	items = append(items, palItem{"deck", "group by…", "group the left rail by levels such as project > parent task", m.openGroupingForm})
 	items = append(items, m.reminderCommands()...)
 	return append(items,
-		palItem{"deck", "new project", "add a project (N on the tasks page)", m.openProjectForm},
+		palItem{"deck", "new project", "add a project on a git repo (N on the tasks page)", m.openProjectForm},
 		palItem{"deck", "new task", "add a top-level task; the project of the selected pane is offered", m.openNewTaskForm},
 		palItem{"deck", "new subtask of…", "add a subtask under a task", m.openSubtaskForm},
 		palItem{"deck", "add many…", "add projects, tasks and subtasks from an indented outline (A)", func() tea.Cmd { return m.openMassAdd("") }},

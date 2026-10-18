@@ -422,30 +422,55 @@ func (m *Model) assignSelectedPane() tea.Cmd {
 	return m.storeChange(err, "assigned "+p.Session+" › "+p.Name+" to "+a.path)
 }
 
-func (m *Model) openProjectForm() tea.Cmd {
-	m.mode = modeForm
-	m.form = &form{
-		Title:  "new project",
-		Fields: []field{{Label: "name", Keep: true}},
-		Validate: func(v []string) (int, string) {
-			if v[0] == "" {
-				return 0, "name is empty"
+func (m *Model) openProjectForm() tea.Cmd { return m.openNewProjectForm(false, "") }
+
+// openNewProjectForm adds a project: its name, the git repository it is
+// based on (a folder that is not one is made one) and the worktree of it
+// to work in. With activate the new project becomes the active one.
+func (m *Model) openNewProjectForm(activate bool, name string) tea.Cmd {
+	f := &form{Title: "new project"}
+	f.Fields = []field{
+		{Label: "name", Keep: true, Value: name},
+		{Label: "repo", Keep: true, Hint: repoHint},
+		{Label: "worktree", Keep: true, Options: m.worktreeOptions(f, 1), Hint: worktreeHint},
+	}
+	f.Validate = func(v []string) (int, string) {
+		if v[0] == "" {
+			return 0, "name is empty"
+		}
+		if m.store.ProjectByName(v[0]) != nil {
+			return 0, "project " + v[0] + " exists"
+		}
+		return checkRepoFields(v[1], v[2], 1)
+	}
+	f.Done = func(v []string) tea.Cmd {
+		return func() tea.Msg {
+			repo, worktree, err := prepareRepo(v[1], v[2])
+			if err != nil {
+				return actionMsg{err: err}
 			}
-			if m.store.ProjectByName(v[0]) != nil {
-				return 0, "project " + v[0] + " exists"
+			p, err := m.store.AddProject(v[0], nil)
+			if err != nil {
+				return actionMsg{err: err}
 			}
-			return 0, ""
-		},
-		Done: func(v []string) tea.Cmd {
-			return func() tea.Msg {
-				p, err := m.store.AddProject(v[0], nil)
-				if err != nil {
+			status := "added project " + p.Name
+			if repo != "" {
+				if err := m.store.SetProjectRepo(p.ID, repo, worktree); err != nil {
 					return actionMsg{err: err}
 				}
-				return actionMsg{status: "added project " + p.Name, selectRow: p.ID}
+				status += " on " + shortenHome(repo)
 			}
-		},
+			if activate {
+				if err := m.store.SetActive(p.ID, ""); err != nil {
+					return actionMsg{err: err}
+				}
+				status += " · active"
+			}
+			return actionMsg{status: status, selectRow: p.ID}
+		}
 	}
+	m.cwdKey(f, "repo")
+	m.mode, m.form = modeForm, f
 	return nil
 }
 
@@ -764,19 +789,24 @@ func (m *Model) editRow(r trow) tea.Cmd {
 
 func (m *Model) openProjectEditForm(p store.Project) tea.Cmd {
 	m.mode = modeForm
-	m.form = &form{
+	f := &form{
 		Title: "edit project " + p.Name,
 		Fields: []field{
 			{Label: "name", Default: p.Name},
 			{Label: "status", Default: p.Status, Options: statusOptions},
 			{Label: "colour", Default: p.Theme.Color, Options: m.colorOptions(p.ID)},
 			{Label: "glyph", Default: p.Theme.Glyph},
+			{Label: "repo", Keep: true, Value: p.Repo, Hint: repoHint},
+			{Label: "worktree", Keep: true, Value: p.Worktree, Hint: worktreeHint},
 		},
 		Validate: func(v []string) (int, string) {
 			if o := m.store.ProjectByName(v[0]); o != nil && o.ID != p.ID {
 				return 0, "project " + v[0] + " exists"
 			}
 			if i, msg := checkStatusField(v[1], 1); msg != "" {
+				return i, msg
+			}
+			if i, msg := checkRepoFields(v[4], v[5], 4); msg != "" {
 				return i, msg
 			}
 			return checkTheme(v[2], v[3], 2)
@@ -789,6 +819,23 @@ func (m *Model) openProjectEditForm(p store.Project) tea.Cmd {
 						return actionMsg{err: err}
 					}
 					did = append(did, "renamed to "+v[0])
+				}
+				if v[4] != p.Repo || v[5] != p.Worktree {
+					repo, worktree, err := prepareRepo(v[4], v[5])
+					if err != nil {
+						return actionMsg{err: err}
+					}
+					if err := m.store.SetProjectRepo(p.ID, repo, worktree); err != nil {
+						return actionMsg{err: err}
+					}
+					switch {
+					case repo == "":
+						did = append(did, "no repo")
+					case worktree != "":
+						did = append(did, "repo "+shortenHome(repo), "worktree "+shortenHome(worktree))
+					default:
+						did = append(did, "repo "+shortenHome(repo), "the repo itself")
+					}
 				}
 				if v[1] != p.Status {
 					if err := m.store.SetProjectStatus(p.ID, v[1]); err != nil {
@@ -806,7 +853,10 @@ func (m *Model) openProjectEditForm(p store.Project) tea.Cmd {
 			}
 		},
 	}
-	m.glyphField(m.form, 3, trow{Project: &p}, 2, 0)
+	f.Fields[5].Options = m.worktreeOptions(f, 4)
+	m.form = f
+	m.cwdKey(f, "repo") // before glyphField, which chains onto OnKey
+	m.glyphField(f, 3, trow{Project: &p}, 2, 0)
 	return nil
 }
 
@@ -856,6 +906,9 @@ func (m *Model) taskListLines(width, height int) []string {
 			if store.IsFinal(r.Project.Status) {
 				name = cDim
 			}
+			if m.isActive(r.Project.ID, "") {
+				text = " ▶" + text
+			}
 			count := cDim.Render(text)
 			glyph := themeStyle(r.Project.Theme).Render(r.Project.Theme.Glyph)
 			line = glyph + " " + name.Render(ansi.Truncate(r.Project.Name, width-2-ansi.StringWidth(count), "…")) + count
@@ -876,6 +929,9 @@ func (m *Model) taskListLines(width, height int) []string {
 			count := ""
 			if n := len(m.assignedPanes("", t.ID)); n > 0 {
 				count = cDim.Render(plural(n, "pane"))
+			}
+			if m.isActive("", t.ID) {
+				count = cDim.Render("▶ ") + count
 			}
 			room := width - len(indent) - 4 - ansi.StringWidth(count) - 1
 			if room < 1 {
@@ -927,7 +983,16 @@ func (m *Model) taskDetailLines(width, height int) []string {
 		p := r.Project
 		total, open := m.projectCounts(p.ID)
 		lines = append(lines, themeStyle(p.Theme).Render(p.Theme.Glyph)+" "+cTitle.Render(p.Name))
+		if m.isActive(p.ID, "") {
+			field("active", "yes · new panes default to it")
+		}
 		field("status", p.Status)
+		if p.Repo != "" {
+			field("repo", shortenHome(p.Repo))
+		}
+		if p.Worktree != "" {
+			field("worktree", shortenHome(p.Worktree))
+		}
 		field("theme", p.Theme.Color+" "+p.Theme.Glyph)
 		field("tasks", fmt.Sprintf("%d (%d open)", total, open))
 		field("created", time.Unix(p.Created, 0).Format("2006-01-02 15:04"))
@@ -944,6 +1009,9 @@ func (m *Model) taskDetailLines(width, height int) []string {
 			path += " › " + c.Title
 		}
 		field("path", path)
+		if m.isActive("", t.ID) {
+			field("active", "yes · new panes default to it")
+		}
 		field("status", t.Status)
 		if t.SnoozedUntil > time.Now().Unix() {
 			field("snoozed", "until "+time.Unix(t.SnoozedUntil, 0).Format("2006-01-02 15:04"))

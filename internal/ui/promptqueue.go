@@ -87,7 +87,7 @@ func (m *Model) openQueueForm(edit *store.QueuedPrompt) tea.Cmd {
 	fields = append(fields,
 		field{Label: "agent", Default: "claude", Hint: "started when the prompt runs, unless a pane is chosen"},
 		field{Label: "session", Default: session},
-		field{Label: "cwd", Keep: true, Hint: "where the agent starts; empty takes the preset's, else the selected pane's · ctrl+o chooses a folder"},
+		field{Label: "cwd", Keep: true, Hint: "where the agent starts; empty takes the preset's, else the project's folder, else the selected pane's · ctrl+o chooses a folder"},
 		field{Label: "pane", Keep: true, Options: m.paneOptions, Preview: m.paneLabelPreview, Hint: "send to this running agent instead of starting one; empty starts the agent"},
 		field{Label: "prompt", Keep: true, Multi: true, Prompt: true},
 	)
@@ -149,7 +149,7 @@ func (m *Model) openQueueForm(edit *store.QueuedPrompt) tea.Cmd {
 		q := store.QueuedPrompt{
 			TaskID: taskID, ProjectID: projectID,
 			Agent: val(v, "agent"), Session: val(v, "session"),
-			Cwd:  presetCwd(val(v, "cwd"), pr, m.queueBasePane(val(v, "pane"), sel)),
+			Cwd:  m.startDir(val(v, "cwd"), pr, val(v, "task"), val(v, "project"), m.queueBasePane(val(v, "pane"), sel)),
 			Text: val(v, "prompt"),
 		}
 		if pr != nil {
@@ -207,7 +207,7 @@ func (m *Model) openQueueForm(edit *store.QueuedPrompt) tea.Cmd {
 		if i, ok := idx["preset"]; ok {
 			pr, _ = m.resolvePreset(f.Fields[i].Value)
 		}
-		return expandHome(presetCwd(live("cwd"), pr, m.queueBasePane(live("pane"), sel)))
+		return expandHome(m.startDir(live("cwd"), pr, live("task"), live("project"), m.queueBasePane(live("pane"), sel)))
 	}
 	f.enableAttach(idx["prompt"], func() string {
 		if p := m.findPaneLabel(live("pane")); p != nil {

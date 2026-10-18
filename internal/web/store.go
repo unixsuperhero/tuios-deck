@@ -115,6 +115,7 @@ func (s *Server) projectJSON(p store.Project, panes int) map[string]any {
 	}
 	return map[string]any{
 		"id": p.ID, "name": p.Name, "theme": themeJSON(p.Theme), "status": p.Status, "created": p.Created,
+		"repo": p.Repo, "worktree": p.Worktree,
 		"open_tasks": open, "panes": panes,
 	}
 }
@@ -272,8 +273,10 @@ func (s *Server) listProjects(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) createProject(w http.ResponseWriter, r *http.Request) {
 	var in struct {
-		Name  string   `json:"name"`
-		Theme *themeIn `json:"theme"`
+		Name     string   `json:"name"`
+		Theme    *themeIn `json:"theme"`
+		Repo     string   `json:"repo"`
+		Worktree string   `json:"worktree"`
 	}
 	if err := readJSON(r, &in); err != nil {
 		badRequest(w, "bad json: "+err.Error())
@@ -289,6 +292,14 @@ func (s *Server) createProject(w http.ResponseWriter, r *http.Request) {
 		storeErr(w, err)
 		return
 	}
+	if in.Repo != "" || in.Worktree != "" {
+		// The paths are stored as given; the TUI's form is what runs git.
+		if err := s.Store.SetProjectRepo(p.ID, in.Repo, in.Worktree); err != nil {
+			storeErr(w, err)
+			return
+		}
+		p = *s.Store.Project(p.ID)
+	}
 	writeJSON(w, 200, map[string]any{"status": "created project " + p.Name, "project": s.projectJSON(p, 0)})
 }
 
@@ -300,9 +311,11 @@ func (s *Server) patchProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var in struct {
-		Name   *string  `json:"name"`
-		Status *string  `json:"status"`
-		Theme  *themeIn `json:"theme"`
+		Name     *string  `json:"name"`
+		Status   *string  `json:"status"`
+		Theme    *themeIn `json:"theme"`
+		Repo     *string  `json:"repo"`
+		Worktree *string  `json:"worktree"`
 	}
 	if err := readJSON(r, &in); err != nil {
 		badRequest(w, "bad json: "+err.Error())
@@ -310,6 +323,19 @@ func (s *Server) patchProject(w http.ResponseWriter, r *http.Request) {
 	}
 	if in.Name != nil {
 		if err := s.Store.RenameProject(id, *in.Name); err != nil {
+			storeErr(w, err)
+			return
+		}
+	}
+	if in.Repo != nil || in.Worktree != nil {
+		repo, worktree := p.Repo, p.Worktree
+		if in.Repo != nil {
+			repo = *in.Repo
+		}
+		if in.Worktree != nil {
+			worktree = *in.Worktree
+		}
+		if err := s.Store.SetProjectRepo(id, repo, worktree); err != nil {
 			storeErr(w, err)
 			return
 		}

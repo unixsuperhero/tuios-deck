@@ -178,7 +178,11 @@ func (t *treeView) rows() []tvRow {
 	if filter {
 		return out
 	}
-	return append(out, tvRow{n: pnode{New: true, Text: strings.TrimSpace(t.query)}})
+	last := pnode{New: true, Text: strings.TrimSpace(t.query)}
+	if t.purpose == purposeActive {
+		last.Kind = "project" // "+ new project…": the new project form, not the mass-add screen
+	}
+	return append(out, tvRow{n: last})
 }
 
 // place keeps the selection on the same node after the rows change.
@@ -434,9 +438,9 @@ func (t *treeView) view(width, height int) []string {
 func (t *treeView) rowLine(r tvRow, width int, sel bool) string {
 	var line string
 	if r.n.New {
-		line = " " + hlText(addNew, nil, sel)
+		line = " " + hlText(nodeName(r.n), nil, sel)
 		if !sel {
-			line = " " + cStatus.Render(addNew)
+			line = " " + cStatus.Render(nodeName(r.n))
 		}
 	} else {
 		mark := "  "
