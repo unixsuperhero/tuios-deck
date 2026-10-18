@@ -343,6 +343,7 @@ func (m *Model) openPromptForm() tea.Cmd {
 	m.mode = modeForm
 	m.form = &form{
 		Title:  "prompt",
+		Cur:    1, // the text, not the preset: shift+tab reaches the preset
 		Fields: []field{m.presetField("its prefix goes in front of the text"), {Label: label, Keep: true, Multi: true}},
 		Validate: func(v []string) (int, string) {
 			if _, msg := m.resolvePreset(v[0]); msg != "" {

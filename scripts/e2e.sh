@@ -194,6 +194,31 @@ a call list-queued '{"session":"target","window":"fake"}' > "$SCRATCH/out/05h-qu
 check "the queued text holds the quoted references with their real paths" "$SCRATCH/out/05h-queued.json" '@\\"spaced name.txt\\" @\\"my dir/inner file.txt\\"'
 a call cancel-queued '{"session":"target","window":"fake","all":true}' >/dev/null
 
+echo "== a prompt takes capitals, opens on the text, and shift+tab reaches the preset"
+select_pane 2
+b send-keys -s host -w deck p >/dev/null; settle
+b send-keys -s host -w deck H >/dev/null; b send-text -s host -w deck 'ello '; b send-keys -s host -w deck W >/dev/null; settle; deckcap 05i-capitals
+check "capitals typed with shift reach the prompt" "$SCRATCH/out/05i-capitals.txt" 'Hello W▏'
+b send-keys -s host -w deck shift+tab >/dev/null; settle; deckcap 05j-preset
+check "shift+tab from the prompt reaches the preset field" "$SCRATCH/out/05j-preset.txt" '› preset: ▏'
+b send-keys -s host -w deck Escape >/dev/null; settle
+
+echo "== a queued prompt takes @ files and / commands of the agent it will start"
+b send-keys -s host -w deck ctrl+p >/dev/null; settle
+b send-text -s host -w deck 'queue prompt'; b send-keys -s host -w deck Enter >/dev/null; settle
+b send-text -s host -w deck 'comm'; b send-keys -s host -w deck Tab >/dev/null
+for i in 1 2 3 4 5 6; do b send-keys -s host -w deck Enter >/dev/null; done   # task, project, preset, agent, session, cwd
+settle; deckcap 05k-queue-pane
+b send-keys -s host -w deck Enter >/dev/null                                  # pane: none, the agent field decides
+b send-text -s host -w deck '/e2e-'; settle; deckcap 05l-queue-slash
+check "the queue form lists the claude-code project command" "$SCRATCH/out/05l-queue-slash.txt" '▸ e2e-cmd'
+b send-keys -s host -w deck Tab >/dev/null
+b send-text -s host -w deck 'see @deck.j'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 05m-queue-attach
+check "the queue form's @ keeps the reference in the prompt" "$SCRATCH/out/05m-queue-attach.txt" '/e2e-cmd see @deck.json'
+check "the queue form's help names ctrl+o pick files" "$SCRATCH/out/05m-queue-attach.txt" 'ctrl+o pick files'
+b send-keys -s host -w deck ctrl+s >/dev/null; settle
+check "the queued prompt is stored as typed" "$DATA" '/e2e-cmd see @deck.json'
+
 echo "== OMP: /skill:<name> and /<command> from its own folders"
 mkdir -p "$SCRATCH/.omp/commands" "$SCRATCH/.omp/skills/omp-skill" "$SCRATCH/.omp/skills/omp-nodesc" "$SCRATCH/.omp/skills/omp-off"
 printf 'run\n' > "$SCRATCH/.omp/commands/omp-cmd.md"
@@ -371,7 +396,8 @@ b send-keys -s host -w deck Enter >/dev/null            # session
 b send-text -s host -w deck 'nope'; b send-keys -s host -w deck Enter >/dev/null
 b send-keys -s host -w deck Enter >/dev/null            # cwd
 b send-keys -s host -w deck Enter >/dev/null            # no task
-b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 06b-required   # no project either
+b send-keys -s host -w deck Enter >/dev/null            # no project either
+b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 06b-required   # no preset
 check "form refuses without a task or a project" "$SCRATCH/out/06b-required.txt" 'a task or a project is required'
 b send-keys -s host -w deck Escape >/dev/null; settle
 a list-windows -s target --json > "$SCRATCH/out/a-windows-nope.json"
@@ -386,6 +412,7 @@ b send-text -s host -w deck 'comm'; b send-keys -s host -w deck Tab >/dev/null; 
 check "tab completes the task from its title" "$SCRATCH/out/06c-complete.txt" 'task: deck / command palette'
 b send-keys -s host -w deck Enter >/dev/null            # task
 b send-keys -s host -w deck Enter >/dev/null            # project: implied by the task
+b send-keys -s host -w deck Enter >/dev/null            # no preset
 a wait-for window-output -s target -w extra --pattern '.' --timeout 10000 >/dev/null 2>&1 || true
 a list-windows -s target --json > "$SCRATCH/out/a-windows.json"
 check "extra terminal opened in A" "$SCRATCH/out/a-windows.json" '"extra"'

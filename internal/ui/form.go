@@ -445,7 +445,9 @@ func (f *form) handleKey(msg tea.KeyPressMsg) (finished bool, cmd tea.Cmd) {
 		}
 	default:
 		k := msg.Key()
-		if k.Text == "" || k.Mod != 0 {
+		// Shift (and the lock keys) only change which text arrives; ctrl, alt
+		// and the like are shortcuts, not typing.
+		if k.Text == "" || k.Mod&^(tea.ModShift|tea.ModCapsLock|tea.ModNumLock|tea.ModScrollLock) != 0 {
 			return false, nil
 		}
 		cur.Value += k.Text

@@ -145,7 +145,7 @@ func (m *Model) openQueueForm(edit *store.QueuedPrompt) tea.Cmd {
 		q := store.QueuedPrompt{
 			TaskID: taskID, ProjectID: projectID,
 			Agent: val(v, "agent"), Session: val(v, "session"),
-			Cwd:  presetCwd(val(v, "cwd"), pr, sel),
+			Cwd:  presetCwd(val(v, "cwd"), pr, m.queueBasePane(val(v, "pane"), sel)),
 			Text: val(v, "prompt"),
 		}
 		if pr != nil {
@@ -188,7 +188,39 @@ func (m *Model) openQueueForm(edit *store.QueuedPrompt) tea.Cmd {
 		},
 	}
 	m.cwdKey(m.form, "cwd")
+	f := m.form
+	// The prompt takes @ files and slash commands of the harness that will
+	// read it, under the folder it will start in: the chosen pane's harness
+	// and cwd, else the agent field's and the explicit > preset > default cwd.
+	live := func(label string) string {
+		if i, ok := idx[label]; ok {
+			return f.Fields[i].result()
+		}
+		return ""
+	}
+	f.cwdFn = func() string {
+		var pr *store.Preset
+		if i, ok := idx["preset"]; ok {
+			pr, _ = m.resolvePreset(f.Fields[i].Value)
+		}
+		return expandHome(presetCwd(live("cwd"), pr, m.queueBasePane(live("pane"), sel)))
+	}
+	f.enableAttach(idx["prompt"], func() string {
+		if p := m.findPaneLabel(live("pane")); p != nil {
+			return p.Harness
+		}
+		return strings.TrimSpace(live("agent"))
+	})
 	return nil
+}
+
+// queueBasePane is the pane whose cwd a queued prompt falls back to: the
+// running agent the pane field names, else the pane selected on the deck.
+func (m *Model) queueBasePane(paneText string, sel *panes.Pane) *panes.Pane {
+	if p := m.findPaneLabel(paneText); p != nil {
+		return p
+	}
+	return sel
 }
 
 // queueTarget names the task or the project a queued prompt belongs to.
