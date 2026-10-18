@@ -173,9 +173,6 @@ try:
     keys("Escape T F", "remapped")
     keys("alt+h", "remapped")
     screen("focused-mode", "Mode: deck", "remapped")
-    text = screen("focused-help", "unavailable in current focus", "remapped")
-    assert "palette:" in text
-    print("PASS help stays reachable in focus and labels unavailable actions", flush=True)
 finally:
     for side in ENVS:
         subprocess.run(["tuios", "kill-server"], env=ENVS[side], capture_output=True, timeout=20)

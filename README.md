@@ -174,12 +174,12 @@ Select a page, Forms, Palette, or Focus and buffer mode and check
 **Unbound only** to inspect its tables. Page tables distinguish browser
 controls from TUI shortcuts, including Review and History navigation.
 The TUI pages table also includes Review and task easy-marking keys; its
-modals table documents the focus buffer. Help describes focus restrictions
+modals table documents the focus buffer. Help describes the scoped workspace
 and the buffer's fixed Enter continuation, Escape/F unlock and timeout.
 Browser help lists browser shortcuts, not the configured TUI bindings. Page keys
 do not run in inputs, dialogs, or the focused Live terminal. The palette
 shortcut, Ctrl/Meta+k or Ctrl/Meta+p, also works in inputs and Live when
-no dialog is open and focus is unlocked. Browser forms retain native Tab
+no dialog is open, including during focus. Browser forms retain native Tab
 and Escape navigation outside the focus buffer.
 
 `GOWORK=off go build -o .dev/deck ./cmd/deck` followed by
@@ -563,18 +563,21 @@ or move to its parent, and Enter to start focus. Escape cancels. In the TUI,
 `j/k` and `h/l` also navigate; `/` filters while keeping ancestor branches,
 and Escape clears an active filter first. The browser also supports clicking
 a row and **Start focus**.
-Only assigned panes and tasks within that scope remain visible. The deck and
-tasks pages stay available; unrelated pages, global pickers and editing
-controls are unavailable until **Unlock focus** or `F` releases the scope.
+The pane rail and task tree show only the selected scope. Focus keeps work
+tools available: prompt a pane, send terminal commands, start agents and
+terminals, queue requests, edit tasks and notes, or use the command palette.
+New terminal, agent and queued-request forms default to the focused task or
+project, even when it has no panes yet. You can edit those defaults; a pane
+assigned outside the scope will not appear in the focused rail.
 The TUI binding is the configurable `focus` action. Focus belongs to this
 TUI or browser tab, not other clients; it is a distraction filter, not access
-control. Refreshes keep the selected pane and scroll position.
-Help remains available while focused. Browser shortcuts, including `F`, do
-not intercept typing in the Live terminal; use **Unlock focus** in the header
-there. The Review page stays hidden until focus ends.
-The whole focused screen uses the selected scope’s colour: ANSI colours in
-the TUI and a tinted page and terminal background in the browser. Unlocking
-restores the normal theme.
+control. Other pages remain available. Refreshes keep the selected pane and
+scroll position. **Unlock focus** or `F` releases the scope. Browser shortcuts
+do not intercept typing in the Live terminal; use **Unlock focus** in the
+header there.
+Focus adds a one-character border around the TUI and a thin perimeter border
+in the browser, using the scope's colour. Backgrounds, text colours and
+terminal ANSI output keep their normal appearance.
 Focus unlocks after three minutes without user input. Keyboard, paste and
 received mouse input count in the TUI; trusted keyboard, pointer, wheel,
 touch and input events count in the browser, including the Live terminal.
