@@ -588,6 +588,15 @@ under it, filtered as you type the way the palette filters. `ctrl+n`
 value, and `enter` takes it too unless what you typed is already one of the
 values.
 
+Task, project and window fields (the assign forms, the palette's `window`
+parameter) also preview the highlighted entry under the list: its path and
+status or the pane's metadata, the live panes assigned to it (the task's own
+first, then needs-you ones, then agents), and the last six lines of the
+first one's output. A task with no live pane says so. The output is read in
+the background and re-read every couple of seconds while the entry stays
+highlighted; a read for an entry you have moved off is dropped, and typing
+and the list never wait on it.
+
 Every project or task field (new agent, new terminal, assign, the palette's
 assign, new task and new subtask entries) ends its list with `+ add new…`.
 Taking it puts the form aside and opens the mass-add screen with what you
@@ -698,6 +707,11 @@ text, starred and pinned, sorts and groups the way the TUI's does, and has
 Copy (to the browser's clipboard), Insert, Open, Star, Pin, Assign and
 Delete.
 
+The task, project and window fields of the dialogs (and the palette's
+`window` parameter) show a preview under the field once their value is one
+of the datalist's entries: the same head and recent output as the TUI's,
+fetched from `/api/preview`; a newer value cancels the older request.
+
 The `⌘` button, `ctrl+k` or `ctrl+p` open the command palette, with the
 same two categories as the TUI's; `ctrl+n` `ctrl+p` (or `↓` `↑`) move in
 it and `esc` closes it. A tuios verb's parameters become a form, required
@@ -764,6 +778,8 @@ PATCH  /api/context/{id}                       {"starred"}, {"pinned"}, a target
 DELETE /api/context/{id}                       remove the item
 POST   /api/context/{id}/insert                {"session", "window"}: send-text without Enter
 POST   /api/context/{id}/open                  {"program"?}: open it on the server's machine, detached; the opener by default, a terminal program refused
+GET    /api/preview?task=|project=|window=&session=
+                                               {"head": [metadata lines], "lines": [the chosen pane's last 6 lines], "session", "window", "error"?}
 GET    /api/palette                            the 16 colour names with their CSS hex
 GET    /api/verbs                              list-verbs, as the daemon answers it
 POST   /api/call                               {"verb", "params"}: one daemon verb, refused unless list-verbs named it

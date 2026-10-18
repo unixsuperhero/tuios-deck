@@ -91,6 +91,9 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
 dialog .hint { font-size: 12px; color: var(--muted); }
 dialog .hint.err { color: var(--err); }
 dialog .hint.err:empty { display: none; }
+.preview { font-size: 12px; color: var(--muted); border-left: 2px solid var(--border, #444); padding: 2px 8px; margin: 2px 0; }
+.preview:empty { display: none; }
+.preview pre { margin: 2px 0 0; max-height: 9em; overflow: auto; white-space: pre; font-size: 11px; }
 #dirlist { max-height: 40vh; overflow: auto; border: 1px solid var(--line); border-radius: 6px; }
 #dirlist div { padding: 5px 10px; cursor: pointer; font-family: ui-monospace, Menlo, monospace; font-size: 13px; }
 #dirlist div:hover { background: var(--hover); }
@@ -654,6 +657,50 @@ function renderDatalists() {
   fill('dl-projects', state.projects.map((p) => p.name));
   fill('dl-sessions', state.sessions.map((s) => s.name));
 }
+
+// Previews: when a task, project or window field holds exactly one of its
+// datalist's options, show that entry's metadata and the recent output of
+// the pane behind it under the field. A newer value aborts the older
+// request, so a slow answer never overwrites the current one.
+const PREVIEW_PARAM = { 'dl-tasks': 'task', 'dl-projects': 'project', 'dl-windows': 'window' };
+function previewFor(input) {
+  const kind = PREVIEW_PARAM[input.getAttribute('list')];
+  if (!kind) return;
+  let box = input._preview;
+  if (!box) {
+    box = input._preview = document.createElement('div'); box.className = 'preview';
+    input.closest('label').after(box);
+  }
+  clearTimeout(input._pvTimer);
+  if (input._pvAbort) input._pvAbort.abort();
+  const v = input.value.trim();
+  const dl = $(input.getAttribute('list'));
+  const known = v && [...dl.options].some((o) => o.value.toLowerCase() === v.toLowerCase());
+  if (!known) { box.replaceChildren(); return; }
+  input._pvTimer = setTimeout(async () => {
+    const ctl = input._pvAbort = new AbortController();
+    let q = `${kind}=${enc(v)}`;
+    if (kind === 'window') {
+      const sess = input.form && input.form.elements.session;
+      if (sess && sess.value.trim()) q += `&session=${enc(sess.value.trim())}`;
+    }
+    try {
+      const r = await fetch('/api/preview?' + q, { signal: ctl.signal });
+      const body = await r.json().catch(() => ({}));
+      if (ctl.signal.aborted) return;
+      box.replaceChildren();
+      if (!r.ok) { box.textContent = body.error || r.statusText; return; }
+      for (const l of body.head || []) { const d = document.createElement('div'); d.textContent = l; box.append(d); }
+      if (body.session) {
+        const pre = document.createElement('pre');
+        pre.textContent = body.error ? 'capture failed: ' + body.error : (body.lines.length ? body.lines.join('\n') : '(no output yet)');
+        box.append(pre);
+      }
+    } catch (e) { if (e.name !== 'AbortError') box.textContent = String(e.message || e); }
+  }, 120);
+}
+document.addEventListener('input', (e) => { if (e.target.matches && e.target.matches('input[list]')) previewFor(e.target); });
+document.addEventListener('change', (e) => { if (e.target.matches && e.target.matches('input[list]')) previewFor(e.target); });
 
 // ---------------------------------------------------------------- pages
 function setPage(name, fromHash) {
