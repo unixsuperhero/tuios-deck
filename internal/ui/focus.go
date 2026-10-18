@@ -93,39 +93,11 @@ func (m *Model) openFocus() tea.Cmd {
 			return m.startFocus("", r.Project.ID)
 		}
 	}
-	options := func() []string {
-		var out []string
-		for _, p := range m.store.Projects() {
-			out = append(out, "project: "+p.Name)
-		}
-		for _, t := range m.store.Tasks() {
-			out = append(out, "task: "+m.taskPath(t))
-		}
-		return out
-	}
-	resolve := func(v string) (string, string) {
-		for _, p := range m.store.Projects() {
-			if v == "project: "+p.Name {
-				return "", p.ID
-			}
-		}
-		for _, t := range m.store.Tasks() {
-			if v == "task: "+m.taskPath(t) {
-				return t.ID, ""
-			}
-		}
-		return "", ""
-	}
-	m.mode = modeForm
-	m.form = &form{Title: "focus task or project", Fields: []field{{Label: "scope", Options: options}},
-		Validate: func(v []string) (int, string) {
-			t, p := resolve(v[0])
-			if t == "" && p == "" {
-				return 0, "choose a task or project"
-			}
-			return 0, ""
-		}, Done: func(v []string) tea.Cmd { t, p := resolve(v[0]); return m.startFocus(t, p) },
-	}
+	m.protoRun = protoRun{purpose: purposeFocus, title: "focus task or project"}
+	m.protoShots = nil
+	m.proto = &treePicker{}
+	m.proto.open(m, purposeFocus)
+	m.mode = modeProto
 	return nil
 }
 

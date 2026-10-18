@@ -158,6 +158,13 @@ func (m *Model) helpRows(mode string) []helpRow {
 		}
 	case "modals":
 		rows = []helpRow{
+			{"j/k, up/down, ctrl+n/p", "select project or task", "focus tree"},
+			{"l/right, h/left", "open branch/enter child; close branch/go to parent", "focus tree"},
+			{"g/G, home/end", "first/last visible row", "focus tree"},
+			{"/", "filter tree, keeping matching ancestors", "focus tree"},
+			{"enter", "focus selected project/task and descendants", "focus tree"},
+			{"?", "toggle preview", "focus tree"},
+			{"esc, ctrl+c", "clear filter or cancel; ctrl+c always cancels", "focus tree"},
 			{"enter", "continue focus for a fresh 15-active-minute cycle", "focus buffer; fixed key"},
 			{"F/esc", "unlock focus now", "focus buffer; fixed keys, not configured bindings"},
 			{"q/ctrl+c", "quit the deck", "focus buffer; fixed keys"},

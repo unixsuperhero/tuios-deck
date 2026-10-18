@@ -16,15 +16,16 @@ import (
 // pick a winner later. Nothing here records which one they liked.
 
 // purpose is what a picker's choice does: assign the pane selected on the
-// deck page, or filter the context page.
+// deck page, filter the context page, or choose a focus scope.
 type purpose int
 
 const (
 	purposeAssign purpose = iota
 	purposeFilter
+	purposeFocus
 )
 
-func (p purpose) String() string { return [...]string{"assign", "filter"}[p] }
+func (p purpose) String() string { return [...]string{"assign", "filter", "focus"}[p] }
 
 // pnode is one thing a picker offers. In the assign purpose it is a
 // project or a task; in the filter purpose it starts with a context kind
@@ -212,8 +213,8 @@ func (m *Model) protoAfterKey() tea.Cmd {
 	return nil
 }
 
-// finishProto does what the picker picked: assigns the pane or filters the
-// context page and goes there. "+ add new…" puts the picker aside while
+// finishProto applies the pick: assigns the pane, filters context, or starts
+// focus. "+ add new…" puts the picker aside while
 // the mass-add screen is up; it comes back when that screen closes.
 func (m *Model) finishProto(n *pnode) tea.Cmd {
 	p := m.proto
@@ -223,6 +224,11 @@ func (m *Model) finishProto(n *pnode) tea.Cmd {
 	case n == nil:
 		m.setStatus("cancelled")
 		return nil
+	case run.purpose == purposeFocus:
+		if n.Task != nil {
+			return m.startFocus(n.Task.ID, "")
+		}
+		return m.startFocus("", n.Project.ID)
 	case n.New:
 		m.protoBack = p
 		return m.openMassAdd(m.protoPrefill(n.Text))
@@ -288,7 +294,7 @@ func nodeFilter(n pnode) ctxFilter {
 }
 
 // pickRoots is the first level of the targets: the kinds, "any" first, in
-// the filter purpose; the projects in the assign purpose.
+// the filter purpose; projects otherwise, plus projectless roots for focus.
 func (m *Model) pickRoots(p purpose) []pnode {
 	var out []pnode
 	if p == purposeFilter {
@@ -300,6 +306,12 @@ func (m *Model) pickRoots(p purpose) []pnode {
 	for _, pr := range m.store.Projects() {
 		pr := pr
 		out = append(out, pnode{Project: &pr})
+	}
+	if p == purposeFocus {
+		for _, t := range m.store.Roots("") {
+			t := t
+			out = append(out, pnode{Task: &t})
+		}
 	}
 	return out
 }
