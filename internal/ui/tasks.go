@@ -412,7 +412,7 @@ func (m *Model) openTaskForm() tea.Cmd {
 func (m *Model) openNewTask(parent string) tea.Cmd {
 	f := &form{
 		Fields: []field{
-			{Label: "parent", Default: parent, Options: func() []string { return m.parentOptions(nil) }, New: "task"},
+			{Label: "parent", Default: parent, Options: func() []string { return m.parentOptions(nil) }, Preview: m.parentPreview, New: "task"},
 			{Label: "title", Keep: true},
 		},
 		Validate: func(v []string) (int, string) {
@@ -642,7 +642,7 @@ func (m *Model) openEditForm() tea.Cmd {
 		Title: "edit task " + t.Title,
 		Fields: []field{
 			{Label: "title", Default: t.Title},
-			{Label: "parent", Default: parent, Options: func() []string { return m.parentOptions(skip) }, New: "task"},
+			{Label: "parent", Default: parent, Options: func() []string { return m.parentOptions(skip) }, Preview: m.parentPreview, New: "task"},
 			{Label: "status", Default: t.Status, Options: statusOptions},
 			{Label: "colour", Default: t.Theme.Color, Options: m.colorOptions(t.ID)},
 			{Label: "glyph", Default: t.Theme.Glyph},

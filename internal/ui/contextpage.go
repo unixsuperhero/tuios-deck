@@ -357,8 +357,8 @@ func (m *Model) openContextFilter() tea.Cmd {
 		Title: "filter context",
 		Fields: []field{
 			{Label: "kind", Value: f.Kind, Keep: true, Options: kinds, Hint: "link file dir pr prompt command; empty for any"},
-			{Label: "project", Value: project, Keep: true, Options: m.projectOptions},
-			{Label: "task", Value: task, Keep: true, Options: m.taskOptions},
+			{Label: "project", Value: project, Keep: true, Options: m.projectOptions, Preview: m.projectPreview},
+			{Label: "task", Value: task, Keep: true, Options: m.taskOptions, Preview: m.taskPreview},
 			{Label: "text", Value: f.Text, Keep: true},
 		},
 		Validate: func(v []string) (int, string) {

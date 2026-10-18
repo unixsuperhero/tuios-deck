@@ -34,6 +34,10 @@ func (m *Model) formBox(width, maxH int) []string {
 	if iw < 8 {
 		iw = 8
 	}
+	avail := maxH - 4
+	if avail < 1 {
+		avail = 1
+	}
 	var body []string
 	curStart := 0
 	for i, fl := range f.Fields {
@@ -49,14 +53,10 @@ func (m *Model) formBox(width, maxH int) []string {
 			continue
 		}
 		curStart = len(body)
-		body = append(body, m.currentField(fl, iw)...)
+		body = append(body, m.currentField(fl, iw, avail-(len(f.Fields)-1))...)
 	}
 	help := m.formHelp()
 	lines := []string{boxTop(f.Title, width)}
-	avail := maxH - 4
-	if avail < 1 {
-		avail = 1
-	}
 	if len(body) > avail {
 		start := curStart
 		if start > len(body)-avail {
@@ -76,8 +76,10 @@ func (m *Model) formBox(width, maxH int) []string {
 }
 
 // currentField is the lines of the field being edited: its label and value
-// with the cursor, the hint, and the completion list.
-func (m *Model) currentField(fl field, iw int) []string {
+// with the cursor, the hint, and the completion list. room is how many
+// lines the box can give the current field; a preview takes what the list
+// leaves, so the keys under the box stay in sight.
+func (m *Model) currentField(fl field, iw, room int) []string {
 	var out []string
 	value := fl.Value
 	if fl.Multi {
@@ -140,7 +142,7 @@ func (m *Model) currentField(fl field, iw int) []string {
 	if len(list) > listRows {
 		out = append(out, cDim.Render(fmt.Sprintf("      %d of %d", end-start, len(list))))
 	}
-	return append(out, m.previewBox(iw)...)
+	return append(out, m.previewBox(iw, room-len(out))...)
 }
 
 // formHelp names the keys the current field answers.

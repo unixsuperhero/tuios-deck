@@ -588,14 +588,16 @@ under it, filtered as you type the way the palette filters. `ctrl+n`
 value, and `enter` takes it too unless what you typed is already one of the
 values.
 
-Task, project and window fields (the assign forms, the palette's `window`
-parameter) also preview the highlighted entry under the list: its path and
+Task, project, parent and window fields (the assign forms, the new and edit
+task forms' `parent`, the context filter's project and task, the palette's
+`window` parameter) also preview the highlighted entry under the list: its path and
 status or the pane's metadata, the live panes assigned to it (the task's own
 first, then needs-you ones, then agents), and the last six lines of the
 first one's output. A task with no live pane says so. The output is read in
 the background and re-read every couple of seconds while the entry stays
 highlighted; a read for an entry you have moved off is dropped, and typing
-and the list never wait on it.
+and the list never wait on it. The preview takes only the lines the list
+leaves in the box, so on a small terminal it shrinks and the key hints stay.
 
 Every project or task field (new agent, new terminal, assign, the palette's
 assign, new task and new subtask entries) ends its list with `+ add new…`.
@@ -710,7 +712,9 @@ Delete.
 The task, project and window fields of the dialogs (and the palette's
 `window` parameter) show a preview under the field once their value is one
 of the datalist's entries: the same head and recent output as the TUI's,
-fetched from `/api/preview`; a newer value cancels the older request.
+fetched from `/api/preview`; a newer value cancels the older request. The
+web page has no parent field, and its context filters are plain selects, so
+they have no preview; a dialog's buttons stay in view on a short window.
 
 The `⌘` button, `ctrl+k` or `ctrl+p` open the command palette, with the
 same two categories as the TUI's; `ctrl+n` `ctrl+p` (or `↓` `↑`) move in

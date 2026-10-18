@@ -138,8 +138,20 @@ func tailLines(text string, n int) []string {
 	return lines
 }
 
-// previewBox is the lines drawn under the current field's list.
-func (m *Model) previewBox(iw int) []string {
+// previewBox is the lines drawn under the current field's list, cut to
+// room lines; with too little room for a title and a line, nothing.
+func (m *Model) previewBox(iw, room int) []string {
+	if room < 2 {
+		return nil
+	}
+	out := m.previewAll(iw)
+	if len(out) > room {
+		out = out[:room]
+	}
+	return out
+}
+
+func (m *Model) previewAll(iw int) []string {
 	spec, ok := m.currentPreview()
 	if !ok {
 		return nil
@@ -299,6 +311,17 @@ func (m *Model) projectPreview(opt string) previewSpec {
 		return previewSpec{Head: append(head, "no live pane is assigned to this project")}
 	}
 	return panePreview(head, ps)
+}
+
+// parentPreview is a parent field's preview: a project's top-level entry
+// previews the project, any other entry the task.
+func (m *Model) parentPreview(opt string) previewSpec {
+	for _, p := range m.store.Projects() {
+		if opt == topLevel(p.Name) {
+			return m.projectPreview(p.Name)
+		}
+	}
+	return m.taskPreview(opt)
 }
 
 // windowPreview is a window option's preview: the pane's metadata, its

@@ -210,7 +210,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.mode == modeProto && m.proto != nil {
 			return m, m.protoPaste(panes.OneLine(msg.String()))
 		}
-		return m, nil
+		return m, m.previewCmd(false)
 
 	case verbsMsg:
 		m.verbsBusy = false
