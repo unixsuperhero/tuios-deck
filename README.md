@@ -733,6 +733,7 @@ With the rail focused:
 | `t` | Open a terminal: session, name, cwd, task or project. Always an interactive shell, the pane tuios itself opens; send commands to it with `p`. Creates the session when it does not exist |
 | `p` | Send a prompt. An agent gets it through `queue-prompt`, typed when the agent is at rest; a plain terminal gets the text and Enter |
 | `a` | Assign the pane to a task or a project through the assign tree (below) |
+| `w` | The task tree modal for the selected pane or group header: its whole project, managed in place (below) |
 | `c` | Save the pane's screen and scrollback to a file |
 | `i` | Extract context items from the pane (above) |
 | `x` | Close the pane, after a confirmation |
@@ -900,6 +901,31 @@ listing has no reliable recency timestamp.
 | `r` | Refresh |
 | `A` | Add many projects, tasks and subtasks at once (below) |
 | `esc` | Back to the deck |
+
+### The task tree modal
+
+`w` on the deck page, or `task tree…` in the palette, opens a modal over
+the deck with the whole tree of the selected pane's project: the project at
+the top, then every task and subtask under it, indented, with its glyph,
+its status mark and how many panes are assigned to it. A pane assigned to a
+subtask deep in the tree still shows the project's whole tree, with its own
+node highlighted and marked `◂ this pane`. On a group header the tree is
+the project of the first assigned pane under it. An unassigned pane says
+so, and `a` opens the assign tree for it.
+
+| Key | Does |
+| --- | --- |
+| `j` `k` `g` `G` | Select a node |
+| `s` | Cycle the node's status: open, done, skipped, planned |
+| `e` | Edit the node in the tasks page's edit form; the modal comes back when the form closes |
+| `n` | Add a subtask under the node: the mass-add outline opens with an empty line under it |
+| `x` | Delete the node, after a confirmation that counts the subtasks and assignments going with it |
+| `a` | Assign the selected pane to the node |
+| `enter` | The tasks page with the node selected |
+| `esc` `q` | Close; the rail selection and the detail scroll are what they were |
+
+Only one modal is up at a time: a form or a confirmation the modal starts
+takes its place, and the modal returns when it closes.
 
 ### Adding many at once
 

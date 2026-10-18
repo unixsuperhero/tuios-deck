@@ -40,6 +40,8 @@ internal/ui/         model.go state, keys.go dispatch, commands.go daemon calls 
                      tasks.go, captures.go and contextpage.go the other pages, contextactions.go copy/insert/open,
                      turns.go the Turns tab, grouping.go the left rail's groupings, palette.go the command palette and the verb forms,
                      jump.go the { } ( ) group and level jumps for the rail, tasks, context and Turns,
+                     tree.go the task tree modal (w): a pane's whole project, kept in m.tree and shown again
+                     whenever a form or confirmation it opened returns to modeNormal,
                      live.go the live mode (enter): keys to the pane through send-keys/send-text, the screen back through capture-pane,
                      a stream-pane held for its size lease and as the output signal; ctrl+a is the prefix, ctrl+a d detaches,
                      liveview.go the pane's view in its own session (ctrl+a Z zoom, ctrl+a f fullscreen) through run-command,
