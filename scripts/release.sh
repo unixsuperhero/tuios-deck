@@ -12,6 +12,11 @@
 #   scripts/release.sh major      # v0.3.9 → v1.0.0
 #   scripts/release.sh v0.5.0     # exactly this version
 #   scripts/release.sh minor --dry-run   # print the version it would tag, change nothing
+#   scripts/release.sh --changelog-prompt # write .dev/changelog-prompt.md for the next version, release nothing
+#
+# A release needs its `## vX.Y.Z` entry in CHANGELOG.md first (the format is
+# AGENTS.md's Changelog section). Without one the script writes the prompt
+# for writing it to .dev/changelog-prompt.md and stops.
 #
 # The first release of a repository with no tag starts from v0.0.0, so a
 # bare run tags v0.0.1 and `minor` tags v0.1.0.
@@ -20,12 +25,13 @@
 # version Go stamps into a binary installed from a tag.
 set -euo pipefail
 module=github.com/unixsuperhero/tuios-deck
-bump=patch; tag=""; dry=0
+bump=patch; tag=""; dry=0; prompt_only=0
 for arg in "$@"; do
 	case "$arg" in
 		patch|minor|major) bump=$arg ;;
 		v[0-9]*.[0-9]*.[0-9]*) tag=$arg ;;
 		--dry-run|-n) dry=1 ;;
+		--changelog-prompt) prompt_only=1 ;;
 		-h|--help) sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
 		*) echo "usage: scripts/release.sh [patch|minor|major|vX.Y.Z] [--dry-run]" >&2; exit 2 ;;
 	esac
@@ -46,6 +52,40 @@ fi
 [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "not a version: $tag" >&2; exit 2; }
 echo "current: $current"
 echo "next:    $tag"
+
+# The changelog entry for the tag must exist before anything is pushed or
+# tagged. Without one, the prompt for writing it goes to
+# .dev/changelog-prompt.md: the rules from AGENTS.md's Changelog section, the
+# commits since the last tag and the files they touched.
+changelog_prompt() {
+	mkdir -p .dev
+	{
+		echo "Write the CHANGELOG.md entry for $tag (released today, $(date +%F)) from the commits and files below, then commit it as 'docs: changelog for $tag' and rerun scripts/release.sh."
+		echo
+		echo "## The rules (the Changelog section of AGENTS.md)"
+		echo
+		sed -n '/^## Changelog$/,/^## /{/^## /d;p;}' AGENTS.md
+		echo "## Commits since $current"
+		echo
+		if [ "$current" = v0.0.0 ]; then git log --reverse --format='- %h %s'; else git log --reverse --format='- %h %s' "$current..HEAD"; fi
+		echo
+		echo "## Files they touched"
+		echo
+		if [ "$current" = v0.0.0 ]; then git diff --stat "$(git rev-list --max-parents=0 HEAD | tail -1)" HEAD; else git diff --stat "$current" HEAD; fi
+		echo
+		echo "Read the README and AGENTS.md sections those commits changed when a message is not enough. Place the entry under the '# Changelog' heading, above the previous release."
+	} > .dev/changelog-prompt.md
+	echo "changelog prompt written to .dev/changelog-prompt.md"
+}
+if [ "$prompt_only" = 1 ]; then
+	changelog_prompt
+	exit 0
+fi
+if ! grep -q "^## $tag\b" CHANGELOG.md 2>/dev/null; then
+	echo "CHANGELOG.md has no entry for $tag" >&2
+	changelog_prompt
+	[ "$dry" = 1 ] || exit 1
+fi
 if [ "$dry" = 1 ]; then
 	echo "dry run: nothing tagged or pushed"
 	exit 0

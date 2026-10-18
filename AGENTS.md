@@ -336,4 +336,35 @@ github.com/unixsuperhero/tuios-deck.
 
 No version number lives in the source. `scripts/release.sh [patch|minor|major|vX.Y.Z] [--dry-run]`
 tags, pushes and primes the Go module proxy; `deck update` installs the
-result. Tagging is the maintainer's call.
+result. Tagging is the maintainer's call. The script refuses to tag a
+version that has no `## vX.Y.Z` entry in CHANGELOG.md, and writes the
+prompt for one to `.dev/changelog-prompt.md` (`--changelog-prompt` writes it
+without releasing).
+
+## Changelog
+
+CHANGELOG.md is a diff of the deck between two tags, not a story. One entry
+per release, newest first, `## vX.Y.Z — YYYY-MM-DD`. Under it, one `###`
+list per concept, in this order, and only the concepts that changed:
+
+Store · CLI · Settings · Pages · Modals · Forms · Actions and keybindings ·
+Palette · Groupings · Rail and detail · Live mode · Web page · API · Events
+and recorders · Scripts and suites · Docs
+
+Every line is one item, one change, and starts with its verb:
+
+- `added: <thing>` with the facts that let someone use it: key, default,
+  flag, path, unit.
+- `changed: <thing>, <now>; was <before>` always names both sides.
+- `removed: <thing>` and what replaces it, if anything.
+- `fixed: <thing>`, the symptom, not the cause.
+
+Rules: one line each, no paragraphs and no sentences that only explain;
+names in backticks; a number only where it changes what the reader does
+(a default, a limit, a timing that moved by an order); a key written as the
+help shows it; a mark or glyph quoted as the character. Something that spans
+concepts is listed once, under the concept the person meets first, and the
+other lists refer to it by name. Internal changes that nobody sees go under
+Scripts and suites or not at all. Write the entry from `git log
+<last tag>..HEAD` and the diff, reading the README sections the commits
+changed when a commit message is not enough.
