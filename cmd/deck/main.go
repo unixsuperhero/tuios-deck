@@ -40,6 +40,8 @@ Commands:
   tui       The dashboard in this terminal
   web       The dashboard as a web page (default http://127.0.0.1:8787)
   config    Show and change the settings file
+  export    Write the store as JSON to stdout
+  import    Replace the store with a JSON file deck export wrote
   setup     Install, check or remove the files the deck needs on this machine
   update    Install the latest published deck with go install (or a given version)
   version   Print the version
@@ -76,6 +78,10 @@ func main() {
 		err = runWeb(args)
 	case "config":
 		err = runConfig(args)
+	case "export":
+		err = runExport(args)
+	case "import":
+		err = runImport(args)
 	case "setup":
 		err = runSetup(args)
 	case "update":
@@ -107,7 +113,7 @@ type common struct {
 func (c *common) bind(fs *flag.FlagSet) {
 	fs.StringVar(&c.socket, "socket", "", "daemon socket (default $TUIOS_SOCKET or the per-user runtime folder)")
 	fs.StringVar(&c.captures, "captures", "", "folder for saved captures (default "+capture.Dir()+")")
-	fs.StringVar(&c.data, "data", store.DefaultPath(), "file holding projects, tasks and pane assignments")
+	fs.StringVar(&c.data, "data", store.DefaultPath(), dataUsage)
 	fs.BoolVar(&c.autoCapture, "auto-capture", true, "capture a pane when an agent turn or a shell command ends")
 	fs.BoolVar(&c.remind, "reminders", true, "deliver due reminders while the deck runs")
 	fs.BoolVar(&c.remindOS, "reminders-os", true, "also show each due reminder as an OS notification")
@@ -150,6 +156,48 @@ func (c *common) resolve() (*daemon.Client, string, *store.Store, error) {
 		return nil, "", nil, fmt.Errorf("store: %w", err)
 	}
 	return client, dir, st, nil
+}
+
+const dataUsage = "the store's sqlite database; a path ending in .json names the old JSON file, migrated into the .db beside it"
+
+// runExport writes the store in the old JSON file's shape to stdout.
+func runExport(args []string) error {
+	fs := flag.NewFlagSet("deck export", flag.ExitOnError)
+	data := fs.String("data", store.DefaultPath(), dataUsage)
+	fs.Parse(args)
+	st, err := store.Open(*data)
+	if err != nil {
+		return fmt.Errorf("store: %w", err)
+	}
+	defer st.Close()
+	return st.WriteJSON(os.Stdout)
+}
+
+// runImport replaces everything in the store with a JSON file in the shape
+// deck export writes.
+func runImport(args []string) error {
+	fs := flag.NewFlagSet("deck import", flag.ExitOnError)
+	data := fs.String("data", store.DefaultPath(), dataUsage)
+	fs.Usage = func() {
+		fmt.Fprintln(fs.Output(), "Usage: deck import [-data PATH] FILE.json\n\nReplaces every table of the store with the file's contents.")
+		fs.PrintDefaults()
+	}
+	fs.Parse(args)
+	if fs.NArg() != 1 {
+		fs.Usage()
+		os.Exit(2)
+	}
+	f, err := os.Open(fs.Arg(0))
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	st, err := store.Open(*data)
+	if err != nil {
+		return fmt.Errorf("store: %w", err)
+	}
+	defer st.Close()
+	return st.ImportJSON(f)
 }
 
 func runTUI(args []string) error {
