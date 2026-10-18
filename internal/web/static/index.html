@@ -1299,6 +1299,23 @@ function dialog(id, fill, validate) {
     form.reset();
     if (err) err.textContent = '';
     if (fill) for (const [k, v] of Object.entries(fill)) if (form.elements[k]) form.elements[k].value = v;
+    const task = form.querySelector('input[name="task"][list="dl-tasks"]');
+    const project = form.querySelector('input[name="project"][list="dl-projects"]');
+    if (task && project) {
+      const syncProject = () => {
+        const text = task.value.trim().toLowerCase();
+        if (!text) return;
+        // Match findTask: one full path wins, otherwise one bare title.
+        let matches = state.tasks.filter((t) => t.path.toLowerCase() === text);
+        if (matches.length !== 1) matches = state.tasks.filter((t) => t.title.toLowerCase() === text);
+        if (matches.length !== 1) return;
+        // taskJSON supplies the inherited project_id, not own_project_id.
+        project.value = projectById(matches[0].project_id)?.name || '';
+        previewFor(project);
+      };
+      task.oninput = task.onchange = syncProject;
+      syncProject();
+    }
     dlg.querySelectorAll('[data-cancel]').forEach((b) => (b.onclick = () => dlg.close('')));
     form.onsubmit = (e) => {
       if (!validate) return;
