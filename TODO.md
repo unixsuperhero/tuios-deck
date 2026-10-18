@@ -109,11 +109,14 @@ either have different tabs for the different modes or some type of picker or
 some way to change modes for which keybindings to show. and also there should be
 some way to also list like any actions that don't have key bindings and let's
 start there 
-- [ ] time the test suites and do everything possible to make them quicker
 
 ## Review Queue
 
 - [ ] add review queue - ask questions for details
+- [ ] is basically a queue for any prompts that were triggered, in the order
+they finished, only included in list after they've finished.  will also include
+md/html docs, but that will involve creating an mcp server, and i don't want to
+do that yet
 
 ## FOCUS Mode
 
@@ -127,5 +130,9 @@ leaf or if it can be locked to a high-level item like a project
 unlocks but has a buffer screen for 30s that will let the user hit enter and
 continue
 - [ ] focus plan mode - let user mark easy tasks
+
+# wait for explicit instructions to do
+
+- [ ] time the test suites and do everything possible to make them quicker
 
 
