@@ -2,14 +2,6 @@
 
 ## Priority
 
-- [ ] redesign forms and input modal UX
-  - [ ] no "text inputs" in a "normal" style modal mode.  press keys to indicate
-    which field to use for input  only then does it enter "input" mode.  then
-  esc returns to normal mode, tab cycles to next field, shift-tab cycles to
-  previous
-- [ ] reorganize the deck ui. okay. so we should have a project/task system where we only have one project/task active at a time and the switch project modal that we're gonna make has an option for making a new project. a project should have certain settings. like, first of all, a project should be based on a git repo. if we're making a new project and we don't select a git repo, then we should take a folder and make one but most of the time we're gonna be using an existing git repo so we know our base directory we should grab all of the work trees so that if they want to work out of a different work tree they can specify that so then anytime we make a new agent or terminal it's less work for the user creating that stuff 
-- [ ] add vim-sessions to type of item that is listed in deck pages.  when opening neovim, we want to select a project/git repo, or after deck redesign...it uses the currently pinned project/task's cwd as the base dir
-
 ## Standard Importance
 
 - [ ] write documentation listing and detailing all structs, pages, concepts,
@@ -213,4 +205,11 @@ activity exceeding a certain threshold
 - [x] from any item on the deck page, i want to be able to open a modal that
 will let me review all items in it's task tree...project, task, subtask etc. and
 manage each of those
+- [x] redesign forms and input modal UX
+  - [x] no "text inputs" in a "normal" style modal mode.  press keys to indicate
+    which field to use for input  only then does it enter "input" mode.  then
+  esc returns to normal mode, tab cycles to next field, shift-tab cycles to
+  previous
+- [x] reorganize the deck ui. okay. so we should have a project/task system where we only have one project/task active at a time and the switch project modal that we're gonna make has an option for making a new project. a project should have certain settings. like, first of all, a project should be based on a git repo. if we're making a new project and we don't select a git repo, then we should take a folder and make one but most of the time we're gonna be using an existing git repo so we know our base directory we should grab all of the work trees so that if they want to work out of a different work tree they can specify that so then anytime we make a new agent or terminal it's less work for the user creating that stuff 
+- [x] add vim-sessions to type of item that is listed in deck pages.  when opening neovim, we want to select a project/git repo, or after deck redesign...it uses the currently pinned project/task's cwd as the base dir
 

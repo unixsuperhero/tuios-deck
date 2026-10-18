@@ -28,8 +28,9 @@ cmd/deck/            main.go (subcommands, the shared -socket -captures -data -a
 internal/daemon/     the JSON client: Call, Subscribe, Presence, StreamPane; typed verb wrappers in verbs.go
 internal/panes/      sessions+agents merged into one shape; activity and transcript text rendering. Both front ends read this;
                      reviews.go names a review's pane from the listing and attaches its turn capture
-internal/store/      sqlite.go the sqlite database (deck.db): schema, Open and the deck.json migration, the per-table row sync, export/import;
-                     store.go projects, tasks (status, MoveTask) and assignments;
+internal/gitrepo/    Root, Worktrees and Init: what git says about the folder a project is based on
+internal/store/      sqlite.go the sqlite database (deck.db): schema and its versioned migrations, Open and the deck.json migration, the per-table row sync, export/import;
+                     store.go projects (repo, worktree, Dir), tasks (status, MoveTask), assignments and the active pair (Active, SetActive, in meta);
                      theme.go the 16-colour themes and the free-colour pool; context.go the context_items table;
                      history.go the history table; reviews.go the turns computed from it and the review_marks table
 internal/context/    context.go Extract, Unwrap and Gather: context items from scrollback, activity, transcript, command-history;
@@ -38,7 +39,9 @@ internal/events/     events.go the process's one daemon subscription: Handler, R
 internal/autocapture/ autocapture.go the turn/command captures, an events.Handler behind either front end
 internal/history/    history.go the history recorder, an events.Handler that batches live events into one save a second
 internal/ui/         model.go state, keys.go dispatch, commands.go daemon calls as tea.Cmd, view.go (helpLine, paneRow)
-                     form.go the form type and its keys, formbox.go the popover box and its key hints,
+                     form.go the form type, its normal/input modes and field hotkeys, formbox.go the popover box and its key hints,
+                     active.go the active project and task (S, the picker's purposeActive, startDir for new panes, the repo/worktree form helpers),
+                     editor.go the new editor form (e): a shell pane that gets the editor typed in once its prompt shows,
                      massadd.go the outline screen (A), assign.go the task/project fields and assignment,
                      tasks.go, captures.go and contextpage.go the other pages, contextactions.go copy/insert/open,
                      turns.go the Turns tab, grouping.go the left rail's groupings, palette.go the command palette and the verb forms,
@@ -85,7 +88,7 @@ scripts/e2e-all.sh     # every suite below at once, one line per suite; ONLY="we
 scripts/e2e.sh         # the TUI: daemon A holds panes, daemon B runs deck tui in a pane driven by send-keys
 scripts/e2e-web.sh     # deck web: the API with curl, the event stream, the WebSocket stream with scripts/wscheck
 scripts/e2e-setup.sh   # deck setup against a scratch HOME; release.sh bump maths; the omp extension under bun with a fake pi and a fake tuios
-scripts/e2e-focus.sh scripts/e2e-history.sh scripts/e2e-prompt-stash.sh scripts/e2e-reminders.sh scripts/e2e-live.sh
+scripts/e2e-focus.sh scripts/e2e-history.sh scripts/e2e-prompt-stash.sh scripts/e2e-reminders.sh scripts/e2e-live.sh scripts/e2e-active.sh
 python3 scripts/e2e-help.py; python3 scripts/e2e-turns.py; python3 scripts/e2e-review.py
 ```
 
@@ -309,6 +312,27 @@ Rules the suites follow, and a new check should too:
   argument**: `b send-keys ... 'Tab Tab BTab'`. Written as separate
   arguments, nothing is sent and the check fails on a screen that never
   changed.
+- **A form opens in normal mode, so a suite types nothing until it enters
+  input mode.** After the key that opens a form send `i` (the current
+  field) or the field's hotkey, the underlined letter of its label
+  (`e r` edits a project's repo); text sent before that is read as hotkeys
+  and commands. `esc` in input mode goes to normal mode, so `cancel_form`
+  sends a second `esc` while the box's help line names NORMAL. A field with
+  completions takes one on `tab` only when an entry is highlighted; with
+  none, `tab` is the next field, so highlight first with `ctrl+n`. `enter` on
+  the glyph field opens the glyph table, which is why the suites reach the
+  fields after it by hotkey.
+- **A schema change is a new `schemaVersion` with a migration from the one
+  before** (`migrate1to2` in sqlite.go: `ALTER TABLE … ADD COLUMN` with a
+  default, then the meta row), not an edit of `schema`: a deck that opens a
+  database of a version it does not know refuses it, and the person's
+  `deck.db` is already at the old version.
+- **A vim pane is detected from the shell's command marks.** `list-sessions`
+  gives no `foreground_cmd` for a detached session's windows, so
+  `panes.List` reads `running_cmdline` from `list-windows` and tags a pane
+  whose running program is `nvim`, `vim` or `vi`. The editor form types the
+  program into a fresh shell after `wait-for window-output` has seen the
+  prompt; text sent before a shell draws anything is lost.
 - **The picker prototypes are parallel implementations on purpose.** Each
   `picker_*.go` sits behind the `picker` interface in `pickers.go` and
   shares only `pickBase`, the targets and `picker_preview.go`. Do not factor them
