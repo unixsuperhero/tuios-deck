@@ -283,12 +283,7 @@ func (m *Model) handleTasksKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if r == nil {
 			return m, nil
 		}
-		if r.Project != nil {
-			status := nextStatus(r.Project.Status)
-			return m, m.storeChange(m.store.SetProjectStatus(r.Project.ID, status), r.Project.Name+" is "+status)
-		}
-		status := nextStatus(r.Task.Status)
-		return m, m.storeChange(m.store.SetTaskStatus(r.Task.ID, status), r.Task.Title+" is "+status)
+		return m, m.cycleRowStatus(*r)
 	case "m":
 		if r == nil {
 			return m, nil
@@ -306,26 +301,7 @@ func (m *Model) handleTasksKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if r == nil {
 			return m, nil
 		}
-		tasks, assigned := m.cascade(*r)
-		row := *r
-		word := "subtask"
-		if row.Project != nil {
-			word = "task"
-		}
-		m.mode = modeConfirm
-		m.confirm.Text = fmt.Sprintf("delete %s, %s and %s? (Y/n)", row.name(), plural(tasks, word), plural(assigned, "assignment"))
-		m.confirm.Do = func() tea.Msg {
-			var err error
-			if row.Project != nil {
-				err = m.store.DeleteProject(row.Project.ID)
-			} else {
-				err = m.store.DeleteTask(row.Task.ID)
-			}
-			if err != nil {
-				return actionMsg{err: err}
-			}
-			return actionMsg{status: "deleted " + row.name()}
-		}
+		m.confirmDeleteRow(*r, modeNormal)
 	case "enter":
 		if r == nil {
 			return m, nil
@@ -335,6 +311,41 @@ func (m *Model) handleTasksKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, m.assignSelectedPane()
 	}
 	return m, nil
+}
+
+// cycleRowStatus moves the row's project or task to its next status.
+func (m *Model) cycleRowStatus(r trow) tea.Cmd {
+	if r.Project != nil {
+		status := nextStatus(r.Project.Status)
+		return m.storeChange(m.store.SetProjectStatus(r.Project.ID, status), r.Project.Name+" is "+status)
+	}
+	status := nextStatus(r.Task.Status)
+	return m.storeChange(m.store.SetTaskStatus(r.Task.ID, status), r.Task.Title+" is "+status)
+}
+
+// confirmDeleteRow asks before deleting the row, naming what goes with it;
+// no goes back to the mode back.
+func (m *Model) confirmDeleteRow(row trow, back mode) {
+	tasks, assigned := m.cascade(row)
+	word := "subtask"
+	if row.Project != nil {
+		word = "task"
+	}
+	m.mode = modeConfirm
+	m.confirm = confirmState{Back: back}
+	m.confirm.Text = fmt.Sprintf("delete %s, %s and %s? (Y/n)", row.name(), plural(tasks, word), plural(assigned, "assignment"))
+	m.confirm.Do = func() tea.Msg {
+		var err error
+		if row.Project != nil {
+			err = m.store.DeleteProject(row.Project.ID)
+		} else {
+			err = m.store.DeleteTask(row.Task.ID)
+		}
+		if err != nil {
+			return actionMsg{err: err}
+		}
+		return actionMsg{status: "deleted " + row.name()}
+	}
 }
 
 func (m *Model) toggleTaskSnooze(id string) tea.Cmd {
@@ -677,6 +688,11 @@ func (m *Model) openEditForm() tea.Cmd {
 	if r == nil {
 		return nil
 	}
+	return m.editRow(*r)
+}
+
+// editRow opens the edit form for a row of the tasks page or the task tree.
+func (m *Model) editRow(r trow) tea.Cmd {
 	if r.Project != nil {
 		return m.openProjectEditForm(*r.Project)
 	}
@@ -742,7 +758,7 @@ func (m *Model) openEditForm() tea.Cmd {
 			}
 		},
 	}
-	m.glyphField(m.form, 4, *r, 3, 0)
+	m.glyphField(m.form, 4, r, 3, 0)
 	return nil
 }
 
