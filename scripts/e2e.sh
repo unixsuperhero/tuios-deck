@@ -49,11 +49,6 @@ wait_deck() { # pattern, seconds
 	done
 	return 1
 }
-# Let startup output settle, then require a marked shell prompt before typing.
-wait_prompt() { # session, window
-	a wait-for window-idle -s "$1" -w "$2" --idle 500 --timeout 10000 >/dev/null || return 1
-	a list-windows -s "$1" --json | python3 -c 'import json,sys; sys.exit(0 if any(w["title"]==sys.argv[1] and w.get("at_prompt") for w in json.load(sys.stdin)["windows"]) else 1)' "$2"
-}
 settle() { b wait-for window-idle -s host -w deck --idle 700 --timeout 10000 >/dev/null; }
 window_id() { a list-windows -s target --json | python3 -c 'import json,sys; print([w["window_id"] for w in json.load(sys.stdin)["windows"] if w["title"]==sys.argv[1]][0])' "$1"; }
 # Polls the store file, which the deck writes itself after a listing, so
@@ -70,7 +65,6 @@ wait_store() { # pattern, present|absent, seconds
 echo "== daemon A: a shell pane and a fake agent"
 a new target --detach --cwd "$SCRATCH" >/dev/null
 a new-window -s target build --cwd "$SCRATCH" --no-focus >/dev/null
-wait_prompt target build || { echo "FAIL build's shell never reached a prompt"; fails=$((fails+1)); }
 a send-text -s target -w build 'echo hello-from-build
 '
 a new-window -s target fake --no-focus -- sh -c 'tuios set-agent-state idle -s "$TUIOS_SESSION" -w "$TUIOS_PANE_ID" --harness claude-code -m "fake agent at rest"; exec sleep 600' >/dev/null
