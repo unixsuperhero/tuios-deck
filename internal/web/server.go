@@ -40,6 +40,10 @@ type Server struct {
 	Events     *events.Runner // the process's one daemon stream; each browser tab taps it
 	Version    string
 	CaptureDir string
+	// StaleAfter is the settings' stale threshold; 0 marks nothing.
+	StaleAfter time.Duration
+
+	seen panes.Activity // first-seen times, for the stale mark
 
 	mu        sync.Mutex
 	nonce     string
@@ -186,6 +190,7 @@ func (s *Server) state(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
+	s.seen.Mark(sessions, s.Store.LastActivity(), s.StaleAfter, time.Now())
 	info, _ := s.Client.Hello(ctx, s.Version)
 	s.mu.Lock()
 	transcripts := s.nonce != ""
@@ -193,7 +198,7 @@ func (s *Server) state(w http.ResponseWriter, r *http.Request) {
 	hidden, wake := panes.HiddenTasks(sessions, s.Store, time.Now().Unix())
 	writeJSON(w, 200, map[string]any{
 		"daemon": info, "socket": s.Client.Socket, "sessions": s.decorate(sessions, hidden), "rail_wake": wake,
-		"transcripts": transcripts, "capture_dir": s.CaptureDir,
+		"transcripts": transcripts, "capture_dir": s.CaptureDir, "stale_after_ms": s.StaleAfter.Milliseconds(),
 		"projects": s.projectsJSON(), "tasks": s.tasksJSON(""),
 	})
 }

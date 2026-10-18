@@ -203,13 +203,17 @@ func runWeb(args []string) error {
 	if err != nil {
 		return err
 	}
+	cfg, err := config.Load(config.DefaultPath())
+	if err != nil {
+		return err
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
 	log := func(msg string) { web.Log.Print(msg) }
 	r := c.dispatcher(client, dir, st, log)
 	r.Include(web.EventTypes...) // the browser tabs' taps, before the first dial
-	s := &web.Server{Client: client, Store: st, Events: r, Version: version, CaptureDir: dir}
+	s := &web.Server{Client: client, Store: st, Events: r, Version: version, CaptureDir: dir, StaleAfter: cfg.StaleThreshold()}
 	s.HoldPresence(ctx)
 	c.startReminders(ctx, client, st, log)
 	done := r.Start(ctx)

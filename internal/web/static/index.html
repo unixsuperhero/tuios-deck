@@ -73,6 +73,8 @@ aside { border-right: 1px solid var(--line); background: var(--panel); display: 
 .kind-agent { font-weight: 700; color: #00cdcd; }
 .kind-terminal { color: var(--muted); }
 .pane .harness { opacity: .7; margin-left: 4px; }
+.pane .stale { opacity: .55; margin-right: 6px; }
+#confirm-hint { white-space: pre-line; }
 .s-working { color: var(--working); } .s-needs_input, .s-errored { color: var(--needs); } .s-idle { color: var(--idle); } .s-done { color: var(--done); }
 section { display: grid; grid-template-rows: auto 1fr; min-height: 0; }
 .toolbar { display: flex; gap: 8px; align-items: center; padding: 8px 16px; border-bottom: 1px solid var(--line); flex-wrap: wrap; background: var(--panel); }
@@ -223,6 +225,7 @@ body.focused { border: 1px solid var(--focus-color, var(--accent)); }
         <select class="railgroup" id="group" aria-label="Group panes by"></select>
         <label>Sort <select id="rail-sort" aria-label="Sort panes by"></select></label>
         <button id="rail-reset" title="Session grouping and default sort (R)">Reset view</button>
+        <button id="btn-close-stale" hidden title="Close every pane marked stale, after a confirmation">Close stale</button>
       </div>
       <div class="rail" id="list"><div class="empty">loading…</div></div>
     </aside>
@@ -559,8 +562,8 @@ body.focused { border: 1px solid var(--focus-color, var(--accent)); }
 const $ = (id) => document.getElementById(id);
 const DOTS = { working: '◐', needs_input: '●', errored: '✗', idle: '○', done: '✓' };
 // A grouping is a list of levels joined by " > ", the first outermost.
-const LEVELS = ['session', 'project', 'task', 'parent task', 'top-level task', 'cwd', 'harness', 'state', 'kind'];
-const GROUPS = ['session', 'task tree', 'project', 'project > parent task', 'task', 'top-level task', 'harness > project > parent task', 'cwd', 'harness', 'state', 'kind', 'none'];
+const LEVELS = ['session', 'project', 'task', 'parent task', 'top-level task', 'cwd', 'harness', 'state', 'kind', 'stale'];
+const GROUPS = ['session', 'task tree', 'project', 'project > parent task', 'task', 'top-level task', 'harness > project > parent task', 'cwd', 'harness', 'state', 'kind', 'stale', 'none'];
 const RAIL_SORTS = ['default', 'name', 'state', 'harness', 'session'];
 const PAGES = ['deck', 'tasks', 'captures', 'context', 'reminders', 'review', 'history'];
 const state = {
@@ -775,11 +778,15 @@ async function refresh() {
     state.tasks = st.tasks || [];
     state.captureDir = st.capture_dir || '';
     state.panes = {};
-    let agents = 0, needs = 0;
+    state.staleAfter = st.stale_after_ms || 0;
+    let agents = 0, needs = 0, stale = 0;
     for (const s of state.sessions) for (const p of s.panes || []) {
       state.panes[p.id] = p;
       if (p.is_agent) { agents++; if (p.needs_you) needs++; }
+      if (p.stale) stale++;
     }
+    $('btn-close-stale').hidden = stale === 0;
+    $('btn-close-stale').textContent = `Close stale (${stale})`;
     $('meta').textContent = `${st.daemon?.daemon_version ? 'tuios ' + st.daemon.daemon_version : ''}  ${st.socket}`;
     $('agents').textContent = `${agents} agent${agents === 1 ? '' : 's'}`;
     $('needs').hidden = needs === 0; $('needs').textContent = `${needs} need you`;
@@ -847,6 +854,7 @@ function groupKey(level, p, underProject) {
     case 'harness': return [p.harness || '', p.harness || ''];
     case 'state': return p.is_agent ? [p.state || '', p.state || ''] : ['terminal', 'terminal'];
     case 'kind': return p.is_agent ? ['agent', 'agent'] : ['terminal', 'terminal'];
+    case 'stale': return p.stale ? ['stale', 'stale'] : ['active', 'active'];
     default: return [p.session, p.session];
   }
 }
@@ -1043,6 +1051,12 @@ function renderList() {
     name.append(nm);
     name.title = (p.cwd || '') + (state.group !== 'session' ? `\n${p.session}` : '');
     el.children[3].textContent = st; el.children[3].className = 'state s-' + (p.is_agent ? p.state : 'none');
+    if (p.stale) {
+      // The power-sleep symbol: dozing, not dead. The age is how long it has been idle.
+      const sl = document.createElement('span'); sl.className = 'stale'; sl.textContent = '⏾ ' + age(p.idle_ms);
+      sl.title = 'stale: last activity ' + age(p.idle_ms) + ' ago';
+      el.children[3].prepend(sl);
+    }
     if (p.is_agent && p.harness) {
       const hn = document.createElement('span'); hn.className = 'harness'; hn.textContent = p.harness;
       el.children[3].append(hn);
@@ -1052,9 +1066,17 @@ function renderList() {
   }
   list.scrollTop = scroll;
 }
+// age writes milliseconds the way the rail shows them: 40s, 12m, 3h, 2d.
+function age(ms) {
+  const s = Math.floor((ms || 0) / 1000);
+  if (s < 60) return s + 's';
+  if (s < 3600) return Math.floor(s / 60) + 'm';
+  if (s < 48 * 3600) return Math.floor(s / 3600) + 'h';
+  return Math.floor(s / 86400) + 'd';
+}
 function renderWho() {
   const p = state.panes[state.selected];
-  let who = p ? `${p.session} › ${p.name}${p.message ? ' — ' + p.message : ''}` : '';
+  let who = p ? `${p.session} › ${p.name}${p.stale ? ' · stale · last activity ' + age(p.idle_ms) + ' ago' : ''}${p.message ? ' — ' + p.message : ''}` : '';
   $('who').textContent = who;
   for (const b of ['btn-prompt', 'btn-capture', 'btn-close', 'btn-assign']) $(b).disabled = !p;
 }
@@ -1751,6 +1773,25 @@ $('btn-assign').onclick = () => assign('task');
 $('btn-prompt').onclick = promptPane;
 $('btn-capture').onclick = capturePane;
 $('btn-close').onclick = closePane;
+// closeStale lists the panes marked stale and closes exactly those after a
+// confirmation. Nothing closes a pane on its own.
+async function closeStale() {
+  const stale = Object.values(state.panes).filter(p => p.stale);
+  if (!stale.length) { setStatus('no stale panes'); return; }
+  const list = stale.map(p => `${age(p.idle_ms)}  ${p.session} / ${p.name}`).join('\n');
+  if (!(await confirmDialog(`Close ${stale.length} stale pane${stale.length === 1 ? '' : 's'}?`, list, 'Close stale'))) return;
+  let closed = 0; const failed = [];
+  for (const p of stale) {
+    try { await api(`/api/panes/${enc(p.session)}/${enc(p.id)}`, { method: 'DELETE' }); closed++; }
+    catch (e) { failed.push(`${p.name}: ${e.message}`); }
+  }
+  setStatus(failed.length ? `closed ${closed} of ${stale.length} stale panes; ${failed.join('; ')}` : `closed ${closed} stale panes`, failed.length > 0);
+  scheduleRefresh();
+}
+$('btn-close-stale').onclick = closeStale;
+// The stale mark moves with the clock, not only with daemon events, so the
+// list is read again each half minute. A refresh keeps the selection and scroll.
+setInterval(() => { if (!document.hidden) scheduleRefresh(); }, 30000);
 for (const b of document.querySelectorAll('.tabs button')) b.onclick = () => showTab(b.dataset.tab);
 
 // ---------------------------------------------------------------- tasks page
@@ -2447,6 +2488,7 @@ function deckCommands() {
     { label: 'prompt presets…', desc: 'create, edit and delete prompt presets', run: managePresets },
     { label: 'capture selected pane', run: capturePane },
     { label: 'close selected pane', run: closePane },
+    { label: 'close stale panes', run: closeStale },
     { label: 'refresh', run: () => { refresh(); if (state.page === 'captures') loadCaptures(); } },
     { label: 'keybindings and actions…', run: openHelp },
   );
