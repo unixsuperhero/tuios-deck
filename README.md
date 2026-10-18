@@ -452,7 +452,8 @@ page has the same.
 
 Open History with `H` in either front end, or choose `go to history` in the
 command palette. The TUI's configurable `history` action appears in
-`deck config keys`. The web page also has a History navigation button.
+`deck config keys` and the in-app `?` keybinding/action catalog. The web page
+also has a History navigation button and lists `H` in its `?` catalog.
 Entries are newest first, with source time, observation time, session, window,
 source identity and detail. They remain in `deck.json` after panes close and
 after the deck restarts. Re-reading retained sources does not duplicate entries.

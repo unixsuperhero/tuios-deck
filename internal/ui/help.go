@@ -85,9 +85,9 @@ func (m *Model) helpRows(mode string) []helpRow {
 		rows = append(rows, helpRow{"up/down", "previous/next field", "normal mode"}, helpRow{"ctrl+s", "submit", "normal mode"}, helpRow{"ctrl+c", "cancel", "normal mode"})
 	case "pages":
 		rows = []helpRow{
-			{"esc", "return to deck", "tasks/captures/context/prototypes"},
-			{"j/k, up/down", "next/previous row", "tasks/captures/context/prototypes"},
-			{"g/G, home/end", "first/last row", "tasks/context"},
+			{"esc", "return to deck", "tasks/captures/context/prototypes/history"},
+			{"j/k, up/down", "next/previous row", "tasks/captures/context/prototypes/history"},
+			{"g/G, home/end", "first/last row", "tasks/context/history"},
 			{"{/}, (/)", "jump group/level", "tasks"}, {"N", "new project", "tasks"}, {"n", "new task/subtask", "tasks"},
 			{"e", "edit", "tasks"}, {"s", "cycle task status", "tasks"}, {"m/M", "colour/glyph", "tasks"}, {"a", "assign selected pane", "tasks"},
 			{"enter", "go to assigned pane", "tasks/captures"}, {"x", "delete selected item", "tasks/captures/context"},
@@ -96,6 +96,8 @@ func (m *Model) helpRows(mode string) []helpRow {
 			{"f", "filter", "context"}, {"o/O", "cycle grouping", "context"}, {"*", "star", "context"}, {"!/P", "pin", "context"},
 			{"a", "assign item", "context"}, {"y", "copy item", "context"}, {"enter", "insert item", "context"}, {"ctrl+o", "open item", "context"}, {"w", "open with", "context"},
 			{"r", "refresh", "tasks/captures/context"}, {"enter", "try selected picker", "prototypes"},
+			{"enter", "go to source pane", "history"}, {"r", "refresh", "history"},
+			{"J/K, pgdown/pgup, ctrl+d/u", "scroll entry detail half a page", "history"},
 		}
 	case "forms":
 		rows = []helpRow{
@@ -123,6 +125,7 @@ func (m *Model) helpRows(mode string) []helpRow {
 		// Commands without a direct shortcut still remain available in the palette.
 		bound := map[string]string{
 			"go to review queue":       "review",
+			"go to history":            "history",
 			"keybindings and actions…": "help", "assign to task…": "assign", "assign to project…": "assign", "new agent": "new_agent", "new terminal": "new_terminal", "prompt": "prompt", "capture": "capture", "close pane": "close", "refresh": "refresh", "go to tasks": "tasks", "go to captures": "captures", "go to context": "context", "extract context from pane": "extract", "add many…": "add_many",
 		}
 		fixed := map[string]helpRow{

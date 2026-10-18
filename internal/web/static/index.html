@@ -2279,7 +2279,7 @@ const webKeys = [
   ['C', 'go to captures', 'pages', () => setPage('captures')],
   ['I', 'go to context', 'pages', () => setPage('context')],
   ['V', 'go to review queue', 'pages', () => setPage('review')],
-  ['H', 'go to history timeline', 'pages', () => setPage('history')],
+  ['H', 'go to history', 'pages', () => setPage('history')],
   ['Escape', 'go to deck', 'pages', () => setPage('deck')],
   ['j', 'next pane', 'deck', () => { const i = state.order.indexOf(state.selected); if (i < state.order.length - 1) select(state.order[i + 1]); }],
   ['k', 'previous pane', 'deck', () => { const i = state.order.indexOf(state.selected); if (i > 0) select(state.order[i - 1]); }],
