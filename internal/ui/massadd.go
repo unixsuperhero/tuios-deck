@@ -407,6 +407,9 @@ func (m *Model) knownLines(text string) []string {
 // mass-add screen to the first project or task the outline named. The
 // model puts that form back once the mass-add form is done.
 func (m *Model) resumeWith(r massResult) {
+	if tv, ok := m.protoBack.(*treeView); ok {
+		tv.added(r)
+	}
 	f := m.formStack
 	if f == nil || f.adding == 0 {
 		return

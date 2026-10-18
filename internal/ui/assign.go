@@ -155,29 +155,20 @@ func themeStyle(t store.Theme) lipgloss.Style {
 	return lipgloss.NewStyle().Foreground(lipgloss.Color(t.ANSI()))
 }
 
-// openAssignForm assigns, or reassigns, the selected pane to a task or a
-// project; both left empty drops the assignment.
-func (m *Model) openAssignForm() tea.Cmd {
+// openAssign assigns, or reassigns, the selected pane to a task or a
+// project through the tree.
+func (m *Model) openAssign() tea.Cmd {
 	p := m.selected()
 	if p == nil {
 		m.setStatus("select a pane first")
 		return nil
 	}
-	windowID, session, name := p.ID, p.Session, p.Name
-	m.mode = modeForm
-	m.form = &form{
-		Title:  "assign " + name,
-		Fields: m.targetFields(true),
-		Validate: func(v []string) (int, string) {
-			_, _, f, msg := m.resolveTarget(v[0], v[1], 0, 1, true)
-			return f, msg
-		},
-		Done: func(v []string) tea.Cmd {
-			taskID, projectID, _, _ := m.resolveTarget(v[0], v[1], 0, 1, true)
-			return m.assignPane(windowID, session, name, taskID, projectID)
-		},
+	run := protoRun{purpose: purposeAssign, title: "assign " + p.Name, windowID: p.ID, session: p.Session, name: p.Name}
+	projectID, taskID := "", ""
+	if a, ok := m.store.Assignment(p.ID); ok {
+		projectID, taskID = a.ProjectID, a.TaskID
 	}
-	return nil
+	return m.openTreeView(run, projectID, taskID)
 }
 
 // assignPane ties the pane to the task or the project, or with neither

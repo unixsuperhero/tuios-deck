@@ -121,6 +121,8 @@ type protoRun struct {
 	purpose           purpose
 	windowID, session string
 	name              string
+	// itemID is the context item an assign is for, instead of a pane.
+	itemID string
 }
 
 // openProtos shows the prototypes page.
@@ -234,6 +236,9 @@ func (m *Model) finishProto(n *pnode) tea.Cmd {
 		if taskID == "" && projectID == "" {
 			m.setStatus("nothing to assign to")
 			return nil
+		}
+		if run.itemID != "" {
+			return m.assignItem(run.itemID, run.name, taskID, projectID)
 		}
 		return m.assignPane(run.windowID, run.session, run.name, taskID, projectID)
 	}

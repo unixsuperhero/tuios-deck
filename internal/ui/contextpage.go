@@ -452,46 +452,27 @@ func (m *Model) ctxFilterText() string {
 	return strings.Join(parts, ", ")
 }
 
-// openContextAssign ties the selected item to a task or a project, with
-// the fields of the pane assignment form; both empty clears it.
+// openContextAssign ties the selected item to a task or a project through
+// the assign tree.
 func (m *Model) openContextAssign() tea.Cmd {
 	it := m.selectedItem()
 	if it == nil {
 		m.setStatus("select a context item first")
 		return nil
 	}
-	id, text := it.ID, shortText(it.Text)
-	task, project := "", ""
-	if t := m.store.Task(it.TaskID); t != nil {
-		task = m.taskPath(*t)
-	} else if p := m.store.Project(it.ProjectID); p != nil {
-		project = p.Name
+	text := shortText(it.Text)
+	run := protoRun{purpose: purposeAssign, title: "assign " + text, itemID: it.ID, name: text}
+	return m.openTreeView(run, it.ProjectID, it.TaskID)
+}
+
+// assignItem ties a context item to the task or the project.
+func (m *Model) assignItem(id, text, taskID, projectID string) tea.Cmd {
+	return func() tea.Msg {
+		if err := m.store.AssignContext(id, taskID, projectID); err != nil {
+			return actionMsg{err: err}
+		}
+		return actionMsg{status: "assigned " + text + " to " + m.ctxPath(*m.store.ContextItem(id))}
 	}
-	m.mode = modeForm
-	m.form = &form{
-		Title: "assign " + text,
-		Fields: []field{
-			{Label: "task", Value: task, Keep: true, Options: m.taskOptions, Preview: m.taskPreview},
-			{Label: "project", Value: project, Keep: true, Options: m.projectOptions, Preview: m.projectPreview},
-		},
-		Validate: func(v []string) (int, string) {
-			_, _, f, msg := m.resolveTarget(v[0], v[1], 0, 1, true)
-			return f, msg
-		},
-		Done: func(v []string) tea.Cmd {
-			taskID, projectID, _, _ := m.resolveTarget(v[0], v[1], 0, 1, true)
-			return func() tea.Msg {
-				if err := m.store.AssignContext(id, taskID, projectID); err != nil {
-					return actionMsg{err: err}
-				}
-				if taskID == "" && projectID == "" {
-					return actionMsg{status: "cleared the assignment of " + text}
-				}
-				return actionMsg{status: "assigned " + text + " to " + m.ctxPath(*m.store.ContextItem(id))}
-			}
-		},
-	}
-	return nil
 }
 
 // ctxPath is "project › top task › task" for an item, or "".

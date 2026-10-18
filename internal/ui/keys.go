@@ -187,7 +187,7 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "p":
 		return m, m.openPromptForm()
 	case "a":
-		return m, m.openAssignForm()
+		return m, m.openAssign()
 	case "c":
 		return m, m.captureToFile()
 	case "i":

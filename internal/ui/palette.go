@@ -332,8 +332,8 @@ func (m *Model) deckCommands() []palItem {
 		}
 	}
 	items := []palItem{
-		{"deck", "assign to task…", "assign the selected pane to a task", needPane(func(p *panes.Pane) tea.Cmd { return m.openTargetForm(p, true) })},
-		{"deck", "assign to project…", "assign the selected pane to a project", needPane(func(p *panes.Pane) tea.Cmd { return m.openTargetForm(p, false) })},
+		{"deck", "assign to task…", "assign the selected pane to a task", needPane(func(*panes.Pane) tea.Cmd { return m.openAssign() })},
+		{"deck", "assign to project…", "assign the selected pane to a project", needPane(func(*panes.Pane) tea.Cmd { return m.openAssign() })},
 		{"deck", "clear assignment", "drop the selected pane's task and project", needPane(func(p *panes.Pane) tea.Cmd { return m.assignPane(p.ID, p.Session, p.Name, "", "") })},
 		{"deck", "new agent", "start an agent in a new pane (n)", m.openAgentForm},
 		{"deck", "new terminal", "open a shell in a new pane (t)", m.openTerminalForm},
@@ -402,36 +402,6 @@ func (m *Model) deleteSelectedCapture() tea.Cmd {
 		return nil
 	}
 	m.confirmDeleteCapture()
-	return nil
-}
-
-// openTargetForm assigns the pane to a task, or to a project, through one
-// field; the other half of the a form is left out.
-func (m *Model) openTargetForm(p *panes.Pane, task bool) tea.Cmd {
-	windowID, session, name := p.ID, p.Session, p.Name
-	f := field{Label: "project", Keep: true, Options: m.projectOptions, Preview: m.projectPreview, New: "project"}
-	if task {
-		f = field{Label: "task", Keep: true, Options: m.taskOptions, Preview: m.taskPreview, New: "task"}
-	}
-	resolve := func(v string) (string, string, int, string) {
-		if task {
-			return m.resolveTarget(v, "", 0, 0, false)
-		}
-		return m.resolveTarget("", v, 0, 0, false)
-	}
-	m.mode = modeForm
-	m.form = &form{
-		Title:  "assign " + name,
-		Fields: []field{f},
-		Validate: func(v []string) (int, string) {
-			_, _, i, msg := resolve(v[0])
-			return i, msg
-		},
-		Done: func(v []string) tea.Cmd {
-			taskID, projectID, _, _ := resolve(v[0])
-			return m.assignPane(windowID, session, name, taskID, projectID)
-		},
-	}
 	return nil
 }
 

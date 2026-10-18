@@ -430,7 +430,6 @@ check "detail bar shows project › task" "$SCRATCH/out/06d-assigned.txt" 'deck 
 echo "== assign a pane with a"
 select_pane 1
 b send-keys -s host -w deck a >/dev/null; settle
-b send-keys -s host -w deck Enter >/dev/null            # no task
 b send-text -s host -w deck 'deck'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 06e-assign
 check "status reports the assignment" "$SCRATCH/out/06e-assign.txt" 'assigned build to deck'
 BUILD=$(window_id build)
@@ -850,19 +849,34 @@ b send-keys -s host -w deck g >/dev/null; b send-keys -s host -w deck j >/dev/nu
 b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 18-jump
 check "enter on the task selects its pane on the deck" "$SCRATCH/out/18-jump.txt" 'target › extra .*deck › command palette'
 
-echo "== form box: fuzzy completion list"
+echo "== the assign tree: every branch open, the preview beside it"
 b send-keys -s host -w deck a >/dev/null; settle; deckcap 19-assign-box
-check "assign form box shows its title" "$SCRATCH/out/19-assign-box.txt" '╭─ assign extra ─'
-check "every field has its own line" "$SCRATCH/out/19-assign-box.txt" '  project: '
+check "assign box shows its title" "$SCRATCH/out/19-assign-box.txt" '╭─ assign extra ─'
+check "it opens on the pane's task" "$SCRATCH/out/19-assign-box.txt" '│path *deck › command palette'
+check "the preview shows the task's status" "$SCRATCH/out/19-assign-box.txt" '│status *open'
+check "the preview lists the task's panes" "$SCRATCH/out/19-assign-box.txt" '│  target › extra'
+check "the tree opens expanded: a project's tasks show without l" "$SCRATCH/out/19-assign-box.txt" '│ ▾ [^ ] web  *│'
 b send-text -s host -w deck 'and'; settle; deckcap 19b-fuzzy
-check "a partial task lists the fuzzy matches, best highlighted" "$SCRATCH/out/19b-fuzzy.txt" '▸ deck / command palette'
-check "the second match is listed" "$SCRATCH/out/19b-fuzzy.txt" '      web / landing'
-b send-keys -s host -w deck ctrl+n >/dev/null; settle; deckcap 19c-next
-check "ctrl+n highlights the second match" "$SCRATCH/out/19c-next.txt" '▸ web / landing'
-b send-keys -s host -w deck Tab >/dev/null; settle; deckcap 19d-accept
-check "tab accepts the highlighted match" "$SCRATCH/out/19d-accept.txt" '› task: web / landing▏'
+check "typing keeps a matching task" "$SCRATCH/out/19b-fuzzy.txt" '│     [^ ] landing  '
+check "and the matching task's project" "$SCRATCH/out/19b-fuzzy.txt" '▾ [^ ] web'
+check "the query shows above the tree" "$SCRATCH/out/19b-fuzzy.txt" '│  > and▏'
+b send-keys -s host -w deck ctrl+n >/dev/null; b send-keys -s host -w deck ctrl+n >/dev/null; settle; deckcap 19c-next
+check "ctrl+n moves on to the next match, previewed" "$SCRATCH/out/19c-next.txt" '│path *web › landing'
 b send-keys -s host -w deck Escape >/dev/null; settle; deckcap 19e-cancel
-if grep -q '╭─ assign' "$SCRATCH/out/19e-cancel.txt"; then echo "FAIL form box still open after esc"; fails=$((fails+1)); else echo "PASS esc closes the form box"; fi
+if grep -q '╭─ assign' "$SCRATCH/out/19e-cancel.txt"; then echo "FAIL assign box still open after esc"; fails=$((fails+1)); else echo "PASS esc closes the assign box"; fi
+check "esc says cancelled" "$SCRATCH/out/19e-cancel.txt" 'cancelled'
+
+echo "== the assign tree at 80 columns keeps the details, drops the screen"
+b call new-session "{\"name\":\"narrow\",\"width\":80,\"height\":30,\"cwd\":\"$SCRATCH\"}" >/dev/null
+b new-window -s narrow deck80 --no-focus -- env TUIOS_DECK_DATA="$DATA" "$DECK" tui --socket "$ASOCK" --captures "$SCRATCH/captures" >/dev/null
+b wait-for window-output -s narrow -w deck80 --pattern 'tuios-deck' --timeout 15000 >/dev/null
+b wait-for window-idle -s narrow -w deck80 --idle 700 --timeout 10000 >/dev/null
+b send-keys -s narrow -w deck80 'g j a' >/dev/null
+b wait-for window-idle -s narrow -w deck80 --idle 700 --timeout 10000 >/dev/null
+b capture-pane -s narrow -w deck80 > "$SCRATCH/out/19f-narrow.txt"
+check "at 80 columns the assign tree still previews the details" "$SCRATCH/out/19f-narrow.txt" '│path *deck'
+if grep -q '── screen of' "$SCRATCH/out/19f-narrow.txt"; then echo "FAIL the narrow preview kept the screen"; fails=$((fails+1)); else echo "PASS the narrow preview drops the screen"; fi
+b kill-session -s narrow >/dev/null 2>&1 || b call kill-session '{"session":"narrow"}' >/dev/null
 
 echo "== r refreshes every page without a panic"
 # A screen taller than the detail pane leaves the scroll past zero while it
@@ -1069,26 +1083,26 @@ b send-keys -s host -w deck Escape >/dev/null; settle
 b send-keys -s host -w deck s >/dev/null; settle; b send-keys -s host -w deck s >/dev/null; settle   # skipped, then open
 b send-keys -s host -w deck Escape >/dev/null; settle
 
-echo "== a task picker offers + add new…, which opens the mass-add screen"
+echo "== the assign tree ends with + add new…, which opens the mass-add screen"
 select_pane 3
 b send-keys -s host -w deck a >/dev/null; settle
-b send-text -s host -w deck 'zzz'; b send-keys -s host -w deck ctrl+n >/dev/null; settle; deckcap 21-add-entry
-check "the list ends with + add new…, highlighted by ctrl+n" "$SCRATCH/out/21-add-entry.txt" '▸ + add new…'
-b send-keys -s host -w deck Tab >/dev/null; settle; deckcap 21b-mass-from-form
+b send-keys -s host -w deck G >/dev/null; settle; deckcap 21-add-entry
+check "G highlights + add new…, the last row" "$SCRATCH/out/21-add-entry.txt" '│opens the mass-add screen with'
+b send-text -s host -w deck 'zzz'; settle
+b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 21b-mass-from-form
 check "+ add new… opens the mass-add box" "$SCRATCH/out/21b-mass-from-form.txt" '╭─ add projects and tasks ─'
 check "it holds the existing outline" "$SCRATCH/out/21b-mass-from-form.txt" '│     deck  '
 check "and the typed task under the pane's task, command palette" "$SCRATCH/out/21b-mass-from-form.txt" '│         zzz▏'
 b send-keys -s host -w deck Escape >/dev/null; settle; deckcap 21c-mass-esc
-check "esc in the mass-add box returns to the assign form unchanged" "$SCRATCH/out/21c-mass-esc.txt" '› task: zzz▏'
+check "esc in the mass-add box returns to the tree unchanged" "$SCRATCH/out/21c-mass-esc.txt" '│  > zzz▏'
 b send-keys -s host -w deck ctrl+u >/dev/null
-b send-text -s host -w deck 'brand new task'; b send-keys -s host -w deck ctrl+n >/dev/null; settle
-b send-keys -s host -w deck Tab >/dev/null; settle
+b send-text -s host -w deck 'brand new task'; settle
+b send-keys -s host -w deck Enter >/dev/null; settle
 b send-keys -s host -w deck BTab >/dev/null             # out from under command palette to the project
 b send-keys -s host -w deck ctrl+s >/dev/null; settle; deckcap 21d-resumed
-check "ctrl+s in the mass-add box returns to the assign form" "$SCRATCH/out/21d-resumed.txt" '╭─ assign extra ─'
-check "the task field holds the new task's path" "$SCRATCH/out/21d-resumed.txt" '› task: deck / brand new task▏'
-b send-keys -s host -w deck Enter >/dev/null            # task
-b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 21e-assigned   # project: implied
+check "ctrl+s in the mass-add box returns to the tree" "$SCRATCH/out/21d-resumed.txt" '╭─ assign extra ─'
+check "the new task is highlighted" "$SCRATCH/out/21d-resumed.txt" '│path *deck › brand new task'
+b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 21e-assigned
 check "status reports the assignment to the new task" "$SCRATCH/out/21e-assigned.txt" 'assigned extra to deck › brand new task'
 python3 - "$DATA" "$EXTRA" <<'PY2' && echo "PASS extra is assigned to the new task in the store" || { echo "FAIL extra is not assigned to brand new task"; fails=$((fails+1)); }
 import json, sys
@@ -1172,17 +1186,27 @@ cmp -s "$DATA" "$SCRATCH/out/store-before-esc.json" && echo "PASS the store is u
 b send-keys -s host -w deck Escape >/dev/null; settle; deckcap 21z-back
 check "esc on the prototypes page returns to the deck" "$SCRATCH/out/21z-back.txt" 'tuios-deck.* deck '
 
+echo "== a on the context page assigns the item through the same tree"
+b send-text -s host -w deck 'I'; settle
+b send-keys -s host -w deck g >/dev/null; settle
+b send-keys -s host -w deck a >/dev/null; settle; deckcap 22-ctx-assign
+check "the item's assign box is the tree" "$SCRATCH/out/22-ctx-assign.txt" '╭─ assign https://example.com/tui-link ─'
+b send-text -s host -w deck 'deck'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 22b-ctx-assigned
+check "status reports the item's assignment" "$SCRATCH/out/22b-ctx-assigned.txt" 'assigned https://example.com/tui-link to deck'
+python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if any(c["text"]=="https://example.com/tui-link" and c["project_id"]=="p_e2e001" for c in d["context_items"]) else 1)' "$DATA" \
+	&& echo "PASS the store holds the link under deck" || { echo "FAIL the link is not assigned to deck"; fails=$((fails+1)); }
+b send-keys -s host -w deck Escape >/dev/null; settle
+
 echo "== the task tree: project, task, subtasks, then the pane"
 # Terminal goes on the subtask verb autocomplete the mass add made, and fake
 # is unassigned again so the (none) header shows.
 select_pane 2
-b send-keys -s host -w deck a >/dev/null; settle
-b send-keys -s host -w deck Enter >/dev/null; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 23a-unassign-fake
-check "both fields empty unassigns fake" "$SCRATCH/out/23a-unassign-fake.txt" 'unassigned fake'
+palette 'clear assignment'; deckcap 23a-unassign-fake
+check "the palette's clear assignment unassigns fake" "$SCRATCH/out/23a-unassign-fake.txt" 'unassigned fake'
 select_pane 0
-b send-keys -s host -w deck a >/dev/null; settle
-b send-text -s host -w deck 'verb autocomplete'; b send-keys -s host -w deck Tab >/dev/null
-b send-keys -s host -w deck Enter >/dev/null; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 23b-assign-sub
+b send-keys -s host -w deck a >/dev/null; settle; deckcap 23a2-tree-open
+check "the assign tree opens fully expanded: a subtask shows without l" "$SCRATCH/out/23a2-tree-open.txt" '│       [^ ] verb autocomplete  '
+b send-text -s host -w deck 'verb autocomplete'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 23b-assign-sub
 check "Terminal is assigned to the subtask" "$SCRATCH/out/23b-assign-sub.txt" 'assigned Terminal [0-9a-f]* to deck › command palette › verb autocomplete'
 b send-keys -s host -w deck o >/dev/null; settle; deckcap 23c-tree
 check "one o from session is task tree" "$SCRATCH/out/23c-tree.txt" 'tuios-deck.* deck  by task tree'

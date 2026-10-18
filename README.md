@@ -199,8 +199,8 @@ Every agent and terminal the deck starts is assigned to a task or, failing
 that, to a project: the `n` and `t` forms ask for one after the cwd, with
 the known task paths (`project / top task / … / title`) and project names
 listed under the field, and refuse a pane with neither. A task implies its
-project. `a` assigns, or reassigns, a pane already open; both fields left
-empty drop the assignment. The assignment of a pane that is gone from two
+project. `a` assigns, or reassigns, a pane already open through the assign
+tree (below); the palette's "clear assignment" drops it. The assignment of a pane that is gone from two
 listings in a row is dropped on its own.
 
 The record is one JSON file, `$XDG_DATA_HOME/tuios-deck/deck.json`, else
@@ -448,7 +448,7 @@ With the rail focused:
 | `n` | Start an agent: session, agent command, name, cwd, task or project, first prompt. Waits until it is at its prompt |
 | `t` | Open a terminal: session, name, cwd, task or project. Always an interactive shell, the pane tuios itself opens; send commands to it with `p`. Creates the session when it does not exist |
 | `p` | Send a prompt. An agent gets it through `queue-prompt`, typed when the agent is at rest; a plain terminal gets the text and Enter |
-| `a` | Assign the pane to a task or a project; both fields empty drop the assignment |
+| `a` | Assign the pane to a task or a project through the assign tree (below) |
 | `c` | Save the pane's screen and scrollback to a file |
 | `i` | Extract context items from the pane (above) |
 | `x` | Close the pane, after a confirmation |
@@ -636,7 +636,7 @@ when it was found and whether it is starred and pinned.
 | `o` `O` | Group the next or the previous way: none, kind, project, task, pane |
 | `*` | Star or unstar the item |
 | `!` `P` | Pin or unpin it |
-| `a` | Assign it to a task or a project; both fields empty clear it |
+| `a` | Assign it to a task or a project through the assign tree |
 | `y` | Copy its text through OSC 52, and with `pbcopy`, `wl-copy` or `xclip` too when one is on `PATH` |
 | `enter` | Type its text into the pane selected on the deck page, without Enter, so nothing is submitted |
 | `ctrl+o` | Open a link, a pull request (`owner/repo#123` as its GitHub URL), a file or a folder with `open`, or `xdg-open` off macOS |
@@ -648,7 +648,38 @@ when it was found and whether it is starred and pinned.
 A prompt or a command has nothing to open; `y` and `enter` work on every
 kind.
 
+### The assign tree
+
+`a` on the deck page, `a` on the context page and the palette's "assign to
+task…" and "assign to project…" open one box: on the left every project,
+task and subtask as a tree with every branch open, on the right the
+highlighted target's path, status, theme, last change, subtask (or task)
+count, assigned panes with their state, and the last 15 lines of the first
+pane's screen, read once per pane while the box is up. In a box under 100
+columns wide the preview keeps the details and drops the screen. It opens
+on what the pane or the item is assigned to now.
+
+| Key | Does |
+| --- | --- |
+| `j` `k`, `↓` `↑`, `ctrl+n` `ctrl+p` | Move |
+| `g` `G` | The first row, the last (`+ add new…`) |
+| `h` `←` | Close the branch, or go to the parent |
+| `l` `→` | Open the branch, or step into it |
+| `{` `}` | The previous or next sibling |
+| `(` | The parent |
+| any other letter | Filter: fuzzy by name and path, keeping the matching branches and their ancestors, all open. Once something is typed every letter types; `/` first lets a query start with one of the keys above |
+| `backspace` `ctrl+u` `ctrl+w` | Edit the query |
+| `enter` | Assign to the highlighted project or task, reported as `assigned <pane> to <project> › <task>` |
+| `esc` | Cancel |
+
+`+ add new…`, always the last row, opens the mass-add screen with what was
+typed as a task under the pane's project; `ctrl+s` there adds it and brings
+the tree back with the new task highlighted, `esc` brings it back as it was.
+
 ### Prototypes
+
+The two-pane preview with the tree on its left won, and is now the assign
+tree above. The page stays for now.
 
 `U` (or the palette's "prototypes") opens a page of picker prototypes for
 assigning a pane and filtering the context page, so they can be tried on
@@ -746,7 +777,7 @@ under it, filtered as you type the way the palette filters. `ctrl+n`
 value, and `enter` takes it too unless what you typed is already one of the
 values.
 
-Task, project, parent and window fields (the assign forms, the new and edit
+Task, project, parent and window fields (the new and edit
 task forms' `parent`, the context filter's project and task, the queue
 prompt form's task, project and pane, the palette's `window` parameter) also preview the highlighted entry under the list: its path and
 status or the pane's metadata, the live panes assigned to it (the task's own
@@ -757,8 +788,8 @@ highlighted; a read for an entry you have moved off is dropped, and typing
 and the list never wait on it. The preview takes only the lines the list
 leaves in the box, so on a small terminal it shrinks and the key hints stay.
 
-Every project or task field (new agent, new terminal, assign, the palette's
-assign, new task and new subtask entries) ends its list with `+ add new…`.
+Every project or task field (new agent, new terminal, the palette's new
+task and new subtask entries) ends its list with `+ add new…`.
 Taking it puts the form aside and opens the mass-add screen, holding the
 whole existing outline, with what you typed on a new line and the cursor
 at its end: as a project line at the end in a project field, or in a task
@@ -869,9 +900,12 @@ A form, a confirmation, the palette and a running prototype:
  <assign <pane> | filter context> · <prototype> · the keys are in the box · ctrl+c cancel
 ```
 
-Inside a prototype the box's last line names its keys:
+Inside the assign tree, and inside a prototype, the box's last line names
+its keys:
 
 ```
+type to filter · j/k ↑/↓ move · h/l close/open · {/} siblings · ( parent · enter pick · esc cancel
+type to filter · ↑/↓ ctrl+n/ctrl+p move · backspace edit · enter pick · esc cancel
 type to filter · ctrl+n/ctrl+p move · enter pick · ? preview · esc cancel
 j/k move · l open · h close · / filter · enter pick · ? preview · esc cancel
 type to filter · ↓/↑ move · enter pick · ? preview · esc clear the filter
