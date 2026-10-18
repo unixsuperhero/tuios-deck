@@ -96,7 +96,7 @@ func (m *Model) View() tea.View {
 	// A form is a box centred over the body.
 	var box []string
 	boxW, boxX, boxY := 0, 0, 0
-	if m.mode == modeForm && m.form != nil {
+	if (m.mode == modeForm || m.mode == modeConfirm && m.confirm.Back == modeForm) && m.form != nil {
 		boxW = formWidth(m.width)
 		box = m.formBox(boxW, bodyH)
 		boxX, boxY = (m.width-boxW)/2, (bodyH-len(box))/2

@@ -30,6 +30,16 @@ const (
 	modeGlyph // the glyph table is up
 )
 
+// confirmState is the question modeConfirm asks. Yes runs Then on the model
+// and returns Do to Bubble Tea; no goes back to Back, modeNormal unless the
+// question was asked over a form.
+type confirmState struct {
+	Text string
+	Do   tea.Cmd
+	Then func()
+	Back mode
+}
+
 // page is which view the deck shows: the deck of panes, the tasks tree or
 // the captures folder.
 type page int
@@ -147,10 +157,7 @@ type Model struct {
 	// formStack is the form suspended while the mass-add screen it opened
 	// is up; it comes back when that screen is submitted or cancelled.
 	formStack *form
-	confirm   struct {
-		Text string
-		Do   tea.Cmd
-	}
+	confirm   confirmState
 
 	pm         *promptModal // the prompt presets or queued prompts while open
 	glyph      *glyphTable  // the glyph table while open
@@ -246,6 +253,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		if m.mode == modeForm && m.form != nil {
+			m.form.remember()
 			if p := m.form.recovery; p != nil {
 				p.search(p.query + panes.OneLine(msg.String()))
 			} else if !m.form.vimNormal {

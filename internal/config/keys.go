@@ -26,7 +26,7 @@ type Action struct {
 var actions = map[string][]Action{
 	ModeDeck: {
 		{"help", "?", "show keybindings and actions", true},
-		{"quit", "q", "leave the deck", true},
+		{"quit", "q", "leave the deck, after a confirmation", true},
 		{"palette", ":", "open the command palette", true},
 		{"tasks", "T", "go to the tasks page", true},
 		{"focus", "F", "focus a task or project, or unlock", true},

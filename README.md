@@ -211,7 +211,9 @@ first closes an open `@` path list, then goes to **normal** mode. In normal
 mode nothing types: `i`/`a` return to insert, `j`/`k` move between fields,
 `D` empties the field, `enter` submits, and `esc` cancels the form (or goes
 back to the parked form after `+ add new…`). Any other key is ignored, and a
-paste is ignored too.
+paste is ignored too. In either setting, `esc` on a form whose fields you
+have changed asks first, `y` discards and `n` keeps the form; an untouched
+form closes at once.
 
 ## Projects, tasks and assignments
 
@@ -659,7 +661,8 @@ the panes on the left, the selected pane's screen, activity, transcript or
 turns on the right. On every page `T` opens the tasks page, `C` the
 captures page, `I` the context page, `H` the history timeline, `U` the
 prototypes page, `V` the review queue, `A` the mass-add screen, `:` or
-`ctrl+p` the command palette, and `q` quits; `esc` comes back to the deck.
+`ctrl+p` the command palette, and `q` asks and then quits; `esc` comes back
+to the deck.
 The title line names the page and, on the deck, the current sort and the
 grouping when it is not by session; on the context page, its sort, grouping and filter.
 
@@ -710,7 +713,7 @@ With the rail focused:
 | `T` `C` `I` `U` `A` | The tasks page, the captures page, the context page, the prototypes page, the mass-add screen |
 | `V` | The completed prompt review queue (Enter opens and marks reviewed) |
 | `:` `ctrl+p` | The command palette |
-| `q` | Quit; the panes stay |
+| `q` | Quit, after a confirmation; the panes stay |
 
 With the main area focused, these keys change and the rail's selection
 stays where it is; every other key does what it does with the rail

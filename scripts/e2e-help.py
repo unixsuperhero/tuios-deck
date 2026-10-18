@@ -124,7 +124,7 @@ try:
     screen("form-normal-default", "Mode: form_normal")
     keys("Escape i")
     screen("form-restored", "why?")
-    keys("Escape Escape")
+    keys("Escape Escape y")  # normal mode, then the question an edited form asks
     keys(":")
     run("B", "send-text", "-s", "host", "-w", "deck", "?")
     text = screen("question-palette", "> ?▏")
@@ -167,7 +167,7 @@ try:
     screen("f1-stashes", "Mode: saved prompts", "contextual")
     keys("Escape Enter", "contextual")
     screen("stash-restored-after-help", "recover this?", "contextual")
-    keys("Escape :", "contextual")
+    keys("Escape y :", "contextual")  # an edited form asks before closing
     run("B", "send-text", "-s", "contextual", "-w", "deck", "keybindings")
     keys("F1", "contextual")
     screen("f1-palette", "Mode: palette", "contextual")
@@ -221,7 +221,7 @@ try:
     keys("Escape", "remapped")
     screen("form-insert-restored", "keep?", "remapped")
     keys("Escape", "remapped")
-    keys("Escape T F", "remapped")
+    keys("Escape y T F", "remapped")  # the edited form asks before closing
     keys("alt+h", "remapped")
     screen("focused-mode", "Mode: deck", "remapped")
 finally:

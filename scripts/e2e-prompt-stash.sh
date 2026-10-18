@@ -26,6 +26,9 @@ text() { b send-text -s host -w deck "$1" >/dev/null; settle; }
 paste() { text $'\033[200~'"$1"$'\033[201~'; }
 settle() { b wait-for window-idle -s host -w deck --idle 200 --timeout 10000 >/dev/null; }
 cap() { b capture-pane -s host -w deck > "$SCRATCH/out/$1.txt"; }
+# cancel sends the key (esc unless given) and answers y when an edited form
+# asks before closing; a form whose autosave failed stays open and asks nothing.
+cancel() { keys "${1:-Escape}"; cap _ask; if grep -Fq 'close this form without submitting' "$SCRATCH/out/_ask.txt"; then keys y; fi; }
 check() { grep -Fq -- "$2" "$SCRATCH/out/$1.txt" || { echo "FAIL $1: missing $2"; exit 1; }; echo "PASS $1: $2"; }
 absent() { if grep -Fq -- "$2" "$SCRATCH/out/$1.txt"; then echo "FAIL $1: unexpected $2"; exit 1; fi; echo "PASS $1: absent $2"; }
 palette() { keys ctrl+p; text "$1"; keys Enter; }
@@ -91,27 +94,27 @@ B="$SCRATCH/B-restarted"
 start_deck
 keys 'g j p ctrl+r'; paste 'recover-last'; keys Enter; cap restart
 check restart 'recover-last▏'
-keys Escape
+cancel
 # Every prompt entry point offers recovery; notes and other fields do not.
 keys 'g p ctrl+r'; paste 'recover-last'; keys Enter; cap terminal
 check terminal 'recover-last▏'
-keys Escape
+cancel
 keys n
 for i in 1 2 3 4 5 6 7; do keys Enter; done
 keys ctrl+r; paste 'recover-last'; keys Enter; cap new-agent
 check new-agent 'recover-last▏'
-keys Escape
+cancel
 palette 'queue prompt'
 for i in 1 2 3 4 5 6 7; do keys Enter; done
 keys ctrl+r; paste 'recover-last'; keys Enter; cap new-queue
 check new-queue 'recover-last▏'
-keys Escape
+cancel
 palette 'queued prompts'
 keys e
 for i in 1 2 3 4 5 6; do keys Enter; done
 keys ctrl+r; paste 'recover-last'; keys Enter; cap edit-queue
 check edit-queue 'recover-last▏'
-keys 'Escape Escape'
+cancel; keys Escape
 keys 'g j p'
 long_prompt=$(python3 -c 'print("LONG-PREVIEW-START\n" + "\n".join("preview row %d" % n for n in range(80)) + "\nLONG-PREVIEW-END")')
 paste "$long_prompt"; keys ctrl+u; keys 'Escape p ctrl+r'; paste 'VIEW-END'; cap long-preview-start
@@ -144,7 +147,7 @@ check failed-restore-draft 'cannot-lose-this-draft▏'
 rmdir "$DATA"; mv "$DATA.saved" "$DATA"
 keys ctrl+r; paste 'cannot-lose'; cap rollback
 check rollback 'cannot-lose-this-draft'
-keys 'Escape Escape'
+keys Escape; cancel
 # A failed autosave must retain the editor until persistence works again.
 keys p
 mv "$DATA" "$DATA.saved"; mkdir "$DATA"
@@ -153,9 +156,9 @@ keys Escape; cap autosave-failure
 check autosave-failure 'unsaved-after-storage-failure▏'
 check autosave-failure 'prompt autosave failed'
 rmdir "$DATA"; mv "$DATA.saved" "$DATA"
-keys 'Escape p ctrl+r'; paste 'unsaved-after-storage-failure'; keys Enter; cap autosave-retry
+cancel; keys 'p ctrl+r'; paste 'unsaved-after-storage-failure'; keys Enter; cap autosave-retry
 check autosave-retry 'unsaved-after-storage-failure▏'
-keys Escape
+cancel
 # Vim normal mode can open recovery without interpreting picker input as commands.
 b kill-server >/dev/null
 B="$SCRATCH/B-vim"
@@ -165,7 +168,7 @@ start_deck
 keys 'g j p Escape ctrl+r'; paste 'recover-last'; keys Enter; cap vim-recovery
 check vim-recovery 'recover-last▏'
 # Autosave happens before dismissal, not only on explicit stash or submit.
-keys 'Escape Escape'
+cancel; cancel
 b kill-server >/dev/null
 B="$SCRATCH/B-auto"
 start_deck
@@ -181,10 +184,10 @@ assert 'autosave-without-submit\n日本語 café\nlast line updated' in [p['text
 assert 'autosave-without-submit\n日本語 café\nlast line' not in [p['text'] for p in s], s
 print('PASS exact draft saved while editor is still open')
 PY
-keys Escape
+cancel
 keys p
 paste 'second cancelled prompt'
-keys ctrl+c
+cancel ctrl+c
 # Restart while a third unsent draft is still open.
 keys p
 paste 'restart while typing'
@@ -193,8 +196,8 @@ B="$SCRATCH/B-auto-restart"
 start_deck
 keys 'g j p ctrl+r'; paste 'autosave-without-submit'; keys Enter; cap auto-restored
 check auto-restored 'last line updated▏'
-keys 'Escape p ctrl+r'; paste 'second cancelled'; keys Enter; cap second-restored
+cancel; keys 'p ctrl+r'; paste 'second cancelled'; keys Enter; cap second-restored
 check second-restored 'second cancelled prompt▏'
-keys 'Escape p ctrl+r'; paste 'restart while typing'; keys Enter; cap crash-restored
+cancel; keys 'p ctrl+r'; paste 'restart while typing'; keys Enter; cap crash-restored
 check crash-restored 'restart while typing▏'
 printf 'PASS prompt stash suite; evidence in %s/out\n' "$SCRATCH"

@@ -53,6 +53,12 @@ wait_deck() { # pattern, seconds
 # ~20 ms, so 200 ms of silence is the screen at rest. 700 ms here once cost
 # 277 of the suite's 423 seconds, since the wait always runs its full window.
 settle() { b wait-for window-idle -s host -w deck --idle 200 --timeout 10000 >/dev/null; }
+# cancel_form sends esc and, when a form whose fields were edited asks before
+# closing, answers y; an untouched form, a page or a list closes at once.
+cancel_form() {
+	b send-keys -s host -w deck Escape >/dev/null; settle
+	if b capture-pane -s host -w deck | grep -q 'close this form without submitting'; then b send-keys -s host -w deck y >/dev/null; settle; fi
+}
 window_id() { a list-windows -s target --json | python3 -c 'import json,sys; print([w["window_id"] for w in json.load(sys.stdin)["windows"] if w["title"]==sys.argv[1]][0])' "$1"; }
 # Polls the store file, which the deck writes itself after a listing, so
 # there is no daemon condition to wait on.
@@ -151,8 +157,15 @@ b send-keys -s host -w deck Escape >/dev/null; settle; deckcap 04e-at-closed
 check "esc closes the @ list and keeps the form" "$SCRATCH/out/04e-at-closed.txt" '╭─ prompt ─'
 b send-keys -s host -w deck ctrl+u >/dev/null; b send-text -s host -w deck '@deck.j'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 04f-at-file
 check "enter on a file puts its path in place of the @query" "$SCRATCH/out/04f-at-file.txt" '    deck.json▏'
-b send-keys -s host -w deck Escape >/dev/null; settle; deckcap 04g-at-cancel
-if grep -q '╭─ prompt' "$SCRATCH/out/04g-at-cancel.txt"; then echo "FAIL prompt form still open"; fails=$((fails+1)); else echo "PASS esc with no list cancels the form"; fi
+b send-keys -s host -w deck Escape >/dev/null; settle; deckcap 04g-at-ask
+check "esc on an edited form asks before closing" "$SCRATCH/out/04g-at-ask.txt" 'close this form without submitting'
+check "the edited form stays up while it asks" "$SCRATCH/out/04g-at-ask.txt" '╭─ prompt ─'
+b send-keys -s host -w deck n >/dev/null; settle; deckcap 04g-at-kept
+check "n keeps the edited form" "$SCRATCH/out/04g-at-kept.txt" '    deck.json▏'
+b send-keys -s host -w deck Escape >/dev/null; settle; b send-keys -s host -w deck y >/dev/null; settle; deckcap 04g-at-cancel
+if grep -q '╭─ prompt' "$SCRATCH/out/04g-at-cancel.txt"; then echo "FAIL prompt form still open"; fails=$((fails+1)); else echo "PASS esc then y discards the edited form"; fi
+b send-keys -s host -w deck p >/dev/null; settle; b send-keys -s host -w deck Escape >/dev/null; settle; deckcap 04h-untouched
+if grep -q '╭─ prompt' "$SCRATCH/out/04h-untouched.txt"; then echo "FAIL untouched prompt form still open"; fails=$((fails+1)); else echo "PASS esc on an untouched form closes it without asking"; fi
 
 echo "== prompt to the fake agent is queued"
 select_pane 2
@@ -234,7 +247,7 @@ b send-keys -s host -w deck H >/dev/null; b send-text -s host -w deck 'ello '; b
 check "capitals typed with shift reach the prompt" "$SCRATCH/out/05i-capitals.txt" 'Hello W▏'
 b send-keys -s host -w deck shift+tab >/dev/null; settle; deckcap 05j-preset
 check "shift+tab from the prompt reaches the preset field" "$SCRATCH/out/05j-preset.txt" '› preset: ▏'
-b send-keys -s host -w deck Escape >/dev/null; settle
+cancel_form
 
 echo "== a queued prompt takes @ files and / commands of the agent it will start"
 b send-keys -s host -w deck ctrl+p >/dev/null; settle
@@ -270,7 +283,7 @@ check "OMP lists a project command as /name" "$SCRATCH/out/05i-omp-cmd.txt" '▸
 b send-keys -s host -w deck ctrl+u >/dev/null; b send-text -s host -w deck '/skill:omp'; settle; deckcap 05j-omp-skill
 check "OMP lists a skill as /skill:name" "$SCRATCH/out/05j-omp-skill.txt" '▸ skill:omp-skill'
 if grep -q 'omp-nodesc\|omp-off' "$SCRATCH/out/05j-omp-skill.txt"; then echo "FAIL OMP listed a skill it would not load"; fails=$((fails+1)); else echo "PASS OMP skips a skill with no description or enabled: false"; fi
-b send-keys -s host -w deck Escape >/dev/null; settle; b send-keys -s host -w deck Escape >/dev/null; settle
+cancel_form; cancel_form
 a close-window -s target ompfake >/dev/null
 
 echo "== ctrl+o picks files with the OS dialog (a stand-in osascript/zenity prints two paths)"
@@ -280,7 +293,7 @@ select_pane 2
 b send-keys -s host -w deck p >/dev/null; settle
 b send-text -s host -w deck 'read'; b send-keys -s host -w deck ctrl+o >/dev/null; wait_deck '@/etc/hosts' 10; deckcap 05d-pick
 check "the dialog's files become @ references, relative inside the cwd" "$SCRATCH/out/05d-pick.txt" 'read @deck.json @/etc/hosts'
-b send-keys -s host -w deck Escape >/dev/null; settle
+cancel_form
 
 echo "== automatic captures: an agent turn and a shell command"
 # A capture file is written by the deck itself, so there is no daemon
@@ -310,7 +323,7 @@ else
 fi
 b send-text -s host -w deck 'C'; settle; deckcap 05b-auto-captures
 check "captures page shows the turn capture's kind" "$SCRATCH/out/05b-auto-captures.txt" ' fake  target turn '
-b send-keys -s host -w deck Escape >/dev/null; settle
+cancel_form
 # The page checks below are about a capture taken by hand.
 rm -f "$SCRATCH"/captures/*-turn.txt "$SCRATCH"/captures/*-cmd.txt
 
@@ -338,7 +351,7 @@ check "enter confirms the delete" "$SCRATCH/out/06h-deleted.txt" 'deleted target
 check "status reports the deletion" "$SCRATCH/out/06h-deleted.txt" 'deleted target-build-'
 if ls "$SCRATCH"/captures/target-build-*.txt >/dev/null 2>&1; then echo "FAIL capture file still there"; fails=$((fails+1)); else echo "PASS capture file removed"; fi
 check "list is empty after the delete" "$SCRATCH/out/06h-deleted.txt" 'no captures'
-b send-keys -s host -w deck Escape >/dev/null; settle; deckcap 06i-back
+cancel_form; deckcap 06i-back
 check "esc returns to the deck from captures" "$SCRATCH/out/06i-back.txt" 'tuios-deck.* deck '
 
 echo "== context items: extract with i, list with I, star, filter"
@@ -366,7 +379,7 @@ b send-text -s host -w deck 'O'; settle
 b send-text -s host -w deck 't'; settle; deckcap 06k2-scope-current
 check "t scopes the page to the pane selected on opening" "$SCRATCH/out/06k2-scope-current.txt" 'context .*scope current: build'
 check "current scope lists the build pane's link" "$SCRATCH/out/06k2-scope-current.txt" 'link *https://example.com/tui-link'
-b send-keys -s host -w deck Escape >/dev/null; settle
+cancel_form
 select_pane 2
 b send-text -s host -w deck 'I'; settle; deckcap 06k3-scope-other
 check "reopening from another pane re-captures the scope" "$SCRATCH/out/06k3-scope-other.txt" 'context .*scope current: fake'
@@ -375,7 +388,7 @@ if grep -q 'tui-link *$\|link *https://example.com/tui-link' "$SCRATCH/out/06k3-
 b send-text -s host -w deck 't'; settle; deckcap 06k4-scope-all
 check "t returns to all panes" "$SCRATCH/out/06k4-scope-all.txt" 'context .*scope all panes'
 check "all scope lists both panes' items" "$SCRATCH/out/06k4-scope-all.txt" 'link *https://example.com/tui-link'
-b send-keys -s host -w deck Escape >/dev/null; settle
+cancel_form
 select_pane 1
 b send-text -s host -w deck 'I'; settle
 b send-keys -s host -w deck f >/dev/null; settle
@@ -416,7 +429,7 @@ b send-keys -s host -w deck s >/dev/null; settle; deckcap 06n-sorted
 check "s cycles the sort" "$SCRATCH/out/06n-sorted.txt" 'sorted kind'
 b send-keys -s host -w deck o >/dev/null; settle; deckcap 06o-grouped
 check "o groups the items by kind" "$SCRATCH/out/06o-grouped.txt" '▾ link'
-b send-keys -s host -w deck Escape >/dev/null; settle
+cancel_form
 
 echo "== a terminal needs a task or a project"
 b send-keys -s host -w deck t >/dev/null; settle
@@ -427,7 +440,7 @@ b send-keys -s host -w deck Enter >/dev/null            # no task
 b send-keys -s host -w deck Enter >/dev/null            # no project either
 b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 06b-required   # no preset
 check "form refuses without a task or a project" "$SCRATCH/out/06b-required.txt" 'a task or a project is required'
-b send-keys -s host -w deck Escape >/dev/null; settle
+cancel_form
 a list-windows -s target --json > "$SCRATCH/out/a-windows-nope.json"
 if grep -q '"nope"' "$SCRATCH/out/a-windows-nope.json"; then echo "FAIL nope opened without an assignment"; fails=$((fails+1)); else echo "PASS nothing opened"; fi
 
@@ -554,7 +567,7 @@ check "ctrl+p moves back to the first entry" "$SCRATCH/out/07g8-first.txt" '^ > 
 b send-keys -s host -w deck ctrl+u >/dev/null; settle
 b send-text -s host -w deck 'nosuchthing'; settle; deckcap 07h-nomatch
 check "an unknown query says no matches" "$SCRATCH/out/07h-nomatch.txt" 'no matches'
-b send-keys -s host -w deck Escape >/dev/null; settle; deckcap 07i-closed
+cancel_form; deckcap 07i-closed
 if grep -q '─ command palette' "$SCRATCH/out/07i-closed.txt"; then echo "FAIL palette still open after esc"; fails=$((fails+1)); else echo "PASS esc closes the palette"; fi
 
 echo "== command palette: a tuios verb from list-verbs"
@@ -774,7 +787,7 @@ b send-keys -s host -w deck k >/dev/null; b send-keys -s host -w deck e >/dev/nu
 b send-keys -s host -w deck Enter >/dev/null
 b send-text -s host -w deck 'deck / api ref / child'; b send-keys -s host -w deck ctrl+s >/dev/null; settle; deckcap 20e-cycle
 check "moving a task under its own subtask is refused" "$SCRATCH/out/20e-cycle.txt" 'cannot move under itself or one of its subtasks'
-b send-keys -s host -w deck Escape >/dev/null; settle
+cancel_form
 python3 - "$DATA" <<'PY2' && echo "PASS the refused move left the store alone" || { echo "FAIL the cycle reached the store"; fails=$((fails+1)); }
 import json, sys
 d = json.load(open(sys.argv[1]))
@@ -818,7 +831,7 @@ echo "== M opens the glyph table: move, jump, pick, cancel"
 glyph_of() { python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print([t for t in d["tasks"] if t["title"]=="command palette"][0]["theme"]["glyph"])' "$DATA"; }
 b send-keys -s host -w deck g >/dev/null; b send-keys -s host -w deck M >/dev/null; settle; deckcap 20h-glyph-project
 check "M on a project row opens its glyph table" "$SCRATCH/out/20h-glyph-project.txt" '╭─ glyph for project deck ─'
-b send-keys -s host -w deck Escape >/dev/null; settle
+cancel_form
 b send-keys -s host -w deck j >/dev/null; b send-keys -s host -w deck M >/dev/null; settle; deckcap 20i-glyph-table
 check "M on a task opens the glyph table" "$SCRATCH/out/20i-glyph-table.txt" '╭─ glyph for task command palette ─'
 for sec in shapes arrows marks letters digits; do
@@ -835,7 +848,7 @@ b send-keys -s host -w deck M >/dev/null; b send-text -s host -w deck 'Z'; settl
 check "typing Z jumps to Z in the letters" "$SCRATCH/out/20l-glyph-Z.txt" 'Z · letters'
 b send-keys -s host -w deck Enter >/dev/null; settle
 [ "$(glyph_of)" = "Z" ] && echo "PASS enter on Z sets it" || { echo "FAIL the store's glyph is $(glyph_of), not Z"; fails=$((fails+1)); }
-b send-keys -s host -w deck M >/dev/null; b send-keys -s host -w deck l >/dev/null; b send-keys -s host -w deck Escape >/dev/null; settle; deckcap 20m-glyph-esc
+b send-keys -s host -w deck M >/dev/null; b send-keys -s host -w deck l >/dev/null; cancel_form; deckcap 20m-glyph-esc
 check "esc cancels the table" "$SCRATCH/out/20m-glyph-esc.txt" 'cancelled'
 [ "$(glyph_of)" = "Z" ] && echo "PASS esc leaves the glyph as it was" || { echo "FAIL esc changed the glyph to $(glyph_of)"; fails=$((fails+1)); }
 
@@ -862,7 +875,7 @@ check "the edit form saves the picked glyph" "$SCRATCH/out/20v-edit-saved.txt" '
 [ "$(glyph_of)" = "●" ] && echo "PASS the store holds the task's glyph back at ●" || { echo "FAIL command palette's glyph is $(glyph_of), not ●"; fails=$((fails+1)); }
 
 echo "== back to the deck, and enter jumps to an assigned pane"
-b send-keys -s host -w deck Escape >/dev/null; settle; deckcap 17-deck
+cancel_form; deckcap 17-deck
 check "esc returns to the deck page" "$SCRATCH/out/17-deck.txt" 'tuios-deck.* deck '
 b send-text -s host -w deck 'T'; settle
 b send-keys -s host -w deck g >/dev/null; b send-keys -s host -w deck j >/dev/null
@@ -882,7 +895,7 @@ check "and the matching task's project" "$SCRATCH/out/19b-fuzzy.txt" '▾ [^ ] w
 check "the query shows above the tree" "$SCRATCH/out/19b-fuzzy.txt" '│  > and▏'
 b send-keys -s host -w deck ctrl+n >/dev/null; b send-keys -s host -w deck ctrl+n >/dev/null; settle; deckcap 19c-next
 check "ctrl+n moves on to the next match, previewed" "$SCRATCH/out/19c-next.txt" '│path *web › landing'
-b send-keys -s host -w deck Escape >/dev/null; settle; deckcap 19e-cancel
+cancel_form; deckcap 19e-cancel
 if grep -q '╭─ assign' "$SCRATCH/out/19e-cancel.txt"; then echo "FAIL assign box still open after esc"; fails=$((fails+1)); else echo "PASS esc closes the assign box"; fi
 check "esc says cancelled" "$SCRATCH/out/19e-cancel.txt" 'cancelled'
 
@@ -918,13 +931,13 @@ if grep -q 'result of list-windows' "$SCRATCH/out/20b-r-result.txt"; then echo "
 b send-text -s host -w deck 'T'; settle
 b send-keys -s host -w deck r >/dev/null; settle; deckcap 20c-r-tasks
 check "r on the tasks page leaves the deck alive" "$SCRATCH/out/20c-r-tasks.txt" 'tuios-deck.* tasks '
-b send-keys -s host -w deck Escape >/dev/null; settle
+cancel_form
 b send-keys -s host -w deck c >/dev/null; settle
 b send-text -s host -w deck 'C'; settle
 b send-keys -s host -w deck r >/dev/null; settle; deckcap 20d-r-captures
 check "r on the captures page leaves the deck alive" "$SCRATCH/out/20d-r-captures.txt" 'tuios-deck.* captures '
 check "r on the captures page reports the count" "$SCRATCH/out/20d-r-captures.txt" '^[0-9][0-9]* captures*$'
-b send-keys -s host -w deck Escape >/dev/null; settle
+cancel_form
 
 echo "== A adds projects, tasks and subtasks from an outline"
 # Types an outline line by line, Enter between lines, into the open form.
@@ -983,7 +996,7 @@ va = tasks("verb autocomplete")
 assert len(va) == 1 and va[0]["parent_id"] == cp["id"], va
 assert va[0]["theme"]["color"] and cap[0]["theme"]["color"]
 PY2
-b send-keys -s host -w deck Escape >/dev/null; settle
+cancel_form
 
 echo "== tab and shift+tab change the nesting level in the mass-add outline"
 b send-text -s host -w deck 'A'; settle
@@ -1098,9 +1111,9 @@ b send-text -s host -w deck 'T'; settle
 b send-keys -s host -w deck g >/dev/null; b send-keys -s host -w deck s >/dev/null; settle
 b send-text -s host -w deck 'A'; b send-keys -s host -w deck Up --repeat 60 >/dev/null; settle; deckcap 20t-tree-done
 check "a done project shows with its status mark" "$SCRATCH/out/20t-tree-done.txt" '│     ▏deck  ✓ done'
-b send-keys -s host -w deck Escape >/dev/null; settle
+cancel_form
 b send-keys -s host -w deck s >/dev/null; settle; b send-keys -s host -w deck s >/dev/null; settle   # skipped, then open
-b send-keys -s host -w deck Escape >/dev/null; settle
+cancel_form
 
 echo "== the assign tree ends with + add new…, which opens the mass-add screen"
 select_pane 3
@@ -1112,7 +1125,7 @@ b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 21b-mass-from-form
 check "+ add new… opens the mass-add box" "$SCRATCH/out/21b-mass-from-form.txt" '╭─ add projects and tasks ─'
 check "it holds the existing outline" "$SCRATCH/out/21b-mass-from-form.txt" '│     deck  '
 check "and the typed task under the pane's task, command palette" "$SCRATCH/out/21b-mass-from-form.txt" '│         zzz▏'
-b send-keys -s host -w deck Escape >/dev/null; settle; deckcap 21c-mass-esc
+cancel_form; deckcap 21c-mass-esc
 check "esc in the mass-add box returns to the tree unchanged" "$SCRATCH/out/21c-mass-esc.txt" '│  > zzz▏'
 b send-keys -s host -w deck ctrl+u >/dev/null
 b send-text -s host -w deck 'brand new task'; settle
@@ -1188,21 +1201,21 @@ check "the preview lists the task's panes" "$SCRATCH/out/21x2-preview.txt" '│ 
 wait_deck '── screen of fake' 10 && echo "PASS the preview shows the assigned pane's recent screen" || { echo "FAIL no screen of fake in the preview"; fails=$((fails+1)); }
 b send-text -s host -w deck '?'; settle; deckcap 21x3-preview-off
 if grep -q '│path *deck › command palette' "$SCRATCH/out/21x3-preview-off.txt"; then echo "FAIL ? did not close the preview"; fails=$((fails+1)); else echo "PASS ? again closes the preview"; fi
-b send-keys -s host -w deck Escape >/dev/null; settle
+cancel_form
 
 cp "$DATA" "$SCRATCH/out/store-before-esc.json"
 for row in 1 4 5; do # prototypes 2, 5 and 6
 	b send-keys -s host -w deck g >/dev/null; b send-keys -s host -w deck j --repeat $row >/dev/null; b send-keys -s host -w deck Enter >/dev/null; settle
 	deckcap "21y-open-$row"
 	b send-text -s host -w deck 'deck'; b send-keys -s host -w deck l >/dev/null; settle
-	b send-keys -s host -w deck Escape >/dev/null; settle; deckcap "21y-esc-$row"
+	cancel_form; deckcap "21y-esc-$row"
 	check "esc leaves prototype row $((row+1)) without assigning" "$SCRATCH/out/21y-esc-$row.txt" 'cancelled'
 done
 check "prototype 2 shows a preview beside the list" "$SCRATCH/out/21y-open-1.txt" 'path *deck'
 check "prototype 5 shows the breadcrumb" "$SCRATCH/out/21y-open-4.txt" '╭─ assign fake · miller columns'
 check "prototype 6 shows the input" "$SCRATCH/out/21y-open-5.txt" '╭─ assign fake · type-ahead chips'
 cmp -s "$DATA" "$SCRATCH/out/store-before-esc.json" && echo "PASS the store is unchanged after the three cancels" || { echo "FAIL a cancelled prototype changed the store"; fails=$((fails+1)); }
-b send-keys -s host -w deck Escape >/dev/null; settle; deckcap 21z-back
+cancel_form; deckcap 21z-back
 check "esc on the prototypes page returns to the deck" "$SCRATCH/out/21z-back.txt" 'tuios-deck.* deck '
 
 echo "== a on the context page assigns the item through the same tree"
@@ -1246,7 +1259,7 @@ b send-keys -s host -w deck f >/dev/null; settle
 b send-keys -s host -w deck g >/dev/null; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 22h-all-again
 check "all clears it again" "$SCRATCH/out/22h-all-again.txt" 'filter cleared'
 [ "$(ctxitems "$SCRATCH/out/22h-all-again.txt")" = "$all_items" ] && echo "PASS every item is back" || { echo "FAIL $(ctxitems "$SCRATCH/out/22h-all-again.txt") items back of $all_items"; fails=$((fails+1)); }
-b send-keys -s host -w deck Escape >/dev/null; settle
+cancel_form
 
 echo "== the task tree: project, task, subtasks, then the pane"
 # Terminal goes on the subtask verb autocomplete the mass add made, and fake
@@ -1340,8 +1353,12 @@ check "list refreshed without build" "$SCRATCH/out/09-final.txt" 'closed build'
 wait_store "\"$BUILD\": {" absent 10 && echo "PASS closed build's assignment pruned" || { echo "FAIL $BUILD still assigned in $DATA"; fails=$((fails+1)); }
 
 echo "== quit"
-b send-keys -s host -w deck q >/dev/null
-b wait-for window-exit -s host -w deck --timeout 10000 >/dev/null && echo "PASS deck exited on q" || { echo "FAIL deck did not exit"; fails=$((fails+1)); }
+b send-keys -s host -w deck q >/dev/null; settle; deckcap 30-quit-ask
+check "q asks before quitting" "$SCRATCH/out/30-quit-ask.txt" 'quit the deck?'
+b send-keys -s host -w deck n >/dev/null; settle; deckcap 30-quit-kept
+check "n keeps the deck running" "$SCRATCH/out/30-quit-kept.txt" 'tuios-deck'
+b send-keys -s host -w deck q >/dev/null; settle; b send-keys -s host -w deck y >/dev/null
+b wait-for window-exit -s host -w deck --timeout 10000 >/dev/null && echo "PASS deck exited on q then y" || { echo "FAIL deck did not exit"; fails=$((fails+1)); }
 
 echo; echo "captures in $SCRATCH/out; $fails failure(s)"
 exit $fails

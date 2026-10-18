@@ -227,6 +227,15 @@ Rules the suites follow, and a new check should too:
   clone's path can hold `tuios-deck`, so the command line echoed in the pane
   matches before the deck runs; wait for the alternate screen to replace it
   (e2e-review.py waits until `REVIEW-TUI-EXITED` leaves the screen).
+- **`q` asks before quitting, and `esc` on an edited form asks before
+  closing.** Both go through `modeConfirm` (`confirmState` in model.go: `Do`
+  runs as a tea.Cmd, `Then` on the model, `Back` is the mode `n` returns
+  to). A form remembers its values on the first key or paste (`form.remember`)
+  and `form.changed` compares against them; an untouched form closes at
+  once, and a prompt's draft is autosaved on every key before any of this. In
+  a suite, close a form with `cancel_form` (e2e.sh) or `cancel`
+  (e2e-prompt-stash.sh), which answer the question only when it appears, and
+  quit with `q` then `y`.
 - **Context items hold window ids too.** Each item in `deck.json` keeps the
   `window` it came from, so a check that a pane's assignment was pruned
   must match the assignment key (`"<window id>": {`), never the bare id,

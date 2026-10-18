@@ -196,6 +196,7 @@ try:
     key("Enter")
     check("reopening history does not reset reviewed timestamp", [r["reviewed_at"] for r in stored() if r["reviewed_at"]] == [stamp])
     key("q")
+    key("y")  # q asks before quitting
     run("B", "wait-for", "window-output", "-s", "host", "-w", "deck", "--pattern", "REVIEW-TUI-EXITED", "--timeout", "10000")
     result = start_web()
     (OUT / "09-web-reviews.json").write_text(json.dumps(result, indent=2))

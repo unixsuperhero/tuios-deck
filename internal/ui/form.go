@@ -143,6 +143,9 @@ type form struct {
 
 	vimNormal bool // normal mode of the vim modes setting; false is insert
 	recovery  *promptRecovery
+	// initial is each field's value when the person first touched the form,
+	// so esc can tell an edited form from an untouched one. nil until then.
+	initial []string
 
 	adding     int    // the field whose addNew was taken, plus one; 0 is none
 	targetTask string // last task value seen by project autofill; project edits stay editable
@@ -353,6 +356,32 @@ func (f *form) escape() bool {
 	}
 	cur.at, cur.sl, cur.hl = 0, 0, 0
 	return true
+}
+
+// remember keeps the values as they are before the first key or paste; a
+// later call changes nothing.
+func (f *form) remember() {
+	if f.initial != nil {
+		return
+	}
+	f.initial = make([]string, len(f.Fields))
+	for i, fl := range f.Fields {
+		f.initial[i] = fl.Value
+	}
+}
+
+// changed reports whether any field's value differs from when the form was
+// first touched. An untouched form has not changed.
+func (f *form) changed() bool {
+	if f.initial == nil || len(f.initial) != len(f.Fields) {
+		return false
+	}
+	for i, fl := range f.Fields {
+		if fl.Value != f.initial[i] {
+			return true
+		}
+	}
+	return false
 }
 
 // submit validates the values and, when they pass, finishes the form.

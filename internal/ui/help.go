@@ -108,7 +108,7 @@ func (m *Model) helpRows(mode string) []helpRow {
 	}
 	switch mode {
 	case config.ModeDeck:
-		rows = append(rows, helpRow{"ctrl+c", "quit", "all pages, not dialogs"}, helpRow{"ctrl+p", "command palette", "all pages, not dialogs"},
+		rows = append(rows, helpRow{"ctrl+c", "quit, after a confirmation", "all pages, not dialogs"}, helpRow{"ctrl+p", "command palette", "all pages, not dialogs"},
 			helpRow{"up/down", "previous/next pane or detail row", "deck page"}, helpRow{"left/right", "focus rail/detail", "deck page"},
 			helpRow{"1/2/3/4", "Screen/Activity/Transcript/Turns", "deck page"}, helpRow{"[/]", "previous/next tab", "deck page"},
 			helpRow{"home/end", "first pane/follow detail end", "deck page"}, helpRow{"pgup/pgdown, ctrl+u/d", "scroll detail half a page", "deck page"},

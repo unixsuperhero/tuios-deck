@@ -28,6 +28,7 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.promptRecoveryKey(msg)
 			return m, nil
 		}
+		m.form.remember()
 		if msg.String() == "ctrl+r" && m.form.Fields[m.form.Cur].Prompt {
 			m.openPromptRecovery()
 			return m, nil
@@ -53,14 +54,12 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		switch msg.String() {
 		case "esc", "ctrl+c":
-			if m.formStack != nil {
-				m.form, m.formStack = m.formStack, nil
-				m.form.adding = 0
+			if m.form.changed() {
+				m.confirm = confirmState{Text: "close this form without submitting? (Y/n)", Then: m.cancelForm, Back: modeForm}
+				m.mode = modeConfirm
 				return m, nil
 			}
-			m.mode, m.form = modeNormal, nil
-			m.setStatus("cancelled")
-			m.resumeProto()
+			m.cancelForm()
 			return m, nil
 		}
 		if msg.String() == "ctrl+o" && m.form.Fields[m.form.Cur].Attach {
@@ -89,13 +88,19 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, cmd
 
 	case modeConfirm:
+		c := m.confirm
 		switch msg.String() {
 		case "enter", "y", "Y":
-			m.mode = modeNormal
-			return m, m.confirm.Do
+			m.mode, m.confirm = modeNormal, confirmState{}
+			if c.Then != nil {
+				c.Then()
+			}
+			return m, c.Do
 		case "n", "N", "esc", "ctrl+c":
-			m.mode = modeNormal
-			m.setStatus("cancelled")
+			m.mode, m.confirm = c.Back, confirmState{}
+			if c.Back == modeNormal {
+				m.setStatus("cancelled")
+			}
 		}
 		// Any other key does nothing, so a stray key cannot confirm or cancel.
 		return m, nil
@@ -129,7 +134,9 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "F":
 		return m, m.openFocus()
 	case "q", "ctrl+c":
-		return m, tea.Quit
+		m.confirm = confirmState{Text: "quit the deck? the panes stay (Y/n)", Do: tea.Quit}
+		m.mode = modeConfirm
+		return m, nil
 	case ":", "ctrl+p":
 		return m, m.openPalette()
 	case "V":
@@ -311,6 +318,20 @@ func (m *Model) setTab(t tab) tea.Cmd {
 	m.detail, m.detailErr, m.revision = nil, "", 0
 	m.scroll, m.follow = 0, true
 	return m.loadDetail(true)
+}
+
+// cancelForm closes the form without submitting: back to the parked form
+// when the mass-add screen was opened from one, else to the deck.
+func (m *Model) cancelForm() {
+	if m.formStack != nil {
+		m.form, m.formStack = m.formStack, nil
+		m.form.adding = 0
+		m.mode = modeForm
+		return
+	}
+	m.mode, m.form = modeNormal, nil
+	m.setStatus("cancelled")
+	m.resumeProto()
 }
 
 // confirmClose asks before closing the pane.
