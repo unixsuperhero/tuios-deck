@@ -70,6 +70,9 @@ func (m *Model) helpRows(mode string) []helpRow {
 		if mode != config.ModeDeck {
 			scope = "forms, vim modes on"
 		}
+		if mode == config.ModeDeck && !m.focusKeyAllowed(a.Default) {
+			scope += "; unavailable in current focus"
+		}
 		rows = append(rows, helpRow{c.Binding(mode, a.Name), a.Name + ": " + a.Desc, scope})
 	}
 	switch mode {
@@ -85,11 +88,12 @@ func (m *Model) helpRows(mode string) []helpRow {
 		rows = append(rows, helpRow{"up/down", "previous/next field", "normal mode"}, helpRow{"ctrl+s", "submit", "normal mode"}, helpRow{"ctrl+c", "cancel", "normal mode"})
 	case "pages":
 		rows = []helpRow{
-			{"esc", "return to deck", "tasks/captures/context/prototypes/history"},
-			{"j/k, up/down", "next/previous row", "tasks/captures/context/prototypes/history"},
+			{"esc", "return to deck", "tasks/captures/context/prototypes/history/review"},
+			{"j/k, up/down", "next/previous row", "tasks/captures/context/prototypes/history/review"},
 			{"g/G, home/end", "first/last row", "tasks/context/history"},
 			{"{/}, (/)", "jump group/level", "tasks"}, {"N", "new project", "tasks"}, {"n", "new task/subtask", "tasks"},
 			{"e", "edit", "tasks"}, {"s", "cycle task status", "tasks"}, {"m/M", "colour/glyph", "tasks"}, {"a", "assign selected pane", "tasks"},
+			{"E", "toggle saved easy-task mark", "tasks; task selected; outside focus"},
 			{"enter", "go to assigned pane", "tasks/captures"}, {"x", "delete selected item", "tasks/captures/context"},
 			{"J/K", "scroll capture", "captures"}, {"G", "follow capture end", "captures"},
 			{"{/}", "jump group", "context"}, {"t", "current pane/all scope", "context"}, {"s", "cycle sort", "context"},
@@ -98,6 +102,10 @@ func (m *Model) helpRows(mode string) []helpRow {
 			{"r", "refresh", "tasks/captures/context"}, {"enter", "try selected picker", "prototypes"},
 			{"enter", "go to source pane", "history"}, {"r", "refresh", "history"},
 			{"J/K, pgdown/pgup, ctrl+d/u", "scroll entry detail half a page", "history"},
+			{"enter", "open selected prompt and mark reviewed", "review; outside focus"},
+			{"tab/shift+tab", "switch awaiting review / reviewed history", "review; outside focus"},
+			{"J/K, pgdown/pgup, ctrl+d/u", "scroll opened prompt half a page", "review; outside focus"},
+			{"r", "refresh completed prompts", "review; outside focus"},
 		}
 	case "forms":
 		rows = []helpRow{
@@ -114,6 +122,9 @@ func (m *Model) helpRows(mode string) []helpRow {
 		}
 	case "modals":
 		rows = []helpRow{
+			{"enter", "continue focus for a fresh 15-active-minute cycle", "focus buffer; fixed key"},
+			{"F/esc", "unlock focus now", "focus buffer; fixed keys, not configured bindings"},
+			{"q/ctrl+c", "quit the deck", "focus buffer; fixed keys"},
 			{"tab/shift+tab, left/right", "choose mode", "help"}, {"u", "toggle actions without bindings", "help"}, {"j/k, up/down", "scroll", "help"}, {"pgup/pgdown, ctrl+u/d", "scroll page", "help"}, {"home/end, g/G", "first/last help row", "help"}, {"esc, ctrl+c", "close without changing selection", "help"},
 			{"text, ?", "filter commands", "palette"}, {"up/down, ctrl+p/n", "select command", "palette"}, {"enter", "run command", "palette"}, {"tab", "complete command name", "palette"}, {"esc, ctrl+c", "close", "palette"},
 			{"enter, y/Y", "confirm", "confirmation"}, {"esc, ctrl+c, n/N", "cancel", "confirmation"},
@@ -132,21 +143,30 @@ func (m *Model) helpRows(mode string) []helpRow {
 			"prototypes": {"U", "", "all pages"}, "go to deck": {"esc", "", "other pages"}, "new project": {"N", "", "tasks"}, "filter context…": {"f", "", "context"}, "context scope: current pane / all": {"t", "", "context"}, "delete capture": {"x", "", "captures"},
 		}
 		for _, cmd := range m.deckCommands() {
-			r := helpRow{"", cmd.Name, "palette only"}
+			r := helpRow{"", cmd.Name, "palette only; unavailable during focus"}
 			if action := bound[cmd.Name]; action != "" {
 				r.key, r.scope = c.Binding(config.ModeDeck, action), "deck page; also palette"
 				for _, a := range config.ActionsOf(config.ModeDeck) {
 					if a.Name == action && a.Global {
 						r.scope = "all pages; also palette"
 					}
+					if a.Name == action && !m.focusKeyAllowed(a.Default) {
+						r.scope += "; unavailable in current focus"
+					}
 				}
 			} else if f, ok := fixed[cmd.Name]; ok {
 				r.key, r.scope = f.key, f.scope+"; also palette"
+				if !m.focusKeyAllowed(f.key) {
+					r.scope += "; unavailable in current focus"
+				}
+			}
+			if m.focus != nil && r.key != "" {
+				r.scope += "; palette unavailable during focus"
 			}
 			rows = append(rows, r)
 		}
 		for _, v := range m.verbs {
-			rows = append(rows, helpRow{"", v.Verb, "daemon command via palette"})
+			rows = append(rows, helpRow{"", v.Verb, "daemon command via palette; unavailable during focus"})
 		}
 	}
 	if m.help.unbound {
@@ -176,7 +196,18 @@ func (m *Model) helpView() string {
 	}
 	lines = append(lines, cHeader.Render("KEY                  ACTION / SCOPE"))
 	var body []string
-	for _, r := range m.helpRows(mode) {
+	note := ""
+	switch mode {
+	case config.ModeDeck, "pages", "actions":
+		note = "Focus permits only scoped deck/tasks navigation, prompt/capture and task status. Unlock for other pages, palette, editing or the easy-task plan."
+	case "modals":
+		note = "After 15 active minutes, the focus buffer takes every key before help, forms or configured bindings. Enter continues; F/Esc unlocks; no continuation within 30 seconds unlocks automatically."
+	}
+	if note != "" {
+		body = append(body, strings.Split(ansi.Wrap(note, max(1, w-4), ""), "\n")...)
+	}
+	rows := m.helpRows(mode)
+	for _, r := range rows {
 		key := r.key
 		if key == "" {
 			key = "(unbound)"
@@ -184,8 +215,8 @@ func (m *Model) helpView() string {
 		line := fmt.Sprintf("%-20s %s [%s]", key, r.action, r.scope)
 		body = append(body, strings.Split(ansi.Wrap(line, max(1, w-4), ""), "\n")...)
 	}
-	if len(body) == 0 {
-		body = []string{"No actions without bindings in this mode. Choose actions for palette commands."}
+	if len(rows) == 0 {
+		body = append(body, "No actions without bindings in this mode. Choose actions for palette commands.")
 	}
 	room := max(1, h-7)
 	if h < 8 {

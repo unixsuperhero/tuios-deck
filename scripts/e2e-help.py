@@ -67,7 +67,7 @@ try:
     run("A", "send-text", "-s", "target", "-w", "second", "printf 'help-selection-proof\\n'\n")
     run("A", "wait-for", "window-output", "-s", "target", "-w", "second", "--pattern", "help-selection-proof", "--timeout", "10000")
     run("B", "new", "boot", "--detach", "--cwd", str(SCRATCH))
-    (SCRATCH / "deck.json").write_text('{"version":1,"projects":[],"tasks":[],"assignments":{}}')
+    (SCRATCH / "deck.json").write_text(json.dumps({"version": 1, "projects": [{"id": "p_help", "name": "help scope", "theme": {"color": "blue", "glyph": "H"}, "created": 1760000000}], "tasks": [], "assignments": {}}))
     config = SCRATCH / "settings"
     (config / "tuios-deck").mkdir(parents=True)
     (config / "tuios-deck/config").write_text(json.dumps({"vim_modes": True, "keys": {"deck": {"quit": "Z", "new_agent": "v"}, "form_normal": {"next_field": "n"}}}))
@@ -79,15 +79,26 @@ try:
     assert "Z" in next(line for line in text.splitlines() if "quit:" in line)
     assert "V" == next(line for line in text.splitlines() if "review:" in line).strip("│ ").split()[0]
     print("PASS help shows configured quit key", flush=True)
+    keys("u")
+    screen("empty-unbound", "No actions without bindings")
+    keys("u")
     keys("Tab")
     text = screen("normal", "Mode: form_normal")
     assert "n" == next(line for line in text.splitlines() if "next_field:" in line).strip("│ ").split()[0]
     keys("Tab")
     screen("insert", "Mode: form_insert")
-    keys("Tab Tab")
+    keys("Tab")
+    text = screen("pages-easy", "toggle saved easy-task mark")
+    assert "E" == next(line for line in text.splitlines() if "toggle saved easy-task mark" in line).strip("│ ").split()[0]
+    keys("End")
+    text = screen("pages-review", "refresh completed prompts")
+    assert "open selected prompt and mark reviewed" in text and "switch awaiting review" in text and "scroll opened prompt" in text
+    keys("Tab")
     screen("forms", "Mode: forms")
     keys("Tab")
-    screen("modals", "Mode: modals")
+    text = screen("modals", "continue focus for a fresh")
+    assert "F/esc" in text and "fixed keys" in text and "q/ctrl+c" in text
+    print("PASS help covers Review, easy marking and fixed focus buffer controls", flush=True)
     keys("Tab")
     text = screen("review-action", "go to review queue")
     assert "V" == next(line for line in text.splitlines() if "go to review queue" in line).strip("│ ").split()[0]
@@ -129,6 +140,11 @@ try:
     text = screen("remapped-help", "Keybindings and actions", "remapped")
     assert "alt+h" == next(line for line in text.splitlines() if "help:" in line).strip("│ ").split()[0]
     print("PASS help itself follows configured binding", flush=True)
+    keys("Escape T F", "remapped")
+    keys("alt+h", "remapped")
+    text = screen("focused-help", "unavailable in current focus", "remapped")
+    assert "palette:" in text
+    print("PASS help stays reachable in focus and labels unavailable actions", flush=True)
 finally:
     for side in ENVS:
         subprocess.run(["tuios", "kill-server"], env=ENVS[side], capture_output=True, timeout=20)

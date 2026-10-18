@@ -137,11 +137,17 @@ itself be rebound. In text fields and the command palette, `?` remains text;
 picker prototypes that use it for previews keep that behavior.
 
 The web header's **Help ?** button and `?` shortcut open the browser
-version. Select a mode and check **Unbound only** to inspect its tables.
-These are browser shortcuts, not the configured TUI bindings. Page keys
+version. Select a page, Forms, Palette, or Focus and buffer mode and check
+**Unbound only** to inspect its tables. Page tables distinguish browser
+controls from TUI shortcuts, including Review and History navigation.
+The TUI pages table also includes Review and task easy-marking keys; its
+modals table documents the focus buffer. Help describes focus restrictions
+and the buffer's fixed Enter continuation, Escape/F unlock and timeout.
+Browser help lists browser shortcuts, not the configured TUI bindings. Page keys
 do not run in inputs, dialogs, or the focused Live terminal. The palette
 shortcut, Ctrl/Meta+k or Ctrl/Meta+p, also works in inputs and Live when
-no dialog is open. Browser forms retain native Tab and Escape navigation.
+no dialog is open and focus is unlocked. Browser forms retain native Tab
+and Escape navigation outside the focus buffer.
 
 `GOWORK=off go build -o .dev/deck ./cmd/deck` followed by
 `python3 scripts/e2e-help.py` checks help against isolated throwaway daemons

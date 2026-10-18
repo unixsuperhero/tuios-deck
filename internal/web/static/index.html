@@ -522,10 +522,11 @@ body.focused #btn-focus-plan, body.focused #easy-filter, body.focused #tk-easy {
   <h2 id="help-title">Keybindings and actions</h2>
   <p>Browser shortcuts only. TUI settings do not change these keys. Page shortcuts do not run in text inputs, dialogs, or the focused Live terminal.</p>
   <div class="help-controls">
-    <label>Mode <select id="help-mode"><option value="pages">All pages</option><option value="deck">Deck</option><option value="forms">Forms and dialogs</option><option value="palette">Command palette</option><option value="actions">All palette actions</option></select></label>
+    <label>Mode <select id="help-mode"><option value="pages">All pages</option><option value="deck">Deck</option><option value="tasks">Tasks</option><option value="captures">Captures</option><option value="context">Context</option><option value="reminders">Reminders</option><option value="review">Review</option><option value="history">History</option><option value="focus">Focus and buffer</option><option value="forms">Forms and dialogs</option><option value="palette">Command palette</option><option value="actions">All palette actions</option></select></label>
     <label><input type="checkbox" id="help-unbound"> Unbound only</label>
     <button id="help-close" type="button">Close (Esc)</button>
   </div>
+  <p id="help-note"></p>
   <table><thead><tr><th>Key</th><th>Action</th><th>Scope</th></tr></thead><tbody id="help-rows"></tbody></table>
   <p id="help-empty" hidden>No unbound actions in this mode. Select All palette actions.</p>
 </div></dialog>
@@ -2447,13 +2448,42 @@ const webKeys = [
   ['a', 'assign selected pane to task…', 'deck', () => $('btn-assign').click()],
   ['i', 'extract context from selected pane', 'deck', () => extractContext()],
 ];
+const focusPageKeys = ['F', '?', 'T', 'Escape', 'j', 'k', '1', '2', '3', '4', 'p', 'c'];
 function renderHelp() {
   const mode = $('help-mode').value;
-  let rows = [];
-  if (mode === 'pages' || mode === 'deck') {
-    rows = webKeys.filter((r) => mode === 'deck' || r[2] === 'pages');
-    rows = [['Ctrl/Meta+k or p', 'command palette', 'outside dialogs; also in inputs and Live'], ...rows];
+  let rows = [], note = '';
+  if (mode === 'pages' || PAGES.includes(mode)) {
+    rows = webKeys.filter((r) => r[2] === 'pages' || mode === 'deck').map(([key, action, scope]) =>
+      [key, action, scope + (focusPageKeys.includes(key) ? '' : '; unavailable during focus')]);
+    rows = [['Ctrl/Meta+k or p', 'command palette', 'outside dialogs and focus; also in inputs and Live'], ...rows];
+    note = 'Page shortcuts apply outside inputs, dialogs and focused Live. Focus permits only Deck and Tasks; entries marked unavailable require unlocking.';
+    if (mode !== 'pages') rows.push(
+      ['Tab / Shift+Tab', 'next / previous control', mode + '; browser navigation'],
+      [mode === 'history' ? 'Space' : 'Enter / Space', 'activate the focused button', mode + (mode === 'review' ? '; outside review-list' : '; browser navigation')],
+      ['Arrow keys', 'change the focused select', mode + '; browser navigation'],
+    );
+    if (mode === 'review') {
+      rows.push(['j/k, ArrowDown/Up', 'next / previous completed prompt', 'review; outside focus'],
+        ['Enter', 'open selected prompt and mark reviewed', 'review; body or review-list focused; outside focus']);
+      note += ' Review uses the Review view select for awaiting/reviewed history and the Refresh button to refresh. Tab moves between controls; r is not a Review shortcut.';
+    } else if (mode === 'history') {
+      rows.push(['j/k, ArrowDown/Up', 'next / previous history entry', 'history; outside focus'],
+        ['g/G, Home/End', 'first / last entry', 'history; outside focus'],
+        ['r', 'refresh history', 'history; outside focus'], ['Enter', 'go to source pane if still open', 'history; outside focus']);
+      note += ' Search and kind filters use their input/select controls. Detail scrolling uses the browser, not TUI J/K bindings.';
+    } else if (['tasks', 'captures', 'context', 'reminders'].includes(mode)) {
+      note += ' No additional page-specific letter shortcuts. Use the page controls.';
+      if (mode === 'tasks') note += ' Mark easy and Saved easy tasks are controls, not E/Ctrl+f shortcuts; both are hidden during focus.';
+    }
+  } else if (mode === 'focus') {
+    note = 'Focus limits navigation to scoped Deck/Tasks and disables the palette, grouping and unrelated actions. After 15 active minutes the buffer takes priority over all other dialogs and shortcuts. No continuation within 30 seconds unlocks automatically; 3 minutes without activity also unlocks focus.';
+    rows = [webKeys.find(([key]) => key === 'F'),
+      ['Enter', 'continue focus for a fresh 15-active-minute cycle', 'focus buffer; even when Unlock now has focus'],
+      ['Escape / F', 'unlock focus now', 'focus buffer; fixed keys'],
+      ['Tab / Shift+Tab', 'move between Unlock now / Continue focus buttons', 'focus buffer'],
+      ['Space', 'activate the focused button', 'focus buffer']];
   } else if (mode === 'forms') {
+    note = 'The focus buffer overrides ordinary form and dialog keys; see Focus and buffer.';
     rows = [
       ['Tab / Shift+Tab', 'next / previous control', 'browser forms and help'],
       ['Escape', 'close dialog', 'dialogs'], ['Enter', 'submit form', 'single-line form input'],
@@ -2462,15 +2492,18 @@ function renderHelp() {
       ['Tab / Enter', 'accept completion', 'open completion list'],
     ];
   } else if (mode === 'palette') {
+    note = 'The command palette is unavailable during focus.';
     rows = [['text, ?', 'filter commands', 'palette'], ['ArrowDown/Up, Ctrl+n/p', 'select command', 'palette'],
       ['Enter', 'run command', 'palette'], ['Escape', 'close', 'palette']];
   } else {
+    note = 'The command palette and its actions are unavailable during focus. Direct shortcuts have their own scope restrictions.';
     rows = deckCommands().map((c) => {
       const key = webKeys.find((r) => r[1] === c.label);
-      return [key ? key[0] : '', c.label, key ? key[2] + '; also palette' : 'palette / buttons'];
+      return [key ? key[0] : '', c.label, key ? key[2] + '; also palette' + (focusPageKeys.includes(key[0]) ? '' : '; unavailable during focus') : 'palette / buttons'];
     });
     rows.push(...(state.verbs || []).map((v) => ['', v.verb, 'daemon command via palette']));
   }
+  $('help-note').textContent = note;
   if ($('help-unbound').checked) rows = rows.filter((r) => !r[0]);
   const body = $('help-rows'); body.replaceChildren();
   for (const [key, action, scope] of rows) {
@@ -2482,7 +2515,7 @@ function renderHelp() {
 }
 function openHelp() {
   if (document.querySelector('dialog[open]')) return;
-  $('help-mode').value = state.page === 'deck' ? 'deck' : 'pages';
+  $('help-mode').value = state.page;
   $('help-unbound').checked = false;
   renderHelp(); $('dlg-help').showModal();
   loadVerbs().then(() => { if ($('dlg-help').open && $('help-mode').value === 'actions') renderHelp(); });
@@ -2500,7 +2533,7 @@ document.addEventListener('keydown', (e) => {
   if (document.querySelector('dialog[open]') || (term && state.tab === 'live' && $('term').contains(document.activeElement))) return;
   if (e.target.matches('input, textarea, select')) return;
   if (e.ctrlKey || e.metaKey || e.altKey) return;
-  if (focusScope && !['F', '?', 'T', 'Escape', 'j', 'k', '1', '2', '3', '4', 'p', 'c'].includes(e.key)) return;
+  if (focusScope && !focusPageKeys.includes(e.key)) return;
   const binding = webKeys.find(([key, , scope]) => key === e.key && (scope === 'pages' || state.page === 'deck'));
   if (binding) { e.preventDefault(); binding[3](); }
   else if (state.page === 'review') { reviewPage.key(e); }
