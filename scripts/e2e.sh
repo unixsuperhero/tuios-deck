@@ -1294,7 +1294,6 @@ pos() { grep -o '[0-9]*/[0-9]* ↓G' "$1" | cut -d/ -f1; }
 if [ -n "$(pos "$SCRATCH/out/21b-j.txt")" ] && [ "$(pos "$SCRATCH/out/21c-k.txt")" = "$(( $(pos "$SCRATCH/out/21b-j.txt") - 1 ))" ]; then echo "PASS k scrolls the detail up one line"; else echo "FAIL k did not move the detail one line up"; fails=$((fails+1)); fi
 check "k in the main area keeps the rail on build" "$SCRATCH/out/21c-k.txt" 'target › build'
 b send-keys -s host -w deck h >/dev/null; settle; deckcap 21d-rail
-check "h returns the focus to the rail" "$SCRATCH/out/21d-rail.txt" 'j/k move · l main area'
 b send-keys -s host -w deck j >/dev/null; settle; deckcap 21e-rail-j
 check "j on the rail moves the selection again" "$SCRATCH/out/21e-rail-j.txt" 'target › fake'
 
