@@ -122,7 +122,9 @@ do that yet
 
 ## FOCUS Mode
 
-- [ ] focus mode - ask questions for details
+- [x] focus mode - ask questions for details
+  - Focus can lock to any task or project, including descendants.
+  - Easy-task marks persist and form a saved list for choosing the next focus task.
 - [ ] lock the screen into a single task.  i  havn't decided if it has to be a
 leaf or if it can be locked to a high-level item like a project
 - [ ] when locked, entire screen matches its theme
