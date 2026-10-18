@@ -406,6 +406,10 @@ fails=$((fails+$?))
 echo "== palette, verbs and call"
 curl -s "$base/api/palette" > "$SCRATCH/out/palette.json"
 check "palette lists blue with its css" "$SCRATCH/out/palette.json" '{"css":"#0000ee","name":"blue"}'
+curl -s "$base/api/glyphs" > "$SCRATCH/out/glyphs.json"
+check "glyphs lists the shapes section first" "$SCRATCH/out/glyphs.json" '{"sections":\[{"label":"shapes","glyphs":\["◆","◇"'
+check "glyphs lists the letters" "$SCRATCH/out/glyphs.json" '"label":"letters"'
+check "the Theme dialog has the glyph table and its preview" "$SCRATCH/out/index.html" 'id="theme-glyphs"'
 curl -s "$base/api/verbs" > "$SCRATCH/out/verbs.json"
 check "verbs lists list-sessions" "$SCRATCH/out/verbs.json" '"verb":"list-sessions"'
 check "verbs carries param schemas" "$SCRATCH/out/verbs.json" '"params":\['

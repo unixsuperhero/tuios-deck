@@ -57,6 +57,12 @@ aside { border-right: 1px solid var(--line); background: var(--panel); display: 
 .pane .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pane .state { font-size: 12px; color: var(--muted); }
 .glyph { display: inline-block; width: 1.2em; text-align: center; margin-right: 2px; }
+.glyph-preview { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; margin: 8px 0; line-height: 1.6; }
+.glyph-preview .lab { color: var(--muted); display: inline-block; width: 6ch; }
+.glyph-grid { max-height: 260px; overflow: auto; }
+.glyph-grid h3 { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 8px 0 4px; }
+.glyph-grid button { width: 2.4em; height: 2em; padding: 0; margin: 0 2px 2px 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.glyph-grid button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
 .chip { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre; margin-right: 6px; }
 .pane .task { margin-right: 8px; }
 .unassigned { color: #000; background: #cd0000; font-weight: 700; }
@@ -417,9 +423,11 @@ dialog .hint.err:empty { display: none; }
   <h2 id="theme-title">Theme</h2>
   <div class="row">
     <label>Colour <select name="color" id="theme-color"></select></label>
-    <label>Glyph <input name="glyph" maxlength="4" placeholder="●"></label>
+    <label>Glyph <input name="glyph" id="theme-glyph" maxlength="16" placeholder="●"></label>
   </div>
-  <div class="hint">One of the 16 terminal colours and one character.</div>
+  <div class="glyph-preview" id="theme-preview"></div>
+  <div class="glyph-grid" id="theme-glyphs"></div>
+  <div class="hint">One of the 16 terminal colours and one character: pick it from the table or type any other.</div>
   <div class="hint err" data-err></div>
   <div class="actions"><button type="button" data-cancel>Cancel</button><button class="primary" value="ok">Save</button></div>
 </form></dialog>
@@ -1629,14 +1637,53 @@ async function loadPalette() {
   try { state.palette = (await api('/api/palette')).colors || []; } catch (e) { state.palette = []; }
   return state.palette;
 }
+async function loadGlyphs() {
+  if (state.glyphs) return state.glyphs;
+  try { state.glyphs = (await api('/api/glyphs')).sections || []; } catch (e) { state.glyphs = []; }
+  return state.glyphs;
+}
+// themeGlyphs fills the Theme dialog's glyph table, the same list the TUI's
+// M shows, and keeps its preview, the row as the rail's header and the
+// tasks page draw it, in step with the glyph and the colour.
+function themeGlyphs(sections, colors, it, kind) {
+  const input = $('theme-glyph'), color = $('theme-color'), grid = $('theme-glyphs');
+  const name = kind === 'project' ? it.name : it.title;
+  const pr = kind === 'project' ? null : projectById(it.project_id);
+  const sync = () => {
+    const g = input.value.trim() || it.theme.glyph, css = (colors.find((c) => c.name === color.value) || {}).css || '';
+    const pv = $('theme-preview'); pv.replaceChildren();
+    for (const [lab, text] of [['rail', pr ? `${pr.name} › ${name}` : name], ['tasks', name]]) {
+      const line = document.createElement('div');
+      const l = document.createElement('span'); l.className = 'lab'; l.textContent = lab;
+      const gl = document.createElement('span'); gl.className = 'glyph'; gl.textContent = g; gl.style.color = css;
+      line.append(l, gl, document.createTextNode(' ' + text));
+      pv.append(line);
+    }
+    for (const b of grid.querySelectorAll('button')) b.classList.toggle('on', b.textContent === g);
+  };
+  grid.replaceChildren();
+  for (const s of sections) {
+    const h = document.createElement('h3'); h.textContent = s.label; grid.append(h);
+    for (const g of s.glyphs) {
+      const b = document.createElement('button'); b.type = 'button'; b.textContent = g; b.title = g;
+      b.onclick = () => { input.value = g; sync(); };
+      grid.append(b);
+    }
+  }
+  input.oninput = sync; color.onchange = sync;
+  return sync;
+}
 async function editTheme() {
   const it = selItem(), kind = selKind();
   if (!it) return;
-  const colors = await loadPalette();
+  const [colors, sections] = await Promise.all([loadPalette(), loadGlyphs()]);
   const sel = $('theme-color'); sel.replaceChildren();
   for (const c of colors) { const o = document.createElement('option'); o.value = c.name; o.textContent = c.name; o.style.color = c.css; sel.append(o); }
   $('theme-title').textContent = `Theme of ${kind === 'project' ? it.name : it.title}`;
-  const v = await dialog('dlg-theme', { color: it.theme.color, glyph: it.theme.glyph }, (v) => [...v.glyph.trim()].length > 1 ? 'the glyph is one character' : '');
+  const sync = themeGlyphs(sections, colors, it, kind);
+  setTimeout(sync);
+  const one = (g) => { const seg = window.Intl && Intl.Segmenter ? [...new Intl.Segmenter().segment(g)] : [...g]; return seg.length <= 1; };
+  const v = await dialog('dlg-theme', { color: it.theme.color, glyph: it.theme.glyph }, (v) => one(v.glyph.trim()) ? '' : 'the glyph is one character');
   if (!v) return;
   try { const r = await api(`/api/${kind}s/${enc(it.id)}`, { method: 'PATCH', body: JSON.stringify({ theme: { color: v.color, glyph: v.glyph.trim() } }) }); setStatus(r.status); }
   catch (e) { setStatus('error: ' + e.message, true); }

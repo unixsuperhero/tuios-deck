@@ -166,6 +166,35 @@ until you change it. When every colour is held it takes any of them; black
 and bright-black are never given out on their own. `m` on the tasks page
 steps through the free colours first, then the rest of the palette.
 
+`M` on the tasks page opens the glyph table over the page: about 120
+symbols in labelled sections (shapes, arrows, marks), then the letters and
+the digits, laid out by display width so a wide glyph keeps the columns in
+line. A preview above the grid draws the row with the highlighted glyph in
+its colour, as the rail's group header and as the tasks page shows it:
+
+```
+╭─ glyph for task command palette ───────────────────╮
+│ rail   ◉ deck › command palette                    │
+│ tasks    ◉   command palette                       │
+│ ◉ · shapes                                         │
+├────────────────────────────────────────────────────┤
+│ shapes                                             │
+│  ◆   ◇   ◈   ●   ○  [◉]  ◎   ◌   ◐   ◑   ◒   ◓     │
+│ …                                                  │
+│ letters                                            │
+│  A   B   C   D   E   F   G   H   I   J   K   L     │
+╰────────────────────────────────────────────────────╯
+```
+
+`h`/`j`/`k`/`l` or the arrows move, `enter` picks and `esc` cancels.
+Typing a character jumps to it (a lower-case letter to its capital; type
+`H`, `J`, `K` or `L` for those, since the lower-case ones move). A typed
+glyph the table does not hold, an emoji or a letter with an accent, joins
+the end as a custom entry, so any single glyph is still possible. The
+glyph field of the `e` form opens the same table on `tab` or `enter` while
+it is empty, or on `ctrl+g` at any time, with the current glyph as its
+default; typing a glyph there still works.
+
 Every agent and terminal the deck starts is assigned to a task or, failing
 that, to a project: the `n` and `t` forms ask for one after the cwd, with
 the known task paths (`project / top task / … / title`) and project names
@@ -519,7 +548,7 @@ regroup.
 | `e` | Edit the row in one form: a task's title, parent, status, colour and glyph; a project's name, status, colour and glyph. The parent lists `(top level of <project>)` for every project and every task but the row and its subtasks, so a task moves within its project or to another, subtasks and all. Only what changed is written, and the status line says what that was |
 | `s` | Cycle the task's or project's status: open, done, skipped, open |
 | `m` | The next colour for the row's theme: the free ones first, then the rest of the palette |
-| `M` | Set the row's glyph |
+| `M` | Pick the row's glyph from the glyph table (above) |
 | `a` | Assign the pane selected on the deck page to the row |
 | `enter` | Back to the deck with the first pane assigned to the row selected |
 | `x` | Delete the row, what is under it and their assignments, after a confirmation that counts them |
@@ -861,6 +890,7 @@ Capture, Extract context, Close, and a Group by select over the left list
 with the TUI's presets, and a field beside it that takes any `a > b > c`.
 The tasks page is the TUI's: the tree of projects, tasks and subtasks with
 their counts, New project, New task, Rename, Toggle done, Theme and Delete,
+where the Theme dialog has the same glyph table as `M`, with a preview,
 and the panes assigned to the selected row. The captures page lists the
 folder and shows a file. The context page filters by kind, project, task,
 text, starred and pinned, sorts and groups the way the TUI's does, and has
@@ -956,6 +986,7 @@ POST   /api/context/{id}/open                  {"program"?}: open it on the serv
 GET    /api/preview?task=|project=|window=&session=
                                                {"head": [metadata lines], "lines": [the chosen pane's last 6 lines], "session", "window", "error"?}
 GET    /api/palette                            the 16 colour names with their CSS hex
+GET    /api/glyphs                             {"sections": [{label, glyphs: [...]}]}, the glyph table
 GET    /api/verbs                              list-verbs, as the daemon answers it
 POST   /api/call                               {"verb", "params"}: one daemon verb, refused unless list-verbs named it
 ```

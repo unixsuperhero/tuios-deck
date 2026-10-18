@@ -72,6 +72,9 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	case modePrompts:
 		return m.handleModalKey(msg)
+
+	case modeGlyph:
+		return m.handleGlyphKey(msg)
 	}
 
 	var keep bool

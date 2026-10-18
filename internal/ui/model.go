@@ -27,6 +27,7 @@ const (
 	modePalette
 	modeProto // a prototype picker is up
 	modePrompts
+	modeGlyph // the glyph table is up
 )
 
 // page is which view the deck shows: the deck of panes, the tasks tree or
@@ -140,6 +141,7 @@ type Model struct {
 	}
 
 	pm         *promptModal // the prompt presets or queued prompts while open
+	glyph      *glyphTable  // the glyph table while open
 	pal        *palette     // the command palette while open
 	verbs      []verb       // the daemon's list-verbs, fetched on the first open
 	verbsBusy  bool
@@ -212,6 +214,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if m.mode == modeProto && m.proto != nil {
 			return m, m.protoPaste(panes.OneLine(msg.String()))
+		}
+		if m.mode == modeGlyph && m.glyph != nil {
+			m.glyph.typeText(panes.OneLine(msg.String()))
 		}
 		return m, m.previewCmd(false)
 

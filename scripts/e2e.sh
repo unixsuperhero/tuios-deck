@@ -794,25 +794,52 @@ check "status reports the project's change" "$SCRATCH/out/20g-project-edited.txt
 b send-keys -s host -w deck s >/dev/null; settle   # skipped
 b send-keys -s host -w deck s >/dev/null; settle   # open again for the checks that follow
 
-echo "== M on a project or a task, with odd glyphs, never panics"
+echo "== M opens the glyph table: move, jump, pick, cancel"
+glyph_of() { python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print([t for t in d["tasks"] if t["title"]=="command palette"][0]["theme"]["glyph"])' "$DATA"; }
 b send-keys -s host -w deck g >/dev/null; b send-keys -s host -w deck M >/dev/null; settle; deckcap 20h-glyph-project
-check "M on a project row opens its glyph form" "$SCRATCH/out/20h-glyph-project.txt" '╭─ glyph for project deck ─'
+check "M on a project row opens its glyph table" "$SCRATCH/out/20h-glyph-project.txt" '╭─ glyph for project deck ─'
 b send-keys -s host -w deck Escape >/dev/null; settle
-b send-keys -s host -w deck j >/dev/null; b send-keys -s host -w deck M >/dev/null; settle
-b send-keys -s host -w deck ctrl+u >/dev/null; b send-text -s host -w deck 'ab'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 20i-glyph-multi
-check "a glyph of two characters is refused" "$SCRATCH/out/20i-glyph-multi.txt" 'one character only'
-b send-keys -s host -w deck ctrl+u >/dev/null; b send-text -s host -w deck $'❤️'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 20j-glyph-emoji
-check "an emoji with its variation selector is one glyph" "$SCRATCH/out/20j-glyph-emoji.txt" $'task command palette is now ❤️'
-b send-keys -s host -w deck M >/dev/null; settle
-b send-keys -s host -w deck ctrl+u >/dev/null; b send-text -s host -w deck $'é'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 20k-glyph-combining
-check "a letter with a combining accent is one glyph" "$SCRATCH/out/20k-glyph-combining.txt" $'task command palette is now é'
-b send-keys -s host -w deck M >/dev/null; settle
-b send-keys -s host -w deck ctrl+u >/dev/null; b send-text -s host -w deck $'❤️'; b send-keys -s host -w deck backspace >/dev/null; settle; deckcap 20l-glyph-backspace
-check "backspace takes the whole emoji, selector and all" "$SCRATCH/out/20l-glyph-backspace.txt" $'› glyph: ▏é (tab to take)'
-b send-text -s host -w deck '●'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 20m-glyph-back
-check "the deck is alive after the glyph cases" "$SCRATCH/out/20m-glyph-back.txt" 'task command palette is now ●'
-python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if [t for t in d["tasks"] if t["title"]=="command palette"][0]["theme"]["glyph"]=="●" else 1)' "$DATA" \
-	&& echo "PASS the store holds the task's glyph back at ●" || { echo "FAIL command palette's glyph is not ● in $DATA"; fails=$((fails+1)); }
+b send-keys -s host -w deck j >/dev/null; b send-keys -s host -w deck M >/dev/null; settle; deckcap 20i-glyph-table
+check "M on a task opens the glyph table" "$SCRATCH/out/20i-glyph-table.txt" '╭─ glyph for task command palette ─'
+for sec in shapes arrows marks letters digits; do
+	check "the table has its $sec section" "$SCRATCH/out/20i-glyph-table.txt" "│ $sec  "
+done
+check "the preview draws the task as a rail header in its glyph" "$SCRATCH/out/20i-glyph-table.txt" 'rail   ● deck › command palette'
+check "the preview draws the task as on the tasks page" "$SCRATCH/out/20i-glyph-table.txt" 'tasks    ●   command palette'
+b send-keys -s host -w deck l >/dev/null; b send-keys -s host -w deck l >/dev/null; settle; deckcap 20j-glyph-ll
+check "l twice moves two glyphs on, and the preview follows" "$SCRATCH/out/20j-glyph-ll.txt" 'rail   ◉ deck › command palette'
+b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 20k-glyph-picked
+check "enter picks the glyph" "$SCRATCH/out/20k-glyph-picked.txt" 'task command palette is now ◉'
+[ "$(glyph_of)" = "◉" ] && echo "PASS the store holds the picked glyph ◉" || { echo "FAIL the store's glyph is $(glyph_of), not ◉"; fails=$((fails+1)); }
+b send-keys -s host -w deck M >/dev/null; b send-text -s host -w deck 'Z'; settle; deckcap 20l-glyph-Z
+check "typing Z jumps to Z in the letters" "$SCRATCH/out/20l-glyph-Z.txt" 'Z · letters'
+b send-keys -s host -w deck Enter >/dev/null; settle
+[ "$(glyph_of)" = "Z" ] && echo "PASS enter on Z sets it" || { echo "FAIL the store's glyph is $(glyph_of), not Z"; fails=$((fails+1)); }
+b send-keys -s host -w deck M >/dev/null; b send-keys -s host -w deck l >/dev/null; b send-keys -s host -w deck Escape >/dev/null; settle; deckcap 20m-glyph-esc
+check "esc cancels the table" "$SCRATCH/out/20m-glyph-esc.txt" 'cancelled'
+[ "$(glyph_of)" = "Z" ] && echo "PASS esc leaves the glyph as it was" || { echo "FAIL esc changed the glyph to $(glyph_of)"; fails=$((fails+1)); }
+
+echo "== odd glyphs never panic: custom entries, the edit form's typed path"
+b send-keys -s host -w deck M >/dev/null; b send-text -s host -w deck $'❤️'; settle; deckcap 20n-glyph-custom
+check "a glyph the table lacks is offered as a custom entry" "$SCRATCH/out/20n-glyph-custom.txt" $'❤️ · custom'
+b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 20o-glyph-emoji
+check "an emoji with its variation selector is one glyph" "$SCRATCH/out/20o-glyph-emoji.txt" $'task command palette is now ❤️'
+b send-keys -s host -w deck M >/dev/null; b send-text -s host -w deck $'é'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 20p-glyph-combining
+check "a letter with a combining accent is one glyph" "$SCRATCH/out/20p-glyph-combining.txt" $'task command palette is now é'
+b send-keys -s host -w deck e >/dev/null; for i in 1 2 3 4; do b send-keys -s host -w deck Enter >/dev/null; done; settle; deckcap 20q-edit-glyph
+check "the edit form's glyph field shows the current glyph as its default" "$SCRATCH/out/20q-edit-glyph.txt" $'› glyph: ▏é (tab to take)'
+b send-text -s host -w deck 'ab'; b send-keys -s host -w deck ctrl+s >/dev/null; settle; deckcap 20r-edit-multi
+check "a typed glyph of two characters is refused" "$SCRATCH/out/20r-edit-multi.txt" 'one character only'
+b send-keys -s host -w deck ctrl+u >/dev/null; b send-text -s host -w deck $'❤️'; b send-keys -s host -w deck backspace >/dev/null; settle; deckcap 20s-edit-backspace
+check "backspace takes the whole emoji, selector and all" "$SCRATCH/out/20s-edit-backspace.txt" $'› glyph: ▏é (tab to take)'
+b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 20t-edit-table
+check "enter on the empty glyph field opens the table" "$SCRATCH/out/20t-edit-table.txt" '╭─ edit task command palette · glyph ─'
+check "the table opens on the current glyph, a custom entry" "$SCRATCH/out/20t-edit-table.txt" $'é · custom'
+b send-text -s host -w deck '●'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 20u-edit-picked
+check "the picked glyph lands in the field" "$SCRATCH/out/20u-edit-picked.txt" '› glyph: ●▏'
+b send-keys -s host -w deck ctrl+s >/dev/null; settle; deckcap 20v-edit-saved
+check "the edit form saves the picked glyph" "$SCRATCH/out/20v-edit-saved.txt" 'command palette: glyph ●'
+[ "$(glyph_of)" = "●" ] && echo "PASS the store holds the task's glyph back at ●" || { echo "FAIL command palette's glyph is $(glyph_of), not ●"; fails=$((fails+1)); }
 
 echo "== back to the deck, and enter jumps to an assigned pane"
 b send-keys -s host -w deck Escape >/dev/null; settle; deckcap 17-deck

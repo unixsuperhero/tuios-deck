@@ -246,7 +246,7 @@ func (m *Model) handleTasksKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "e":
 		return m, m.openEditForm()
 	case "M":
-		return m, m.openGlyphForm()
+		return m, m.openGlyphTable()
 	case "s":
 		if r == nil {
 			return m, nil
@@ -696,6 +696,7 @@ func (m *Model) openEditForm() tea.Cmd {
 			}
 		},
 	}
+	m.glyphField(m.form, 4, *r, 3, 0)
 	return nil
 }
 
@@ -743,6 +744,7 @@ func (m *Model) openProjectEditForm(p store.Project) tea.Cmd {
 			}
 		},
 	}
+	m.glyphField(m.form, 3, trow{Project: &p}, 2, 0)
 	return nil
 }
 
@@ -763,51 +765,6 @@ func edited(name string, did []string) string {
 		return name + ": nothing changed"
 	}
 	return name + ": " + strings.Join(did, ", ")
-}
-
-// openGlyphForm sets the glyph of the selected row's theme: one grapheme.
-func (m *Model) openGlyphForm() tea.Cmd {
-	r := m.selectedRow()
-	if r == nil {
-		return nil
-	}
-	row := *r
-	var th store.Theme
-	if row.Project != nil {
-		th = row.Project.Theme
-	} else {
-		th = row.Task.Theme
-	}
-	m.mode = modeForm
-	m.form = &form{
-		Title:  "glyph for " + row.name(),
-		Fields: []field{{Label: "glyph", Default: th.Glyph}},
-		Validate: func(v []string) (int, string) {
-			if v[0] == "" {
-				return 0, "glyph is empty"
-			}
-			if first, _ := ansi.FirstGraphemeCluster(v[0], ansi.GraphemeWidth); first != v[0] {
-				return 0, "one character only"
-			}
-			return 0, ""
-		},
-		Done: func(v []string) tea.Cmd {
-			th.Glyph = v[0]
-			return func() tea.Msg {
-				var err error
-				if row.Project != nil {
-					err = m.store.SetProjectTheme(row.Project.ID, th)
-				} else {
-					err = m.store.SetTaskTheme(row.Task.ID, th)
-				}
-				if err != nil {
-					return actionMsg{err: err}
-				}
-				return actionMsg{status: row.name() + " is now " + v[0]}
-			}
-		},
-	}
-	return nil
 }
 
 // taskListLines draws the tree of the tasks page.

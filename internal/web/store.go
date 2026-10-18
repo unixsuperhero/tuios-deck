@@ -258,6 +258,11 @@ func (s *Server) palette(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]any{"colors": colors})
 }
 
+// glyphs is the glyph table the TUI's picker shows, section by section.
+func (s *Server) glyphs(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, 200, map[string]any{"sections": store.GlyphSections()})
+}
+
 // projects
 
 func (s *Server) listProjects(w http.ResponseWriter, r *http.Request) {

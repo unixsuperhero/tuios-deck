@@ -103,6 +103,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /api/queued-prompts/{id}", s.deleteQueued)
 	mux.HandleFunc("POST /api/queued-prompts/{id}/start", s.startQueued)
 	mux.HandleFunc("GET /api/palette", s.palette)
+	mux.HandleFunc("GET /api/glyphs", s.glyphs)
 	mux.HandleFunc("GET /api/verbs", s.listVerbs)
 	mux.HandleFunc("POST /api/call", s.call)
 	return mux

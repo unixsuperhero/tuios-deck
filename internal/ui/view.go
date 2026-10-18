@@ -93,6 +93,11 @@ func (m *Model) View() tea.View {
 		box = m.modalBox(boxW, bodyH)
 		boxX, boxY = (m.width-boxW)/2, (bodyH-len(box))/2
 	}
+	if m.mode == modeGlyph && m.glyph != nil {
+		boxW = formWidth(m.width)
+		box = m.glyphBox(boxW, bodyH)
+		boxX, boxY = (m.width-boxW)/2, (bodyH-len(box))/2
+	}
 	for i := 0; i < bodyH; i++ {
 		if j := i - (bodyH - len(under)); j >= 0 {
 			b.WriteString(pad(under[j], m.width))
@@ -333,6 +338,8 @@ func (m *Model) statusLine() string {
 		return cStatus.Render(m.confirm.Text)
 	case modeProto:
 		return cStatus.Render(m.protoRun.title)
+	case modeGlyph:
+		return cStatus.Render(m.glyph.title)
 	}
 	if strings.HasPrefix(m.status, "error:") {
 		return cErr.Render(m.status)
@@ -346,7 +353,7 @@ func (m *Model) helpLine() string {
 		return cDim.Render(" " + m.form.Title + " · the keys are in the box · esc cancel")
 	case modeConfirm:
 		return cDim.Render(" enter/y confirm · n/esc cancel")
-	case modePrompts:
+	case modePrompts, modeGlyph:
 		return cDim.Render(" the keys are in the box · esc close")
 	case modePalette:
 		return cDim.Render(" type to filter · ↑/↓ ctrl+p/n pick · enter run · tab complete · esc close")
