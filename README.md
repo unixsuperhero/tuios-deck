@@ -554,8 +554,15 @@ and context extraction leaves the transcript out.
 ## Focus mode
 
 Press `F` in the TUI or use **Focus…** in the web header. On the tasks
-page this locks to the selected task or project; elsewhere it offers every
-task and project. A task includes all descendants, a project all its tasks.
+page this locks to the selected task or project; elsewhere it opens a tree
+with tasks nested under their project and subtasks under their actual parent.
+Tasks without a project remain at the root. Select any project or task; a
+task includes all descendants, and a project includes all its tasks.
+Use Up/Down to move, Right to expand or enter a branch, Left to collapse
+or move to its parent, and Enter to start focus. Escape cancels. In the TUI,
+`j/k` and `h/l` also navigate; `/` filters while keeping ancestor branches,
+and Escape clears an active filter first. The browser also supports clicking
+a row and **Start focus**.
 Only assigned panes and tasks within that scope remain visible. The deck and
 tasks pages stay available; unrelated pages, global pickers and editing
 controls are unavailable until **Unlock focus** or `F` releases the scope.
