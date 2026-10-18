@@ -228,6 +228,16 @@ b send-text -s host -w deck 'I'; settle; deckcap 06k-context
 check "title names the context page" "$SCRATCH/out/06k-context.txt" 'tuios-deck.* context .*sort newest'
 check "the link is listed with its kind" "$SCRATCH/out/06k-context.txt" 'link *https://example.com/tui-link'
 check "help line is the context page's" "$SCRATCH/out/06k-context.txt" 'f filter · o/O group · \* star'
+b send-keys -s host -w deck o >/dev/null; b send-keys -s host -w deck g >/dev/null; settle; deckcap 06k2-by-kind
+first_kind=$(grep -o '^▾ [a-z]*' "$SCRATCH/out/06k2-by-kind.txt" | sed -n 1p | sed 's/^▾ //')
+second_kind=$(grep -o '^▾ [a-z]*' "$SCRATCH/out/06k2-by-kind.txt" | sed -n 2p | sed 's/^▾ //')
+[ -n "$second_kind" ] && echo "PASS the extracted items fall in two kinds or more" || { echo "FAIL fewer than two kind groups"; fails=$((fails+1)); }
+check "g selects an item of the first kind" "$SCRATCH/out/06k2-by-kind.txt" "kind *$first_kind"
+b send-text -s host -w deck '}'; settle; deckcap 06k3-next-kind
+check "} jumps to the first item of the next kind" "$SCRATCH/out/06k3-next-kind.txt" "kind *$second_kind"
+b send-text -s host -w deck '{'; settle; deckcap 06k4-prev-kind
+check "{ jumps back to the first kind" "$SCRATCH/out/06k4-prev-kind.txt" "kind *$first_kind"
+b send-text -s host -w deck 'O'; settle
 b send-keys -s host -w deck f >/dev/null; settle
 b send-text -s host -w deck 'link'; b send-keys -s host -w deck Enter >/dev/null
 b send-keys -s host -w deck Enter >/dev/null; b send-keys -s host -w deck Enter >/dev/null; b send-keys -s host -w deck Enter >/dev/null; settle
@@ -342,6 +352,22 @@ check "title says by project > parent task" "$SCRATCH/out/07b2-by-parent.txt" 't
 check "project header at the outer level" "$SCRATCH/out/07b2-by-parent.txt" '^◆ deck '
 check "parent-task header indented under the project" "$SCRATCH/out/07b2-by-parent.txt" '^  ● command palette'
 check "pane indented under the parent-task header" "$SCRATCH/out/07b2-by-parent.txt" '^    · deck command palette  extra'
+# deck › command palette holds extra; deck › (none) holds build and sleeper;
+# the (none) project holds a Terminal pane and fake.
+b send-keys -s host -w deck g >/dev/null; settle
+b send-text -s host -w deck '}'; settle; deckcap 07b3-next-group
+check "} jumps from extra to the first pane of the next group" "$SCRATCH/out/07b3-next-group.txt" 'target › build  ◆ deck'
+b send-text -s host -w deck '{'; settle; deckcap 07b4-prev-group
+check "{ returns to the first pane of the previous group" "$SCRATCH/out/07b4-prev-group.txt" 'target › extra  .*deck › command palette'
+b send-text -s host -w deck '{'; settle; deckcap 07b5-first-group
+check "{ in the first group stays put" "$SCRATCH/out/07b5-first-group.txt" 'target › extra  .*deck › command palette'
+b send-text -s host -w deck '('; settle; deckcap 07b6-level-up
+check "( steps the jumps up to the project level" "$SCRATCH/out/07b6-level-up.txt" '{/} jump by project'
+b send-text -s host -w deck '}'; settle; deckcap 07b7-next-project
+check "} at the project level jumps to the next project's first pane" "$SCRATCH/out/07b7-next-project.txt" 'target › Terminal [0-9a-f]*$'
+b send-text -s host -w deck ')'; settle; deckcap 07b8-level-down
+check ") steps back to the parent-task level" "$SCRATCH/out/07b8-level-down.txt" '{/} jump by parent task'
+check "the help line names the group keys" "$SCRATCH/out/07b8-level-down.txt" '{/} group · (/) level'
 b send-keys -s host -w deck o >/dev/null; settle; deckcap 07c-by-task
 check "title says by task" "$SCRATCH/out/07c-by-task.txt" 'tuios-deck.* deck  by task'
 check "task header row shows the path" "$SCRATCH/out/07c-by-task.txt" '^● deck › command palette'
@@ -435,6 +461,18 @@ b send-text -s host -w deck 'hero copy'; b send-keys -s host -w deck Enter >/dev
 check "task listed under the project" "$SCRATCH/out/12-tree.txt" 'landing'
 check "subtask listed under the task" "$SCRATCH/out/12-tree.txt" '    . *hero copy'
 check "subtask detail shows its path" "$SCRATCH/out/12-tree.txt" 'path *web › landing › hero copy'
+b send-text -s host -w deck '(('; settle; deckcap 12b-parent
+check "( twice walks from the subtask up to its project" "$SCRATCH/out/12b-parent.txt" 'tasks *2 (2 open)'
+b send-text -s host -w deck '{'; settle; deckcap 12c-prev-project
+check "{ from a project selects the previous project" "$SCRATCH/out/12c-prev-project.txt" 'tasks *1 (1 open)'
+b send-text -s host -w deck '}'; settle; deckcap 12d-next-project
+check "} from a project selects the next project" "$SCRATCH/out/12d-next-project.txt" 'tasks *2 (2 open)'
+b send-text -s host -w deck ')'; settle; deckcap 12e-child
+check ") from a project selects its first task" "$SCRATCH/out/12e-child.txt" 'path *web › landing$'
+b send-text -s host -w deck '('; settle; deckcap 12f-back
+check "( from the task returns to the project" "$SCRATCH/out/12f-back.txt" 'tasks *2 (2 open)'
+b send-text -s host -w deck '))'; settle; deckcap 12g-subtask
+check ") twice is back on the subtask" "$SCRATCH/out/12g-subtask.txt" 'path *web › landing › hero copy'
 
 echo "== rename through the edit form and toggle done"
 b send-keys -s host -w deck e >/dev/null; settle; deckcap 13a-edit-form

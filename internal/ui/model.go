@@ -79,6 +79,7 @@ type Model struct {
 	grouping grouping
 	rows     []row
 	sel      int
+	railUp   int // the levels ( has stepped up from the innermost, for { and }
 	listErr  string
 	dirty    bool
 	listBusy bool

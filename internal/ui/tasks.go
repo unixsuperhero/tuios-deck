@@ -228,6 +228,10 @@ func (m *Model) handleTasksKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.tmove(1)
 	case "k", "up":
 		m.tmove(-1)
+	case "{", "}":
+		m.taskJump(map[string]int{"{": -1, "}": 1}[msg.String()])
+	case "(", ")":
+		m.taskNest(map[string]int{"(": -1, ")": 1}[msg.String()])
 	case "g", "home":
 		m.tselect(0)
 	case "G", "end":

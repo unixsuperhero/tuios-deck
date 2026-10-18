@@ -97,7 +97,7 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 	switch msg.String() {
-	case "j", "down", "k", "up", "g", "home", "tab", "]", "shift+tab", "[", "1", "2", "3", "4", "r", "enter":
+	case "j", "down", "k", "up", "g", "home", "{", "}", "(", ")", "tab", "]", "shift+tab", "[", "1", "2", "3", "4", "r", "enter":
 		m.clearResult() // moving the selection or the tab ends a verb's result view
 	}
 	switch msg.String() {
@@ -106,6 +106,12 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, m.loadDetail(true)
 	case "k", "up":
 		m.move(-1)
+		return m, m.loadDetail(true)
+	case "{", "}":
+		m.railJump(map[string]int{"{": -1, "}": 1}[msg.String()])
+		return m, m.loadDetail(true)
+	case "(", ")":
+		m.railNest(map[string]int{"(": -1, ")": 1}[msg.String()])
 		return m, m.loadDetail(true)
 	case "g", "home":
 		if i := m.firstPane(0, 1); i >= 0 {

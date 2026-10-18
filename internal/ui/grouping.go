@@ -298,6 +298,7 @@ func (m *Model) rebuildRows() {
 // setGrouping regroups the left rail without a daemon call and says so.
 func (m *Model) setGrouping(g grouping) {
 	m.grouping = g
+	m.railUp = 0
 	m.rebuildRows()
 	m.setStatus("grouped by " + g.String())
 }

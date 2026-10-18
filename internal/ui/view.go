@@ -305,19 +305,19 @@ func (m *Model) helpLine() string {
 	}
 	switch m.page {
 	case pageTasks:
-		return cDim.Render(" j/k select · N project · n task/subtask · A add many · e edit · s status · m colour · M glyph · a assign pane · enter go to pane · x delete · esc deck · q quit")
+		return cDim.Render(" j/k select · {/} group · (/) level · N project · n task/subtask · A add many · e edit · s status · m colour · M glyph · a assign pane · enter go to pane · x delete · esc deck · q quit")
 	case pageCaptures:
 		return cDim.Render(" j/k select · J/K scroll · G follow · enter go to pane · x delete · r refresh · T tasks · esc deck · q quit")
 	case pageContext:
-		return cDim.Render(" j/k select · s sort · f filter · o/O group · * star · ! pin · a assign · y copy · enter insert · ^o open · w open with · x delete · esc deck · q quit")
+		return cDim.Render(" j/k select · {/} group · s sort · f filter · o/O group · * star · ! pin · a assign · y copy · enter insert · ^o open · w open with · x delete · esc deck · q quit")
 	}
 	if m.focusMain && m.tab == tabTurns && m.result == nil {
-		return cDim.Render(" main area: h rail · j/k row · enter/space expand · y copy · g top · G newest · J/K half page · [/] or 1-4 tab · p prompt · T tasks · q quit")
+		return cDim.Render(" main area: h rail · j/k row · enter/space expand · y copy · {/} group · g top · G newest · J/K half page · [/] or 1-4 tab · p prompt · T tasks · q quit")
 	}
 	if m.focusMain {
 		return cDim.Render(" main area: h rail · j/k scroll · J/K half page · g top · G follow · [/] or 1-4 tab · p prompt · c capture · T tasks · C captures · q quit")
 	}
-	return cDim.Render(" j/k move · l main area · [/] or 1-4 tab · J/K scroll · G follow · o group · n agent · t term · p prompt · a assign · c capture · i context · x close · T tasks · C captures · I context · r refresh · q quit")
+	return cDim.Render(" j/k move · l main area · {/} group · (/) level · [/] or 1-4 tab · J/K scroll · G follow · o group · n agent · t term · p prompt · a assign · c capture · i context · x close · T tasks · C captures · I context · r refresh · q quit")
 }
 
 // pad fits s to width: truncated when longer, padded with spaces when shorter.

@@ -238,6 +238,8 @@ With the rail focused:
 | Key | Does |
 | --- | --- |
 | `j` `k` (`↓` `↑`), `g` | Select a pane, or the first one |
+| `{` `}` | The first pane of the previous or next group at the same depth; stops at the ends |
+| `(` `)` | With nested groups: `(` makes `{` `}` jump between the outer groups and selects the first pane of the one holding the selection; `)` steps back in |
 | `l` (`→`) | Focus the main area |
 | `1` `2` `3` `4`, `[` `]`, `tab` `shift+tab` | Screen, activity, transcript or turns of the selected pane |
 | `J` `K` (`ctrl+d` `ctrl+u`, `pgdown` `pgup`), `G` | Scroll the detail half a page; `G` follows the newest output again |
@@ -280,6 +282,7 @@ area focused on the Turns tab:
 | Key | Does |
 | --- | --- |
 | `j` `k` | Move between rows |
+| `{` `}` | The previous or next prompt row, past the commands between |
 | `enter` `space` | Expand the row, or fold it again |
 | `y` | Copy the prompt or the command line through OSC 52 |
 | `g` | The first row |
@@ -331,6 +334,8 @@ regroup.
 | Key | Does |
 | --- | --- |
 | `j` `k` `g` `G` | Select a project or a task |
+| `{` `}` | The previous or next row at the same depth: project to project, task to task |
+| `(` `)` | The parent row (a task's project or parent task), or the first child |
 | `N` | New project: its name |
 | `n` | New task under the selected project, or a new subtask under the selected task. The form's parent field starts at the row; `ctrl+h` walks it up a level (to the project's top level at most) and `ctrl+l` back down, from any field, so a top-level task is a few keys away from a subtask row |
 | `e` | Edit the row in one form: a task's title, parent, status, colour and glyph; a project's name, status, colour and glyph. The parent lists `(top level of <project>)` for every project and every task but the row and its subtasks, so a task moves within its project or to another, subtasks and all. Only what changed is written, and the status line says what that was |
@@ -395,6 +400,7 @@ when it was found and whether it is starred and pinned.
 | Key | Does |
 | --- | --- |
 | `j` `k` `g` `G` | Select an item |
+| `{` `}` | The first item of the previous or next group, when grouped |
 | `s` | Sort the next way: newest, kind, starred first, pinned first |
 | `f` | Filter by kind, project, task and text; all empty clears the filter |
 | `o` `O` | Group the next or the previous way: none, kind, project, task, pane |

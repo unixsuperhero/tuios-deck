@@ -245,6 +245,8 @@ func (m *Model) handleContextKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.ctxMove(1)
 	case "k", "up":
 		m.ctxMove(-1)
+	case "{", "}":
+		m.ctxJump(map[string]int{"{": -1, "}": 1}[msg.String()])
 	case "g", "home":
 		m.ctxSelect(m.ctxNext(0, 1))
 	case "G", "end":

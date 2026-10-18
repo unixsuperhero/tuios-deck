@@ -264,6 +264,8 @@ func (m *Model) handleTurnsKey(msg tea.KeyPressMsg) (bool, tea.Cmd) {
 		m.moveTurn(1)
 	case "k", "up":
 		m.moveTurn(-1)
+	case "{", "}":
+		m.turnJump(map[string]int{"{": -1, "}": 1}[msg.String()])
 	case "g", "home":
 		m.turnSel = 0
 		m.follow = false
