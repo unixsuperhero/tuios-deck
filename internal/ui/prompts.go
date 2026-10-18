@@ -21,6 +21,7 @@ type promptModal struct {
 	queue bool
 	sel   int
 	selID string
+	busy  bool // a queued prompt is being sent; its keys wait
 }
 
 // dirPickedMsg carries the folder chosen in the operating system's dialog
@@ -185,6 +186,12 @@ func (m *Model) presetRows() []string {
 // modalIDs is the ids of the rows the modal shows.
 func (m *Model) modalIDs() []string {
 	var out []string
+	if m.pm.queue {
+		for _, q := range m.store.Queued() {
+			out = append(out, q.ID)
+		}
+		return out
+	}
 	for _, p := range m.store.Presets() {
 		out = append(out, p.ID)
 	}
@@ -216,6 +223,10 @@ func (m *Model) modalBox(width, maxH int) []string {
 	iw := width - 4
 	title, rows, help := "prompt presets", m.presetRows(), "j/k choose · n new · e edit · d delete · x add the example short-answer preset · esc close"
 	empty := "no presets: n makes one, x adds the short-answer example"
+	if m.pm.queue {
+		title, rows, help = "queued prompts", m.queueRows(), "j/k choose · enter start · n queue one · e edit · d delete · esc close"
+		empty = "nothing queued: n queues a prompt for a task"
+	}
 	m.settleModal()
 	lines := []string{boxTop(title, width)}
 	if len(rows) == 0 {
@@ -266,6 +277,9 @@ func (m *Model) handleModalKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	}
+	if m.pm.queue {
+		return m, m.handleQueueKey(key, ids)
+	}
 	switch key {
 	case "n":
 		return m, m.openPresetForm(nil)
@@ -283,9 +297,9 @@ func (m *Model) handleModalKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 				m.confirm.Text = "delete preset " + name + "? (Y/n)"
 				m.confirm.Do = func() tea.Msg {
 					if err := m.store.DeletePreset(id); err != nil {
-						return modalMsg{queue: false, err: err}
+						return modalMsg{reopen: true, err: err}
 					}
-					return modalMsg{queue: false, status: "deleted preset " + name}
+					return modalMsg{reopen: true, status: "deleted preset " + name}
 				}
 			}
 		}
@@ -296,6 +310,8 @@ func (m *Model) handleModalKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 // modalMsg ends an action started from the modal and brings it back.
 type modalMsg struct {
 	queue  bool
+	reopen bool // show the modal again; a form or a confirmation closed it
+	done   bool // a queued prompt was dispatched, whether or not it went
 	status string
 	err    error
 }
@@ -307,6 +323,12 @@ func (m *Model) reopenModal(msg modalMsg) {
 		m.setStatus("error: " + msg.err.Error())
 	} else if msg.status != "" {
 		m.setStatus(msg.status)
+	}
+	if msg.done && m.pm != nil {
+		m.pm.busy = false
+	}
+	if !msg.reopen {
+		return
 	}
 	m.mode = modePrompts
 	if m.pm == nil || m.pm.queue != msg.queue {
@@ -355,14 +377,14 @@ func (m *Model) openPresetForm(edit *store.Preset) tea.Cmd {
 			return func() tea.Msg {
 				if edit != nil {
 					if err := m.store.UpdatePreset(edit.ID, v[0], v[2], v[1]); err != nil {
-						return modalMsg{err: err}
+						return modalMsg{reopen: true, err: err}
 					}
-					return modalMsg{status: "saved preset " + v[0]}
+					return modalMsg{reopen: true, status: "saved preset " + v[0]}
 				}
 				if _, err := m.store.AddPreset(v[0], v[2], v[1]); err != nil {
-					return modalMsg{err: err}
+					return modalMsg{reopen: true, err: err}
 				}
-				return modalMsg{status: "added preset " + v[0]}
+				return modalMsg{reopen: true, status: "added preset " + v[0]}
 			}
 		},
 	}

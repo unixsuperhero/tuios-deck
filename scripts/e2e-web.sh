@@ -386,6 +386,49 @@ check "pane rows lead with the project chip" "$SCRATCH/out/index.html" "chip.cla
 check "unassigned panes are marked" "$SCRATCH/out/index.html" "chip.classList.add('unassigned')"
 check "web palette moves on ctrl+n and ctrl+p" "$SCRATCH/out/index.html" "(ctrl && e.key === 'p')"
 
+echo "== prompt presets and queued prompts"
+cat > "$SCRATCH/bin/fakeagent" <<FAKE
+#!/bin/sh
+echo "CWD: \$(pwd)" >> "$SCRATCH/agent.log"
+st() { tuios set-agent-state "\$1" -s "\$TUIOS_SESSION" -w "\$TUIOS_PANE_ID" --harness claude-code -m "fake \$1"; }
+st idle
+while IFS= read -r l; do echo "GOT: \$l" >> "$SCRATCH/agent.log"; st working; sleep 1; st idle; done
+FAKE
+chmod +x "$SCRATCH/bin/fakeagent"
+curl -s "$base/api/prompt-presets" > "$SCRATCH/out/presets0.json"
+check "no preset exists until one is made" "$SCRATCH/out/presets0.json" '"presets":\[\]'
+curl -s -X POST -H "$J" -d "{\"name\":\"brief\",\"prefix\":\"BRIEF:\",\"cwd\":\"$SCRATCH/out\"}" "$base/api/prompt-presets" > "$SCRATCH/out/preset.json"
+check "a preset is created" "$SCRATCH/out/preset.json" '"status":"added preset brief"'
+curl -s -X POST -H "$J" -d '{"name":"BRIEF","prefix":"x"}' "$base/api/prompt-presets" > "$SCRATCH/out/preset-dup.json"
+check "a preset name is unique, ignoring case" "$SCRATCH/out/preset-dup.json" 'exists'
+curl -s -X POST -H "$J" -d '{"name":"qproj"}' "$base/api/projects" > "$SCRATCH/out/qproj.json"
+QP=$(field "$SCRATCH/out/qproj.json" project id)
+curl -s -X POST -H "$J" -d "{\"project_id\":\"$QP\",\"title\":\"qtask\"}" "$base/api/tasks" > "$SCRATCH/out/qtask.json"
+curl -s -X POST -H "$J" -d "{\"task\":\"qproj / qtask\",\"text\":\"ask\",\"preset\":\"brief\",\"agent\":\"$SCRATCH/bin/fakeagent\",\"session\":\"target\"}" "$base/api/queued-prompts" > "$SCRATCH/out/queued-good.json"
+check "the prefix is in the queued text, once" "$SCRATCH/out/queued-good.json" '"text":"BRIEF: ask"'
+check "the preset's cwd is the queued cwd" "$SCRATCH/out/queued-good.json" "\"cwd\":\"$SCRATCH/out\""
+GOOD=$(field "$SCRATCH/out/queued-good.json" queued id)
+curl -s -X POST -H "$J" -d '{"project":"qproj","text":"bad","agent":"/nonexistent/prog","session":"target"}' "$base/api/queued-prompts" > "$SCRATCH/out/queued-bad.json"
+BAD=$(field "$SCRATCH/out/queued-bad.json" queued id)
+curl -s -X POST "$base/api/queued-prompts/$BAD/start" > "$SCRATCH/out/queued-bad-start.json"
+check "a failed start says it is kept" "$SCRATCH/out/queued-bad-start.json" 'kept in the queue'
+curl -s "$base/api/queued-prompts" > "$SCRATCH/out/queued-after-bad.json"
+check "the failed prompt is still queued" "$SCRATCH/out/queued-after-bad.json" "\"id\":\"$BAD\""
+curl -s -X POST "$base/api/queued-prompts/$GOOD/start" > "$SCRATCH/out/queued-good-start.json"
+check "the good prompt starts and is sent" "$SCRATCH/out/queued-good-start.json" 'the prompt was sent'
+curl -s "$base/api/queued-prompts" > "$SCRATCH/out/queued-after-good.json"
+if grep -q "\"id\":\"$GOOD\"" "$SCRATCH/out/queued-after-good.json"; then echo "FAIL the sent prompt is still queued"; fails=$((fails+1)); else echo "PASS the sent prompt left the queue"; fi
+check "the agent started in the preset's cwd" "$SCRATCH/agent.log" "^CWD: .*/out$"
+echo "prefixed prompt typed: $(grep -c '^GOT: BRIEF: ask$' "$SCRATCH/agent.log")" > "$SCRATCH/out/typed-count.txt"
+check "the prompt was typed once, prefix once" "$SCRATCH/out/typed-count.txt" 'typed: 1$'
+curl -s "$base/api/assignments" > "$SCRATCH/out/queued-assign.json"
+check "the started pane is assigned to the task" "$SCRATCH/out/queued-assign.json" '"task":"qtask"'
+curl -s -X DELETE "$base/api/queued-prompts/$BAD" > "$SCRATCH/out/queued-del.json"
+check "a queued prompt is deleted" "$SCRATCH/out/queued-del.json" 'deleted'
+curl -s -X POST "$base/api/prompt-presets/example" > "$SCRATCH/out/preset-example.json"
+check "the example preset is added only on request" "$SCRATCH/out/preset-example.json" '"name":"short answer"'
+curl -s -X DELETE "$base/api/projects/$QP" > /dev/null
+
 echo "== websocket pane stream"
 EXTRA=$(a list-windows -s target --json | python3 -c 'import json,sys; print([w["window_id"] for w in json.load(sys.stdin)["windows"] if w["title"]=="extra"][0])')
 (cd "$here" && GOWORK=off go run ./scripts/wscheck "ws://127.0.0.1:$PORT/api/panes/target/$EXTRA/stream?cols=100&rows=30" ws-marker-7) | tee "$SCRATCH/out/ws.txt"

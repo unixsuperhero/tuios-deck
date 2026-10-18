@@ -339,6 +339,8 @@ func (m *Model) deckCommands() []palItem {
 		{"deck", "new terminal", "open a shell in a new pane (t)", m.openTerminalForm},
 		{"deck", "prompt", "send a prompt or a line to the selected pane (p)", m.openPromptForm},
 		{"deck", "prompt presets…", "create, edit and delete prompt presets: a prefix and a cwd for prompts and new panes", m.openPresetModal},
+		{"deck", "queue prompt…", "keep a prompt for a task or a project, to start later from the queue", func() tea.Cmd { return m.openQueueForm(nil) }},
+		{"deck", "queued prompts…", "choose, edit, delete and start the queued prompts", m.openQueueModal},
 		{"deck", "capture", "write the selected pane's screen to the captures folder (c)", needPane(func(*panes.Pane) tea.Cmd { return m.captureToFile() })},
 		{"deck", "close pane", "close the selected pane after a confirmation (x)", needPane(m.confirmClose)},
 		{"deck", "refresh", "list the sessions and agents again (r)", m.refreshAll},

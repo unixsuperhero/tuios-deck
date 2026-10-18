@@ -345,6 +345,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case modalMsg:
 		m.reopenModal(msg)
+		if msg.done {
+			return m, m.refreshList()
+		}
 		return m, nil
 
 	case tickMsg:

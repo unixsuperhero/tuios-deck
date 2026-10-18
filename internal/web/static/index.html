@@ -346,6 +346,32 @@ dialog .hint.err:empty { display: none; }
   <div class="actions"><button type="button" data-cancel>Cancel</button><button class="primary" value="ok">Save</button></div>
 </form></dialog>
 
+<dialog id="dlg-queued"><form method="dialog">
+  <h2>Queued prompts</h2>
+  <div id="queued-list"></div>
+  <div class="hint err" id="queued-err"></div>
+  <div class="actions"><button type="button" id="queued-new">Queue a prompt…</button><button class="primary" value="ok">Close</button></div>
+</form></dialog>
+
+<dialog id="dlg-queue"><form method="dialog">
+  <h2 id="queue-title">Queue a prompt</h2>
+  <div class="row">
+    <label>Task <input name="task" list="dl-tasks" placeholder="project / task / subtask"></label>
+    <label>Project <input name="project" list="dl-projects" placeholder="required without a task"></label>
+  </div>
+  <label id="queue-preset-label">Preset (optional) <select name="preset" data-preset></select></label>
+  <div class="row">
+    <label>Agent <input name="agent" value="claude" placeholder="started when the prompt runs"></label>
+    <label>Session <input name="session" list="dl-sessions"></label>
+  </div>
+  <div class="row"><label>Working directory <input name="cwd" placeholder="empty: the preset's, else the daemon's"></label><button type="button" data-browse="cwd">Browse…</button></div>
+  <label>Send to a running agent instead (optional) <select name="window" data-panes></select></label>
+  <label>Prompt <textarea name="text" required></textarea></label>
+  <div class="hint">The preset's prefix is put in front once, now. Start it later from Queued prompts.</div>
+  <div class="hint err" data-err></div>
+  <div class="actions"><button type="button" data-cancel>Cancel</button><button class="primary" value="ok">Save</button></div>
+</form></dialog>
+
 <dialog id="dlg-confirm"><form method="dialog">
   <h2 id="confirm-title">Close?</h2>
   <div class="hint" id="confirm-hint"></div>
@@ -993,7 +1019,7 @@ async function fillPresetSelects(dlgId) {
 }
 // A preset with a folder fills the working directory when chosen, where it
 // can still be changed.
-for (const id of ['dlg-agent', 'dlg-term']) {
+for (const id of ['dlg-agent', 'dlg-term', 'dlg-queue']) {
   $(id).querySelector('[data-preset]').onchange = (e) => {
     const p = (state.presets || []).find((x) => x.name === e.target.value);
     if (p && p.cwd) e.target.form.elements.cwd.value = p.cwd;
@@ -1007,7 +1033,7 @@ async function managePresets() {
     if (!presets.length) { const d = document.createElement('div'); d.className = 'empty'; d.textContent = 'no presets'; list.append(d); }
     for (const p of presets) {
       const row = document.createElement('div'); row.className = 'row';
-      const t = document.createElement('span'); t.textContent = `${p.name} — ${p.prefix.replace(/\s+/g, ' ')}${p.cwd ? ' · ' + p.cwd : ''}`;
+      const t = document.createElement('span'); t.style.flex = '1'; t.textContent = `${p.name} — ${p.prefix.replace(/\s+/g, ' ')}${p.cwd ? ' · ' + p.cwd : ''}`;
       const ed = document.createElement('button'); ed.type = 'button'; ed.textContent = 'Edit';
       ed.onclick = async () => { await editPreset(p); draw(); };
       const del = document.createElement('button'); del.type = 'button'; del.textContent = 'Delete'; del.className = 'danger';
@@ -1041,6 +1067,81 @@ async function editPreset(p) {
                 : await api('/api/prompt-presets', { method: 'POST', body: JSON.stringify(v) });
     setStatus(r.status);
   } catch (e) { setStatus('error: ' + e.message, true); }
+}
+
+// ---------------------------------------------------------------- queued prompts
+async function loadQueued() {
+  try { state.queued = (await api('/api/queued-prompts')).queued || []; } catch (e) { state.queued = []; setStatus('queue: ' + e.message, true); }
+  return state.queued;
+}
+function queuedTarget(q) {
+  if (q.window) { const p = state.panes[q.window]; return p ? `${p.session}/${p.name}` : 'pane ' + q.window.slice(0, 8) + ' (gone)'; }
+  return `${q.agent}@${q.session}`;
+}
+async function manageQueued() {
+  const list = $('queued-list'), err = $('queued-err');
+  async function draw() {
+    const queued = await loadQueued();
+    list.replaceChildren();
+    if (!queued.length) { const d = document.createElement('div'); d.className = 'empty'; d.textContent = 'nothing queued'; list.append(d); }
+    for (const q of queued) {
+      const row = document.createElement('div'); row.className = 'row';
+      const t = document.createElement('span'); t.style.flex = '1';
+      t.textContent = `${q.task || q.project} · ${queuedTarget(q)} · ${q.text.replace(/\s+/g, ' ').slice(0, 80)}`;
+      const go = document.createElement('button'); go.type = 'button'; go.textContent = 'Start'; go.className = 'primary';
+      go.onclick = async () => {
+        err.textContent = ''; go.disabled = true; go.textContent = 'Starting…';
+        setStatus('starting the queued prompt, waiting for the agent…');
+        try { const r = await api(`/api/queued-prompts/${enc(q.id)}/start`, { method: 'POST' }); setStatus(r.status); }
+        catch (e) { err.textContent = e.message; setStatus('error: ' + e.message, true); }
+        scheduleRefresh();
+        await draw();
+      };
+      const ed = document.createElement('button'); ed.type = 'button'; ed.textContent = 'Edit';
+      ed.onclick = async () => { await editQueued(q); draw(); };
+      const del = document.createElement('button'); del.type = 'button'; del.textContent = 'Delete'; del.className = 'danger';
+      del.onclick = async () => {
+        $('dlg-queued').close();
+        if (await confirmDialog('Delete the queued prompt?', q.task || q.project, 'Delete')) {
+          try { const r = await api('/api/queued-prompts/' + enc(q.id), { method: 'DELETE' }); setStatus(r.status); } catch (e) { setStatus('error: ' + e.message, true); }
+        }
+        manageQueued();
+      };
+      row.append(t, go, ed, del); list.append(row);
+    }
+  }
+  $('queued-new').onclick = async () => { await editQueued(null); draw(); };
+  err.textContent = '';
+  await draw();
+  $('dlg-queued').showModal();
+}
+// editQueued asks for a queued prompt's fields and saves them; null queues a
+// new one. On an edit the preset is not offered: the text has its prefix.
+async function editQueued(q, fill) {
+  await fillPresetSelects('dlg-queue');
+  const sel = $('dlg-queue').querySelector('[data-panes]');
+  sel.replaceChildren(new Option('(start an agent)', ''), ...Object.values(state.panes).filter((p) => p.is_agent).map((p) => new Option(`${p.session}/${p.name}`, p.id)));
+  if (q && q.window && !state.panes[q.window]) sel.append(new Option('pane ' + q.window.slice(0, 8) + ' (gone)', q.window));
+  $('queue-title').textContent = q ? 'Edit queued prompt' : 'Queue a prompt';
+  $('queue-preset-label').hidden = !!q;
+  const d = defaults();
+  const v = await dialog('dlg-queue', q
+    ? { task: q.task, project: q.task ? '' : q.project, agent: q.agent, session: q.session, cwd: q.cwd, window: q.window, text: q.text }
+    : { session: d.session, cwd: '', task: '', project: d.project, ...fill }, targetRule);
+  if (!v) return;
+  if (q) delete v.preset;
+  try {
+    const r = q ? await api('/api/queued-prompts/' + enc(q.id), { method: 'PATCH', body: JSON.stringify(v) })
+                : await api('/api/queued-prompts', { method: 'POST', body: JSON.stringify(v) });
+    setStatus(r.status);
+  } catch (e) { setStatus('error: ' + e.message, true); }
+}
+// queuePrompt queues a prompt from the palette, starting on the task or the
+// project the tasks page has selected.
+function queuePrompt() {
+  const sel = state.page === 'tasks' ? state.taskSel : null;
+  const fill = !sel ? null : sel.kind === 'task' ? { task: taskPathOf(sel.id), project: '' } : { task: '', project: projectById(sel.id)?.name || '' };
+  return editQueued(null, fill);
 }
 
 // ---------------------------------------------------------------- deck actions
@@ -1646,6 +1747,8 @@ function deckCommands() {
     { label: 'new agent', run: () => newAgent() },
     { label: 'new terminal', run: () => newTerminal() },
     { label: 'prompt selected pane', run: promptPane },
+    { label: 'queue prompt…', desc: 'keep a prompt for a task or a project, to start later', run: queuePrompt },
+    { label: 'queued prompts…', desc: 'start, edit and delete the queued prompts', run: manageQueued },
     { label: 'prompt presets…', desc: 'create, edit and delete prompt presets', run: managePresets },
     { label: 'capture selected pane', run: capturePane },
     { label: 'close selected pane', run: closePane },

@@ -259,6 +259,29 @@ under `prompt_presets`.
 On the web, the `preset` field of `POST /api/agents`, `/api/terminals` and
 `/api/panes/{session}/{id}/prompt` names a preset, and the server applies it.
 
+## Queued prompts
+
+A prompt can be kept for a task or a project and started later. In the
+command palette, `queue prompt…` (TUI and web page) asks for the task or
+the project (the row selected on the tasks page is offered), a preset, the
+agent, session and cwd, an optional running agent to send it to, and the
+prompt. The preset's prefix goes into the stored text then, once, and its cwd
+fills an empty cwd; the queue keeps the final text, so starting it adds
+nothing. The cwd field has the folder dialog (`ctrl+o` in the TUI, Browse
+on the page).
+
+`queued prompts…` opens the modal: `j`/`k` choose, `enter` starts, `n`
+queues another, `e` edits, `d` deletes, `esc` closes. Starting a prompt that
+names a pane sends it there through `queue-prompt`. Otherwise it starts the
+agent in the session at the cwd with the prompt, through `start-agent`, and
+assigns the new pane to the prompt's task or project. A prompt leaves the
+queue only when the daemon reports the agent ready and the prompt `sent`. An
+error, a refused start, an agent that is not ready, a pane that is gone,
+a prompt the daemon calls `held` or `stalled`, is shown and the prompt stays
+queued: after a `held` or `stalled` one, look at the new pane before starting
+it again, because the text may already be in it. Deleting a task or a project
+deletes its queued prompts. They live in `deck.json` under `queued_prompts`.
+
 ## Context items
 
 A context item is something worth keeping that a pane held: a `link`, a
@@ -845,6 +868,9 @@ GET    /api/captures/{name}                    {"name", "content", "lines"}
 DELETE /api/captures/{name}                    remove the file
 GET    /api/prompt-presets                     {"presets": [{id, name, prefix, cwd}]}
 POST   /api/prompt-presets                     {name, prefix, cwd}; PATCH /api/prompt-presets/{id} changes any of them; DELETE removes it
+GET    /api/queued-prompts                     {"queued": [{id, text, preset, task_id, project_id, project, task, cwd, session, agent, window}]}
+POST   /api/queued-prompts                     {task|task_id|project|project_id, text, preset?, agent, session, cwd?, window?}; PATCH /api/queued-prompts/{id} changes any of them; DELETE removes it
+POST   /api/queued-prompts/{id}/start          send it; 200 and it leaves the queue, or 502 {error, kept} and it stays
 POST   /api/prompt-presets/example             add the short-answer example preset (only when asked)
 GET    /api/context?kind=&project=&task=&starred=&pinned=&q=
                                                {"items": [{…the stored item, project, task}], "kinds"}; project and task by id or name, q in the text
@@ -913,6 +939,8 @@ newest tag, or the newest commit on `main` while there are no tags.
 - `internal/config`: the settings file and the key binding tables.
 - `internal/store`: projects, tasks, assignments and context items in
   `deck.json`, and the themes they are drawn in.
+- `internal/prompts`: sending a queued prompt, and the rule that takes it
+  off the queue.
 - `internal/context`: finding context items in a pane, and copying and
   opening them.
 - `internal/reminders`: delivering due reminders as a daemon notice and an
