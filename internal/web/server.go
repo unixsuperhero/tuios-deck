@@ -53,6 +53,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/events", s.events)
 	mux.HandleFunc("GET /api/dirs", s.dirs)
 	mux.HandleFunc("GET /api/preview", s.preview)
+	mux.HandleFunc("GET /api/files", s.files)
+	mux.HandleFunc("GET /api/complete", s.completeWord)
 	mux.HandleFunc("GET /api/panes/{session}/{id}/screen", s.screen)
 	mux.HandleFunc("GET /api/panes/{session}/{id}/activity", s.activity)
 	mux.HandleFunc("GET /api/panes/{session}/{id}/transcript", s.transcript)

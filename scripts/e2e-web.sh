@@ -69,6 +69,21 @@ if grep -q refused "$SCRATCH/out/transcript.json"; then echo "FAIL transcript re
 curl -s "$base/api/dirs?path=$SCRATCH" > "$SCRATCH/out/dirs.json"
 check "folder picker lists subfolders" "$SCRATCH/out/dirs.json" '"out"'
 
+echo "== attachments: the file picker and the @ and / completions"
+mkdir -p "$SCRATCH/.claude/commands" "$SCRATCH/.claude/skills/web-skill"
+printf 'run\n' > "$SCRATCH/.claude/commands/web-cmd.md"
+printf -- '---\nname: web-skill\n---\n' > "$SCRATCH/.claude/skills/web-skill/SKILL.md"
+printf 'x\n' > "$SCRATCH/notes.txt"
+curl -s "$base/api/files?path=$SCRATCH" > "$SCRATCH/out/files.json"
+check "file picker lists folders and files" "$SCRATCH/out/files.json" '"files":\[.*"notes.txt"'
+curl -s "$base/api/complete?kind=at&cwd=$SCRATCH&word=capt" > "$SCRATCH/out/at.json"
+check "@ completes a folder with a trailing slash" "$SCRATCH/out/at.json" '"captures/"'
+curl -s "$base/api/complete?kind=slash&harness=claude-code&cwd=$SCRATCH&word=web" > "$SCRATCH/out/slash.json"
+check "/ lists the project command" "$SCRATCH/out/slash.json" '"web-cmd"'
+check "/ lists the project skill" "$SCRATCH/out/slash.json" '"web-skill"'
+curl -s "$base/api/complete?kind=slash&harness=codex&cwd=$SCRATCH&word=web" > "$SCRATCH/out/slash-codex.json"
+check "/ lists nothing for a harness with no known convention" "$SCRATCH/out/slash-codex.json" '"items":\[\]'
+
 echo "== context items: extract from the build pane"
 field() { python3 -I -c 'import json,sys; d=json.load(open(sys.argv[1]))
 for k in sys.argv[2:]: d=d[int(k)] if isinstance(d,list) else d[k]

@@ -94,10 +94,14 @@ dialog .hint.err:empty { display: none; }
 .preview { font-size: 12px; color: var(--muted); border-left: 2px solid var(--border, #444); padding: 2px 8px; margin: 2px 0; }
 .preview:empty { display: none; }
 .preview pre { margin: 2px 0 0; max-height: 7em; overflow: auto; white-space: pre; font-size: 11px; }
-#dirlist { max-height: 40vh; overflow: auto; border: 1px solid var(--line); border-radius: 6px; }
-#dirlist div { padding: 5px 10px; cursor: pointer; font-family: ui-monospace, Menlo, monospace; font-size: 13px; }
-#dirlist div:hover { background: var(--hover); }
-#dirpath { font-family: ui-monospace, Menlo, monospace; font-size: 13px; word-break: break-all; }
+#dirlist, #filelist { max-height: 40vh; overflow: auto; border: 1px solid var(--line); border-radius: 6px; }
+#dirlist div, #filelist div { padding: 5px 10px; cursor: pointer; font-family: ui-monospace, Menlo, monospace; font-size: 13px; }
+#dirlist div:hover, #filelist div:hover { background: var(--hover); }
+.suggest { border: 1px solid var(--line); border-radius: 6px; max-height: 30vh; overflow: auto; font-family: ui-monospace, Menlo, monospace; font-size: 13px; }
+.suggest div { padding: 4px 10px; cursor: pointer; }
+.suggest div.on, .suggest div:hover { background: var(--hover); }
+#filelist div.pick { background: var(--hover); font-weight: 600; }
+#dirpath, #filepath { font-family: ui-monospace, Menlo, monospace; font-size: 13px; word-break: break-all; }
 /* tasks page */
 .tree .node { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; padding: 5px 12px; cursor: pointer; border-left: 3px solid transparent; }
 .tree .node:hover { background: var(--hover); }
@@ -295,7 +299,7 @@ dialog .hint.err:empty { display: none; }
     <label>Project <input name="project" list="dl-projects" placeholder="required without a task"></label>
   </div>
   <label>Preset (optional) <select name="preset" data-preset></select></label>
-  <label>First prompt (optional) <textarea name="prompt"></textarea></label>
+  <label>First prompt (optional) <textarea name="prompt" data-compose="agent"></textarea></label>
   <div class="hint">Waits until the agent is at its prompt, which can take a minute.</div>
   <div class="hint err" data-err></div>
   <div class="actions"><button type="button" data-cancel>Cancel</button><button class="primary" value="ok">Start</button></div>
@@ -328,7 +332,7 @@ dialog .hint.err:empty { display: none; }
 <dialog id="dlg-prompt"><form method="dialog">
   <h2 id="prompt-title">Prompt</h2>
   <label>Preset (optional) <select name="preset" data-preset></select></label>
-  <label>Text <textarea name="text" required></textarea></label>
+  <label>Text <textarea name="text" required data-compose="prompt"></textarea></label>
   <div class="hint" id="prompt-hint"></div>
   <div class="actions"><button type="button" data-cancel>Cancel</button><button class="primary" value="ok">Send</button></div>
 </form></dialog>
@@ -421,6 +425,14 @@ dialog .hint.err:empty { display: none; }
   <div id="dirpath"></div>
   <div id="dirlist"></div>
   <div class="actions"><button type="button" data-cancel>Cancel</button><button class="primary" value="ok">Use this folder</button></div>
+</form></dialog>
+
+<dialog id="dlg-file"><form method="dialog">
+  <h2>Attach files</h2>
+  <div id="filepath"></div>
+  <div id="filelist"></div>
+  <div class="hint">Click a folder to open it and a file to select it. These are the files on the machine the daemon runs on.</div>
+  <div class="actions"><button type="button" data-cancel>Cancel</button><button class="primary" value="ok">Attach selected</button></div>
 </form></dialog>
 
 <dialog id="dlg-palette"><div class="body">
@@ -970,6 +982,117 @@ for (const b of document.querySelectorAll('[data-browse]')) {
     if (chosen) input.value = chosen;
   };
 }
+// A prompt box (data-compose) completes `@` file references and, at the very
+// start, a `/` slash command or skill, from the machine the daemon runs on.
+// A file is attached by its @path, which the agent reads itself; the page
+// never uploads anything. Typing, caret and scroll stay where they are: the
+// suggestions only ever add text when one is taken.
+function composeCtx(ta) {
+  if (ta.dataset.compose === 'agent') {
+    const f = ta.form.elements;
+    return { cwd: f.cwd.value || '~', harness: f.agent.value.trim(), on: true };
+  }
+  const p = state.panes[state.selected];
+  return { cwd: p?.cwd || '~', harness: p?.harness || '', on: !!p?.is_agent };
+}
+function initCompose(ta) {
+  const box = document.createElement('div'); box.className = 'suggest'; box.hidden = true;
+  const btn = document.createElement('button'); btn.type = 'button'; btn.textContent = 'Attach files…';
+  ta.insertAdjacentElement('afterend', box);
+  ta.closest('label').insertAdjacentElement('afterend', btn);
+  let items = [], hl = -1, span = null, seq = 0;
+  const close = () => { box.hidden = true; items = []; hl = -1; span = null; };
+  const paint = () => {
+    box.replaceChildren();
+    items.forEach((it, i) => {
+      const el = document.createElement('div'); el.textContent = it.label; if (i === hl) el.className = 'on';
+      el.onmousedown = (e) => { e.preventDefault(); take(i); };
+      box.append(el);
+    });
+    box.hidden = !items.length;
+  };
+  function take(i) {
+    const it = items[i];
+    if (!it) return;
+    const v = ta.value, tail = it.label.endsWith('/') ? '' : ' ';
+    ta.value = v.slice(0, span.start) + it.text + tail + v.slice(span.end);
+    const at = span.start + it.text.length + tail.length;
+    ta.setSelectionRange(at, at);
+    close();
+    if (!tail) update();
+  }
+  async function update() {
+    const ctx = composeCtx(ta);
+    const caret = ta.selectionStart, v = ta.value;
+    const ws = Math.max(v.lastIndexOf(' ', caret - 1), v.lastIndexOf('\n', caret - 1), v.lastIndexOf('\t', caret - 1)) + 1;
+    const word = v.slice(ws, caret);
+    let kind = '';
+    if (word.startsWith('@')) kind = 'at'; else if (word.startsWith('/') && ws === 0) kind = 'slash';
+    if (!ctx.on || !kind) return close();
+    const mine = ++seq;
+    let d;
+    try { d = await api('/api/complete?kind=' + kind + '&cwd=' + enc(ctx.cwd) + '&harness=' + enc(ctx.harness) + '&word=' + enc(word.slice(1))); }
+    catch (e) { return close(); }
+    if (mine !== seq) return;
+    const mark = kind === 'at' ? '@' : '/';
+    items = d.items.map((n) => ({ label: mark + n, text: mark + n }));
+    hl = items.length ? 0 : -1; span = { start: ws, end: caret };
+    paint();
+  }
+  ta.addEventListener('input', update);
+  ta.addEventListener('click', update);
+  ta.addEventListener('blur', close);
+  ta.addEventListener('keydown', (e) => {
+    if (box.hidden) return;
+    if (e.key === 'ArrowDown' || (e.ctrlKey && e.key === 'n')) hl = (hl + 1) % items.length;
+    else if (e.key === 'ArrowUp' || (e.ctrlKey && e.key === 'p')) hl = (hl - 1 + items.length) % items.length;
+    else if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey)) { take(hl); }
+    else if (e.key === 'Escape') close();
+    else return;
+    e.preventDefault(); e.stopPropagation();
+    if (!box.hidden) paint();
+  });
+  btn.onclick = async () => {
+    const ctx = composeCtx(ta);
+    if (!ctx.on) { setStatus('attachments go to agents; this pane is a terminal', true); return; }
+    const picked = await browseFiles(ctx.cwd);
+    if (!picked || !picked.length) return;
+    const root = ctx.cwd.startsWith('~') ? (await api('/api/files?path=' + enc(ctx.cwd))).path : ctx.cwd;
+    const refs = picked.map((p) => '@' + (p.startsWith(root + '/') ? p.slice(root.length + 1) : p));
+    const sep = ta.value && !/\s$/.test(ta.value) ? ' ' : '';
+    ta.value += sep + refs.join(' ') + ' ';
+    ta.focus();
+  };
+}
+// The file picker browses the machine the daemon runs on, like browseDir,
+// and lets several files be chosen across folders.
+async function browseFiles(start) {
+  const dlg = $('dlg-file'), chosen = new Set();
+  let current = start || '~';
+  async function load(path) {
+    try {
+      const d = await api('/api/files?path=' + enc(path));
+      current = d.path;
+      $('filepath').textContent = d.path + (chosen.size ? '   (' + chosen.size + ' selected)' : '');
+      const list = $('filelist'); list.replaceChildren();
+      const up = document.createElement('div'); up.textContent = '↑ ..'; up.onclick = () => load(d.parent); list.append(up);
+      for (const name of d.dirs) { const el = document.createElement('div'); el.textContent = name + '/'; el.onclick = () => load(d.path + '/' + name); list.append(el); }
+      for (const name of d.files) {
+        const full = d.path + '/' + name, el = document.createElement('div');
+        el.textContent = name; if (chosen.has(full)) el.className = 'pick';
+        el.onclick = () => { chosen.has(full) ? chosen.delete(full) : chosen.add(full); load(d.path); };
+        list.append(el);
+      }
+    } catch (e) { $('filepath').textContent = 'cannot read ' + path + ': ' + e.message; }
+  }
+  await load(current);
+  return new Promise((resolve) => {
+    dlg.querySelectorAll('[data-cancel]').forEach((b) => (b.onclick = () => dlg.close('')));
+    dlg.onclose = () => resolve(dlg.returnValue === 'ok' ? [...chosen] : null);
+    dlg.showModal();
+  });
+}
+document.querySelectorAll('textarea[data-compose]').forEach(initCompose);
 // The folder picker browses the machine the daemon runs on, through the
 // server, because a browser's own picker cannot name a path there.
 async function browseDir(start) {
