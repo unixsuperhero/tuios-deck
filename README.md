@@ -523,6 +523,9 @@ controls are unavailable until **Unlock focus** or `F` releases the scope.
 The TUI binding is the configurable `focus` action. Focus belongs to this
 TUI or browser tab, not other clients; it is a distraction filter, not access
 control. Refreshes keep the selected pane and scroll position.
+The whole focused screen uses the selected scope’s colour: ANSI colours in
+the TUI and a tinted page and terminal background in the browser. Unlocking
+restores the normal theme.
 
 
 ## The TUI

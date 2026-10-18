@@ -180,6 +180,9 @@ body.focused #btn-palette, body.focused #btn-agent, body.focused #btn-term,
 body.focused #btn-assign, body.focused #btn-extract, body.focused #btn-close,
 body.focused #tk-newproj, body.focused #tk-newtask, body.focused #tk-rename,
 body.focused #tk-theme, body.focused #tk-delete, body.focused #page-deck .railhead { display: none; }
+body.focused { --bg: color-mix(in srgb, var(--focus-color) 16%, #101318); --panel: color-mix(in srgb, var(--focus-color) 22%, #171b21); --fg: #f7f8fa; --muted: #d6dbe2; --line: color-mix(in srgb, var(--focus-color) 55%, #aaa); --accent: color-mix(in srgb, var(--focus-color) 65%, #fff); --sel: color-mix(in srgb, var(--focus-color) 40%, #222); --hover: color-mix(in srgb, var(--focus-color) 30%, #222); --term-bg: var(--bg); }
+body.focused .pane .chip, body.focused .pane .task, body.focused .glyph { color: var(--fg) !important; }
+body.focused button.primary, body.focused .nav button.on, body.focused .tabs button.on { color: #101318; }
 </style>
 </head>
 <body>
@@ -563,6 +566,9 @@ function updateFocusView() {
   document.body.classList.toggle('focused', !!focusScope);
   $('btn-focus').textContent = focusScope ? 'Unlock focus' : 'Focus…';
   const target = focusTarget();
+  if (target) document.body.style.setProperty('--focus-color', target.theme.css);
+  else document.body.style.removeProperty('--focus-color');
+  if (term) term.options.theme = focusTerminalTheme();
   $('focus-label').textContent = target ? 'FOCUS · ' + (target.title || target.name) : '';
   if (state.selected && !focusPane(state.panes[state.selected])) {
     state.selected = null; closeLive(); state.detailKey = ''; state.detailText = ''; $('text').textContent = '';
@@ -1045,6 +1051,10 @@ function showResult(title, value) {
 setInterval(loadDetail, 2000);
 
 // ---------------------------------------------------------------- live pane
+function focusTerminalTheme() {
+  const t = focusTarget();
+  return t ? {background: t.theme.css, foreground: ['black', 'blue', 'red', 'magenta'].includes(t.theme.color) ? '#ffffff' : '#000000'} : {background: '#0f1115'};
+}
 let term = null, fit = null, ws = null, leaseTimer = null, lastSeq = 0n, bootId = '';
 function openLive() {
   const p = state.panes[state.selected];
@@ -1059,6 +1069,7 @@ function openLive() {
     term.onBinary((d) => send('I', Uint8Array.from(d, (c) => c.charCodeAt(0))));
     new ResizeObserver(() => { if (ws && state.tab === 'live' && $('term').offsetWidth) { fit.fit(); lease(); } }).observe($('term'));
   }
+  term.options.theme = focusTerminalTheme();
   term.reset();
   fit.fit();
   const q = new URLSearchParams({ cols: term.cols, rows: term.rows });

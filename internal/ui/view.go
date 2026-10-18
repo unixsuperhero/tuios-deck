@@ -122,7 +122,7 @@ func (m *Model) View() tea.View {
 	b.WriteString(pad(m.statusLine(), m.width))
 	b.WriteByte('\n')
 	b.WriteString(pad(m.helpLine(), m.width))
-	v.SetContent(b.String())
+	v.SetContent(m.focusScreen(b.String()))
 	return v
 }
 

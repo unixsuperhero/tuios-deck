@@ -1,9 +1,12 @@
 package ui
 
 import (
+	"regexp"
+	"strconv"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/unixsuperhero/tuios-deck/internal/store"
 )
@@ -125,4 +128,39 @@ func (m *Model) focusKeyAllowed(key string) bool {
 	}
 	// Only scoped navigation and actions are available; global pickers expose unrelated data.
 	return strings.Contains("|F|q|ctrl+c|T|esc|j|k|up|down|h|l|left|right|g|G|home|end|J|K|ctrl+d|ctrl+u|pgdown|pgup|tab|shift+tab|[|]|1|2|3|4|r|enter|{|}|(|)|p|c|s|", "|"+key+"|")
+}
+
+var focusSGR = regexp.MustCompile("\x1b\\[[0-9;]*m")
+
+func (m *Model) focusScreen(text string) string {
+	if m.focus == nil {
+		return text
+	}
+	_, theme := m.focusTarget()
+	fg := "0"
+	if theme.Color == "black" || theme.Color == "blue" || theme.Color == "red" || theme.Color == "magenta" {
+		fg = "15"
+	}
+	// Keep bold, reverse selection and underlines, but remove embedded colours.
+	text = focusSGR.ReplaceAllStringFunc(text, func(s string) string {
+		parts := strings.Split(s[2:len(s)-1], ";")
+		kept := parts[:0]
+		for i := 0; i < len(parts); i++ {
+			n, _ := strconv.Atoi(parts[i])
+			if n == 38 || n == 48 || n == 58 {
+				if i+1 < len(parts) && parts[i+1] == "2" {
+					i += 4
+				} else {
+					i += 2
+				}
+			} else if n < 30 || n > 49 && n < 90 {
+				kept = append(kept, parts[i])
+			}
+		}
+		if len(kept) == 0 {
+			return ""
+		}
+		return "\x1b[" + strings.Join(kept, ";") + "m"
+	})
+	return lipgloss.NewStyle().Foreground(lipgloss.Color(fg)).Background(lipgloss.Color(theme.ANSI())).Render(text)
 }
