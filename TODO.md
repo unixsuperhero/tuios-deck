@@ -5,6 +5,16 @@
 - [ ] migrate data store to an sqlite db
 - [ ] keybindings help has to be grouped better and searchable.  very hard to
 find things right now
+- [ ] make md report open with mdoc of the components and modules that make
+tuios-deck work and if we were to redesign them as modular, data-driven systems
+what would that look like.  i want them to be able to change and grow
+independently.  if they are separate and modular, then we will probbaly need an
+orchestrator, right?
+- [ ] need to mark agents/terminals as stale and suggest to close them if no
+activity exceeding a certain threshold
+- [ ] from any item on the deck page, i want to be able to open a modal that
+will let me review all items in it's task tree...project, task, subtask etc. and
+manage each of those
 
 
 ## Standard Importance
