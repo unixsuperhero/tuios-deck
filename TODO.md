@@ -3,7 +3,7 @@
 ## Priority
 
 - [ ] migrate data store to an sqlite db
-- [ ] keybindings help has to be grouped better and searchable.  very hard to
+- [x] keybindings help has to be grouped better and searchable.  very hard to
 find things right now
 - [x] make md report open with mdoc of the components and modules that make
 tuios-deck work and if we were to redesign them as modular, data-driven systems
@@ -57,7 +57,7 @@ of queue for when turn is done
 the list...the content below the top 8 lines should temporarily preview the
 object in the list item as a selection in left rail, and details on the main
 right content pane.
-- [ ] keybinding modal should be filterable after typing `/` to search
+- [x] keybinding modal should be filterable after typing `/` to search
 - [ ] add keybinding for filterable content after typing `/` to search to most
 screens/panes
 
