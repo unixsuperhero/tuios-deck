@@ -49,18 +49,10 @@ wait_deck() { # pattern, seconds
 	done
 	return 1
 }
-# A shell marks its commands only once it has drawn its first prompt (at_prompt
-# in list-windows); text typed before that is never marked, so the Turns tab
-# would see no command. The daemon has no condition for it, so wait for quiet
-# output, then poll at_prompt.
+# Let startup output settle, then require a marked shell prompt before typing.
 wait_prompt() { # session, window
-	local i
-	a wait-for window-idle -s "$1" -w "$2" --idle 500 --timeout 10000 >/dev/null
-	for ((i=0; i<20; i++)); do
-		if a list-windows -s "$1" --json | python3 -c 'import json,sys; sys.exit(0 if [w for w in json.load(sys.stdin)["windows"] if w["title"]==sys.argv[1] and w.get("at_prompt")] else 1)' "$2"; then return 0; fi
-		sleep 0.5
-	done
-	return 1
+	a wait-for window-idle -s "$1" -w "$2" --idle 500 --timeout 10000 >/dev/null || return 1
+	a list-windows -s "$1" --json | python3 -c 'import json,sys; sys.exit(0 if any(w["title"]==sys.argv[1] and w.get("at_prompt") for w in json.load(sys.stdin)["windows"]) else 1)' "$2"
 }
 settle() { b wait-for window-idle -s host -w deck --idle 700 --timeout 10000 >/dev/null; }
 window_id() { a list-windows -s target --json | python3 -c 'import json,sys; print([w["window_id"] for w in json.load(sys.stdin)["windows"] if w["title"]==sys.argv[1]][0])' "$1"; }
