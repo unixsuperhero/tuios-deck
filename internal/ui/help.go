@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/unixsuperhero/tuios-deck/internal/config"
 )
@@ -45,9 +46,11 @@ func (m *Model) handleHelpKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "k", "up":
 		h.scroll = max(0, h.scroll-1)
 	case "pgdown", "ctrl+d":
-		h.scroll += max(1, m.height-7)
+		_, height := m.helpSize()
+		h.scroll += max(1, height-7)
 	case "pgup", "ctrl+u":
-		h.scroll = max(0, h.scroll-max(1, m.height-7))
+		_, height := m.helpSize()
+		h.scroll = max(0, h.scroll-max(1, height-7))
 	case "g", "home":
 		h.scroll = 0
 	case "G", "end":
@@ -181,8 +184,13 @@ func (m *Model) helpRows(mode string) []helpRow {
 	return rows
 }
 
-func (m *Model) helpView() string {
+func (m *Model) helpSize() (int, int) {
 	w, h := max(1, m.width), max(1, m.height)
+	return w - 2*min(5, max(0, (w-32)/2)), h - 2*min(5, max(0, (h-8)/2))
+}
+
+func (m *Model) helpView() string {
+	w, h := m.helpSize()
 	mode := helpModes()[m.help.mode]
 	filter := "all actions"
 	if m.help.unbound {
@@ -241,5 +249,5 @@ func (m *Model) helpView() string {
 	for i := range lines {
 		lines[i] = pad(lines[i], w)
 	}
-	return strings.Join(lines, "\n")
+	return lipgloss.Place(max(1, m.width), max(1, m.height), lipgloss.Center, lipgloss.Center, strings.Join(lines, "\n"))
 }

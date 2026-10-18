@@ -131,7 +131,11 @@ in another mode mean every listed action has a binding; they do not disable
 keys. `unbind` still restores an action's default key.
 
 Use up/down or `j/k` to scroll, PageUp/PageDown for a page, and Home/End
-for the ends. Help wraps and clips to the terminal size. `esc` closes it
+for the ends. Help is centered with at least five blank rows above and below
+and five columns on either side. Below 42 columns or 18 rows, gutters shrink
+to preserve a usable table; very small terminals must clip the help. Browser
+help uses five line-heights vertically and five character-widths horizontally,
+with the same small-viewport fallback and a scrollable table. `esc` closes it
 without moving the underlying selection or scroll. The `help` action can
 itself be rebound. In text fields and the command palette, `?` remains text;
 picker prototypes that use it for previews keep that behavior.
