@@ -150,11 +150,11 @@ through a temp file and a rename, so it can be read or copied at any time:
 
 Context items live in this same file, under `context_items`, not in a
 separate store; the `-data` flag and `TUIOS_DECK_DATA` move them with the
-rest. The deck stays on JSON rather than SQLite: the record is small, a
-person's own, read whole at start and rewritten whole under one mutex, and a
+rest. The deck keeps JSON for now: the file is
+read whole at start and rewritten whole under one process-local mutex, and a
 plain file can be read, diffed and copied by hand. SQLite would be worth
 its dependency if the store grew past what a rewrite per change tolerates,
-or if two deck processes had to write at once. Neither is true today. One
+or if two deck processes had to write at once. Concurrent writers are a
 known limit: two deck processes on one file (say `deck tui` and `deck web`)
 each hold their own copy from start, so the later write wins; point them at
 different `-data` files, or run one.
