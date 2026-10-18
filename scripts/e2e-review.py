@@ -65,10 +65,10 @@ def check(name, condition):
 
 
 def stored():
-    """The turns the store file yields: per window, the person's prompt and every turn-end until the next
+    """The turns the store yields, read back as JSON through deck export: per window, the person's prompt and every turn-end until the next
     prompt (a <task-notification> prompt continues the turn), plus review_marks keyed by the prompt's id.
     Nothing else about a review is stored. Every turn with a response is listed here, running or not."""
-    data = json.loads(DATA.read_text())
+    data = json.loads(subprocess.run([DECK, "export", "--data", str(DATA)], check=True, capture_output=True).stdout)
     marks = data.get("review_marks", {})
     turns = sorted((e for e in data.get("history", []) if e["source"] == "agent-activity"
                     and e["kind"] in ("prompt-submitted", "response-completed", "session_start")), key=lambda e: e["at"])

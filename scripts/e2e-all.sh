@@ -3,7 +3,9 @@
 # and prints one line per suite: its exit status, wall time and PASS/FAIL
 # counts. The exit status is the number of suites that failed. Logs land
 # under .dev/e2e-all/<suite>.log; each suite's own evidence stays in its
-# scratch folder under /tmp/deck-all-<suite>.
+# scratch folder under /tmp/deck-all-<suite>. SCRATCH_BASE and PORT_BASE
+# (default /tmp/deck-all and 18900) move both, so two runs side by side do
+# not collide: SCRATCH_BASE=/tmp/deck-all-mine PORT_BASE=18700.
 #
 # The suites isolate by SCRATCH and PORT already, and a daemon costs under
 # 100 ms to start, so the full run takes as long as the longest suite.
@@ -17,17 +19,18 @@ mkdir -p "$LOGS"
 export DECK
 
 # name  command (PORT and PORT+1 must not collide; reminders takes two)
+P=${PORT_BASE:-18900}
 suites=(
-	"e2e           PORT=18900 scripts/e2e.sh"
-	"web           PORT=18902 scripts/e2e-web.sh"
+	"e2e           PORT=$((P+0)) scripts/e2e.sh"
+	"web           PORT=$((P+2)) scripts/e2e-web.sh"
 	"setup         scripts/e2e-setup.sh"
-	"focus         PORT=18904 scripts/e2e-focus.sh"
-	"history       PORT=18906 scripts/e2e-history.sh"
+	"focus         PORT=$((P+4)) scripts/e2e-focus.sh"
+	"history       PORT=$((P+6)) scripts/e2e-history.sh"
 	"prompt-stash  scripts/e2e-prompt-stash.sh"
-	"reminders     PORT=18908 scripts/e2e-reminders.sh"
+	"reminders     PORT=$((P+8)) scripts/e2e-reminders.sh"
 	"help          python3 scripts/e2e-help.py"
 	"turns         python3 scripts/e2e-turns.py"
-	"review        PORT=18910 python3 scripts/e2e-review.py"
+	"review        PORT=$((P+10)) python3 scripts/e2e-review.py"
 	"live          scripts/e2e-live.sh"
 )
 only=${ONLY:-}
@@ -37,7 +40,7 @@ for s in "${suites[@]}"; do
 	name=${s%% *}
 	cmd=${s#"$name"}
 	if [ -n "$only" ] && ! grep -qw -- "$name" <<<"$only"; then continue; fi
-	scratch=/tmp/deck-all-$name
+	scratch=${SCRATCH_BASE:-/tmp/deck-all}-$name
 	rm -rf "$scratch"
 	( cd "$here" && env SCRATCH="$scratch" bash -c "s=\$(date +%s); $cmd; st=\$?; echo \"__exit \$st \$((\$(date +%s)-s))\"; exit \$st" ) > "$LOGS/$name.log" 2>&1 &
 	pids+=($!); names+=("$name")

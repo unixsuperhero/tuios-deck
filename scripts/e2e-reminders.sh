@@ -15,6 +15,8 @@ DECK=${DECK:-$here/.dev/deck}
 SCRATCH=${SCRATCH:-/tmp/deck-e2erem-$(id -u)}
 PORT=${PORT:-18791}
 rm -rf "$SCRATCH"; mkdir -p "$SCRATCH/out" "$SCRATCH/bin"
+# A store as JSON: the seed it names is migrated into the .db beside it, read back through deck export.
+store_json() { "$DECK" export -data "$1" > "$SCRATCH/out/store.json" && echo "$SCRATCH/out/store.json"; }
 fails=0
 
 isolate() {
@@ -72,7 +74,7 @@ b send-keys -s host -w deck Enter; settle; deckcap 02-bad
 check "a bad interval is refused in the form" "$SCRATCH/out/02-bad.txt" 'not a duration'
 b send-keys -s host -w deck ctrl+u; b send-text -s host -w deck '2s'; b send-keys -s host -w deck Enter; settle; deckcap 03-added
 check "status confirms the new reminder" "$SCRATCH/out/03-added.txt" 'reminder stretch every 2s'
-check "reminder is in the store" "$TUIDATA" '"title": "stretch"'
+check "reminder is in the store" "$(store_json "$TUIDATA")" '"title": "stretch"'
 echo "== deck tui delivers it: a notice in daemon A and an OS notification"
 next_notice 10000; ok "TUI reminder arrives as a notice in daemon A" test "$(notices stretch)" -ge 1
 next_notice 10000; ok "it recurs" test "$(notices stretch)" -ge 2
@@ -85,7 +87,7 @@ b send-text -s host -w deck ':'; settle; b send-text -s host -w deck 'disable re
 b send-keys -s host -w deck Tab; settle
 b send-keys -s host -w deck Enter; settle; deckcap 05-disable
 check "status confirms disabled" "$SCRATCH/out/05-disable.txt" 'disabled reminder stretch'
-check "store says disabled" <(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["reminders"][0]["enabled"])' "$TUIDATA") 'False'
+check "store says disabled" <(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["reminders"][0]["enabled"])' "$(store_json "$TUIDATA")") 'False'
 before=$(notices stretch)
 a wait-for agent-message -s target --timeout 5000 >/dev/null 2>&1 && echo "FAIL a disabled reminder still fired" && fails=$((fails+1)) || echo "PASS disabled reminder stays quiet for 5s"
 ok "no new notice while disabled" test "$(notices stretch)" -eq "$before"
@@ -129,18 +131,17 @@ curl -s -X PATCH -H "$J" "$base/api/reminders/$id" -d '{"enabled":true}' > /dev/
 next_notice 10000; ok "re-enabled reminder fires again after the restart" test "$(notices 'web ping')" -gt "$before"
 echo "== a reminder missed while the deck was off fires once"
 kill "$webpid"; wait "$webpid" 2>/dev/null
-python3 - "$WEBDATA" "$id" <<'PY'
-import json, sys, time
+python3 - "${WEBDATA%.json}.db" "$id" <<'PY'
+import sqlite3, sys, time
 p, rid = sys.argv[1:]
-d = json.load(open(p))
-for r in d["reminders"]:
-    if r["id"] == rid:
-        r["next"] = int(time.time()) - 7  # three and a half intervals ago
-json.dump(d, open(p, "w"))
+with sqlite3.connect(p) as db:  # the deck is off; its migrated database
+    db.execute("UPDATE reminders SET next = ? WHERE id = ?", (int(time.time()) - 7, rid))  # three and a half intervals ago
 PY
 mark=$(notices 'web ping')
 startweb
-next_notice 10000
+# Counted as soon as it lands, not with next_notice: the catch-up can arrive
+# before a wait started after startweb, which then sees only the next one.
+for ((i=0; i<50; i++)); do [ "$(notices 'web ping')" -gt "$mark" ] && break; sleep .2; done
 ok "exactly one catch-up notice, not one per missed interval" test "$(( $(notices 'web ping') - mark ))" -eq 1
 curl -s "$base/api/reminders" > "$SCRATCH/out/w6.json"
 ok "next due moved into the future" python3 -c 'import json,sys,time; r={x["id"]:x for x in json.load(open(sys.argv[1]))["reminders"]}; sys.exit(0 if r[sys.argv[2]]["next"]>time.time()-1 else 1)' "$SCRATCH/out/w6.json" "$id"

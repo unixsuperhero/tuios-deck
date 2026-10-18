@@ -60,12 +60,15 @@ cancel_form() {
 	if b capture-pane -s host -w deck | grep -q 'close this form without submitting'; then b send-keys -s host -w deck y >/dev/null; settle; fi
 }
 window_id() { a list-windows -s target --json | python3 -c 'import json,sys; print([w["window_id"] for w in json.load(sys.stdin)["windows"] if w["title"]==sys.argv[1]][0])' "$1"; }
-# Polls the store file, which the deck writes itself after a listing, so
-# there is no daemon condition to wait on.
+# The store as JSON, exported from the deck's database to a file whose path
+# it prints.
+store_json() { "$DECK" export -data "$DATA" > "$SCRATCH/out/store.json" && echo "$SCRATCH/out/store.json"; }
+# Polls the store, which the deck writes itself after a listing, so there is
+# no daemon condition to wait on.
 wait_store() { # pattern, present|absent, seconds
 	local i
 	for ((i=0; i<$3*5; i++)); do
-		if grep -q -- "$1" "$DATA"; then [ "$2" = present ] && return 0; else [ "$2" = absent ] && return 0; fi
+		if grep -q -- "$1" "$(store_json)"; then [ "$2" = present ] && return 0; else [ "$2" = absent ] && return 0; fi
 		sleep .2
 	done
 	return 1
@@ -83,7 +86,11 @@ check "fake agent is listed as idle" "$SCRATCH/out/a-agents.json" '"state": *"id
 ASOCK="$A/run/tuios/tuios.sock"
 
 echo "== the store: a project and a task, written by hand in the store's shape"
-DATA="$SCRATCH/deck.json"
+# The deck migrates the seed into deck.db beside it; the checks read the
+# store back through deck export (store_json).
+mkdir -p "$SCRATCH/store"
+: > "$SCRATCH/deck.txt" # a plain file in the pane's cwd for the @ completion checks
+DATA="$SCRATCH/store/deck.json"
 cat > "$DATA" <<'JSON'
 {
   "version": 1,
@@ -147,21 +154,21 @@ echo "== @ completes paths under the pane's cwd"
 b send-keys -s host -w deck p >/dev/null; settle
 b send-text -s host -w deck 'look at @'; settle; deckcap 04b-at
 check "@ lists the folders of the pane's cwd" "$SCRATCH/out/04b-at.txt" '  captures/'
-check "@ list shows files plain" "$SCRATCH/out/04b-at.txt" '  deck.json '
+check "@ list shows files plain" "$SCRATCH/out/04b-at.txt" '  deck.txt '
 b send-text -s host -w deck 'capt'; settle; deckcap 04c-at-filter
 check "typing after @ filters the list" "$SCRATCH/out/04c-at-filter.txt" '▸ captures/'
-if grep -q 'deck.json' "$SCRATCH/out/04c-at-filter.txt"; then echo "FAIL @ filter kept deck.json"; fails=$((fails+1)); else echo "PASS @ filter hides unmatched entries"; fi
+if grep -q 'deck.txt' "$SCRATCH/out/04c-at-filter.txt"; then echo "FAIL @ filter kept deck.txt"; fails=$((fails+1)); else echo "PASS @ filter hides unmatched entries"; fi
 b send-keys -s host -w deck Tab >/dev/null; settle; deckcap 04d-at-descend
 check "tab on a folder descends into it" "$SCRATCH/out/04d-at-descend.txt" 'look at @captures/▏'
 b send-keys -s host -w deck Escape >/dev/null; settle; deckcap 04e-at-closed
 check "esc closes the @ list and keeps the form" "$SCRATCH/out/04e-at-closed.txt" '╭─ prompt ─'
-b send-keys -s host -w deck ctrl+u >/dev/null; b send-text -s host -w deck '@deck.j'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 04f-at-file
-check "enter on a file puts its path in place of the @query" "$SCRATCH/out/04f-at-file.txt" '    deck.json▏'
+b send-keys -s host -w deck ctrl+u >/dev/null; b send-text -s host -w deck '@deck.t'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 04f-at-file
+check "enter on a file puts its path in place of the @query" "$SCRATCH/out/04f-at-file.txt" '    deck.txt▏'
 b send-keys -s host -w deck Escape >/dev/null; settle; deckcap 04g-at-ask
 check "esc on an edited form asks before closing" "$SCRATCH/out/04g-at-ask.txt" 'close this form without submitting'
 check "the edited form stays up while it asks" "$SCRATCH/out/04g-at-ask.txt" '╭─ prompt ─'
 b send-keys -s host -w deck n >/dev/null; settle; deckcap 04g-at-kept
-check "n keeps the edited form" "$SCRATCH/out/04g-at-kept.txt" '    deck.json▏'
+check "n keeps the edited form" "$SCRATCH/out/04g-at-kept.txt" '    deck.txt▏'
 b send-keys -s host -w deck Escape >/dev/null; settle; b send-keys -s host -w deck y >/dev/null; settle; deckcap 04g-at-cancel
 if grep -q '╭─ prompt' "$SCRATCH/out/04g-at-cancel.txt"; then echo "FAIL prompt form still open"; fails=$((fails+1)); else echo "PASS esc then y discards the edited form"; fi
 b send-keys -s host -w deck p >/dev/null; settle; b send-keys -s host -w deck Escape >/dev/null; settle; deckcap 04h-untouched
@@ -188,11 +195,11 @@ b send-text -s host -w deck '/e2e-'; settle; deckcap 05a-slash
 check "/ lists a project command" "$SCRATCH/out/05a-slash.txt" '▸ e2e-cmd'
 check "/ lists a project skill" "$SCRATCH/out/05a-slash.txt" 'e2e-skill'
 b send-keys -s host -w deck Tab >/dev/null; settle
-b send-text -s host -w deck 'see @deck.j'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 05b-attach
-check "enter on a file keeps the @ in front of the path" "$SCRATCH/out/05b-attach.txt" '/e2e-cmd see @deck.json'
+b send-text -s host -w deck 'see @deck.t'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 05b-attach
+check "enter on a file keeps the @ in front of the path" "$SCRATCH/out/05b-attach.txt" '/e2e-cmd see @deck.txt'
 b send-keys -s host -w deck ctrl+s >/dev/null; settle
 a call list-queued '{"session":"target","window":"fake"}' > "$SCRATCH/out/05c-queued.json"
-check "the queued text is the command and the @ reference, as typed" "$SCRATCH/out/05c-queued.json" '/e2e-cmd see @deck.json'
+check "the queued text is the command and the @ reference, as typed" "$SCRATCH/out/05c-queued.json" '/e2e-cmd see @deck.txt'
 a call cancel-queued '{"session":"target","window":"fake","all":true}' >/dev/null
 
 echo "== prompt line clearing is reversible"
@@ -214,7 +221,7 @@ if grep -q 'extra-pasted-line' "$SCRATCH/out/05-undo-paste.txt"; then echo "FAIL
 b send-keys -s host -w deck 'shift+tab ctrl+z Enter' >/dev/null; settle
 b send-keys -s host -w deck ctrl+s >/dev/null; settle
 a call list-queued '{"session":"target","window":"fake"}' > "$SCRATCH/out/05-undo-queued.json"
-python3 - "$DATA" <<'PYUNDO' && echo "PASS recovered draft submits byte-for-byte after switching fields" || { echo "FAIL recovered draft differs"; fails=$((fails+1)); }
+python3 - "$(store_json)" <<'PYUNDO' && echo "PASS recovered draft submits byte-for-byte after switching fields" || { echo "FAIL recovered draft differs"; fails=$((fails+1)); }
 import json, sys
 store = json.load(open(sys.argv[1]))
 prompts = [e["detail"].split("\n\n", 1)[1] for e in store["history"] if e["kind"] == "prompt-queued"]
@@ -259,10 +266,10 @@ b send-keys -s host -w deck Enter >/dev/null                                  # 
 b send-text -s host -w deck '/e2e-'; settle; deckcap 05l-queue-slash
 check "the queue form lists the claude-code project command" "$SCRATCH/out/05l-queue-slash.txt" '▸ e2e-cmd'
 b send-keys -s host -w deck Tab >/dev/null
-b send-text -s host -w deck 'see @deck.j'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 05m-queue-attach
-check "the queue form's @ keeps the reference in the prompt" "$SCRATCH/out/05m-queue-attach.txt" '/e2e-cmd see @deck.json'
+b send-text -s host -w deck 'see @deck.t'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 05m-queue-attach
+check "the queue form's @ keeps the reference in the prompt" "$SCRATCH/out/05m-queue-attach.txt" '/e2e-cmd see @deck.txt'
 b send-keys -s host -w deck ctrl+s >/dev/null; settle
-check "the queued prompt is stored as typed" "$DATA" '/e2e-cmd see @deck.json'
+check "the queued prompt is stored as typed" "$(store_json)" '/e2e-cmd see @deck.txt'
 
 echo "== OMP: /skill:<name> and /<command> from its own folders"
 mkdir -p "$SCRATCH/.omp/commands" "$SCRATCH/.omp/skills/omp-skill" "$SCRATCH/.omp/skills/omp-nodesc" "$SCRATCH/.omp/skills/omp-off"
@@ -287,12 +294,12 @@ cancel_form; cancel_form
 a close-window -s target ompfake >/dev/null
 
 echo "== ctrl+o picks files with the OS dialog (a stand-in osascript/zenity prints two paths)"
-printf '#!/bin/sh\nprintf "%%s\\n%%s\\n" "%s/deck.json" "/etc/hosts"\n' "$SCRATCH" > "$SCRATCH/bin/osascript"
+printf '#!/bin/sh\nprintf "%%s\\n%%s\\n" "%s/deck.txt" "/etc/hosts"\n' "$SCRATCH" > "$SCRATCH/bin/osascript"
 cp "$SCRATCH/bin/osascript" "$SCRATCH/bin/zenity"; chmod +x "$SCRATCH/bin/osascript" "$SCRATCH/bin/zenity"
 select_pane 2
 b send-keys -s host -w deck p >/dev/null; settle
 b send-text -s host -w deck 'read'; b send-keys -s host -w deck ctrl+o >/dev/null; wait_deck '@/etc/hosts' 10; deckcap 05d-pick
-check "the dialog's files become @ references, relative inside the cwd" "$SCRATCH/out/05d-pick.txt" 'read @deck.json @/etc/hosts'
+check "the dialog's files become @ references, relative inside the cwd" "$SCRATCH/out/05d-pick.txt" 'read @deck.txt @/etc/hosts'
 cancel_form
 
 echo "== automatic captures: an agent turn and a shell command"
@@ -401,7 +408,7 @@ check "detail shows the whole link" "$SCRATCH/out/06l-filtered.txt" 'pane *targe
 b send-text -s host -w deck '*'; settle; deckcap 06m-starred
 check "status says it is starred" "$SCRATCH/out/06m-starred.txt" 'starred https://example.com/tui-link'
 check "the row carries the star" "$SCRATCH/out/06m-starred.txt" '★  link'
-python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if any(c["text"]=="https://example.com/tui-link" and c["starred"] and c["pane"]=="build" for c in d["context_items"]) else 1)' "$DATA" \
+python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if any(c["text"]=="https://example.com/tui-link" and c["starred"] and c["pane"]=="build" for c in d["context_items"]) else 1)' "$(store_json)" \
 	&& echo "PASS store holds the starred link" || { echo "FAIL store has no starred link"; fails=$((fails+1)); }
 b send-keys -s host -w deck y >/dev/null; settle; deckcap 06m2-copied
 check "y reports the clipboard mechanisms" "$SCRATCH/out/06m2-copied.txt" 'copied https://example.com/tui-link with OSC 52 and \(pbcopy\|wl-copy\|xclip\)'
@@ -459,7 +466,7 @@ a list-windows -s target --json > "$SCRATCH/out/a-windows.json"
 check "extra terminal opened in A" "$SCRATCH/out/a-windows.json" '"extra"'
 EXTRA=$(window_id extra)
 wait_store "\"$EXTRA\"" present 10 && echo "PASS store holds an assignment for extra" || { echo "FAIL no assignment for $EXTRA in $DATA"; fails=$((fails+1)); }
-python3 -c 'import json,sys; a=json.load(open(sys.argv[1]))["assignments"][sys.argv[2]]; sys.exit(0 if a["task_id"]=="t_e2e001" and a["session"]=="target" else 1)' "$DATA" "$EXTRA" \
+python3 -c 'import json,sys; a=json.load(open(sys.argv[1]))["assignments"][sys.argv[2]]; sys.exit(0 if a["task_id"]=="t_e2e001" and a["session"]=="target" else 1)' "$(store_json)" "$EXTRA" \
 	&& echo "PASS extra is assigned to the task in session target" || { echo "FAIL extra assignment is not the task"; fails=$((fails+1)); }
 select_pane 3; deckcap 06d-assigned
 check "list row leads with the project's four letters and the task title" "$SCRATCH/out/06d-assigned.txt" '^  \$  . deck command palette  extra'
@@ -471,7 +478,7 @@ b send-keys -s host -w deck a >/dev/null; settle
 b send-text -s host -w deck 'deck'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 06e-assign
 check "status reports the assignment" "$SCRATCH/out/06e-assign.txt" 'assigned build to deck'
 BUILD=$(window_id build)
-python3 -c 'import json,sys; a=json.load(open(sys.argv[1]))["assignments"][sys.argv[2]]; sys.exit(0 if a["project_id"]=="p_e2e001" and a["task_id"]=="" else 1)' "$DATA" "$BUILD" \
+python3 -c 'import json,sys; a=json.load(open(sys.argv[1]))["assignments"][sys.argv[2]]; sys.exit(0 if a["project_id"]=="p_e2e001" and a["task_id"]=="" else 1)' "$(store_json)" "$BUILD" \
 	&& echo "PASS build is assigned to the project" || { echo "FAIL build assignment is not the project"; fails=$((fails+1)); }
 
 echo "== new agent through the form (a quiet program counts as ready)"
@@ -636,7 +643,7 @@ check "subtask renamed" "$SCRATCH/out/13-renamed.txt" 'renamed to hero text'
 b send-keys -s host -w deck s >/dev/null; settle; deckcap 14-done
 check "subtask marked done" "$SCRATCH/out/14-done.txt" '✓ hero text'
 check "status says it is done" "$SCRATCH/out/14-done.txt" 'hero text is done'
-python3 - "$DATA" <<'PY' && echo "PASS store holds the project, task and subtask in shape" || { echo "FAIL store shape after the tasks page"; fails=$((fails+1)); }
+python3 - "$(store_json)" <<'PY' && echo "PASS store holds the project, task and subtask in shape" || { echo "FAIL store shape after the tasks page"; fails=$((fails+1)); }
 import json, sys
 d = json.load(open(sys.argv[1]))
 web = [p for p in d["projects"] if p["name"] == "web"][0]
@@ -651,7 +658,7 @@ b send-keys -s host -w deck s >/dev/null; settle; deckcap 14b-skipped
 check "s again marks the subtask skipped" "$SCRATCH/out/14b-skipped.txt" '⊘ hero text'
 check "status says it is skipped" "$SCRATCH/out/14b-skipped.txt" 'hero text is skipped'
 check "a skipped task does not count as open" "$SCRATCH/out/14b-skipped.txt" '◆ web *1 open'
-python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if [t for t in d["tasks"] if t["title"]=="hero text"][0]["status"]=="skipped" else 1)' "$DATA" \
+python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if [t for t in d["tasks"] if t["title"]=="hero text"][0]["status"]=="skipped" else 1)' "$(store_json)" \
 	&& echo "PASS store holds the subtask as skipped" || { echo "FAIL hero text is not skipped in $DATA"; fails=$((fails+1)); }
 b send-keys -s host -w deck s >/dev/null; settle; deckcap 14c-planned
 check "s again marks the subtask planned" "$SCRATCH/out/14c-planned.txt" '◌ hero text'
@@ -729,14 +736,14 @@ check "a done project's header shows it" "$SCRATCH/out/16b-project-done.txt" '�
 b send-keys -s host -w deck s >/dev/null; settle; deckcap 16c-project-skipped
 check "a skipped project's header shows it" "$SCRATCH/out/16c-project-skipped.txt" '◆ web ⊘ skipped · 1 open'
 check "project detail shows its status" "$SCRATCH/out/16c-project-skipped.txt" 'status *skipped'
-python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if [p for p in d["projects"] if p["name"]=="web"][0]["status"]=="skipped" else 1)' "$DATA" \
+python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if [p for p in d["projects"] if p["name"]=="web"][0]["status"]=="skipped" else 1)' "$(store_json)" \
 	&& echo "PASS store holds the project as skipped" || { echo "FAIL web is not skipped in $DATA"; fails=$((fails+1)); }
 b send-keys -s host -w deck s >/dev/null; settle; deckcap 16d-project-planned
 check "a third s marks the project planned, in colour" "$SCRATCH/out/16d-project-planned.txt" '◆ web ◌ planned · 1 open'
 check "status says the project is planned" "$SCRATCH/out/16d-project-planned.txt" 'web is planned'
 b send-keys -s host -w deck s >/dev/null; settle; deckcap 16d-project-open
 check "a fourth s opens the project again" "$SCRATCH/out/16d-project-open.txt" 'web is open'
-python3 - "$DATA" <<'PY' && echo "PASS the new project's colour is a palette name, not a black" || { echo "FAIL web's colour is not a usable palette name"; fails=$((fails+1)); }
+python3 - "$(store_json)" <<'PY' && echo "PASS the new project's colour is a palette name, not a black" || { echo "FAIL web's colour is not a usable palette name"; fails=$((fails+1)); }
 import json, sys
 d = json.load(open(sys.argv[1]))
 web = [p for p in d["projects"] if p["name"] == "web"][0]
@@ -744,7 +751,7 @@ assert web["theme"]["color"] in "red green yellow blue magenta cyan white bright
 PY
 b send-keys -s host -w deck m >/dev/null; settle; deckcap 16e-colour
 check "m reports the project's new colour" "$SCRATCH/out/16e-colour.txt" 'web is [a-z-]*'
-python3 - "$DATA" <<'PY' && echo "PASS m moved the project to a colour no other open item holds" || { echo "FAIL m picked a held colour"; fails=$((fails+1)); }
+python3 - "$(store_json)" <<'PY' && echo "PASS m moved the project to a colour no other open item holds" || { echo "FAIL m picked a held colour"; fails=$((fails+1)); }
 import json, sys
 d = json.load(open(sys.argv[1]))
 web = [p for p in d["projects"] if p["name"] == "web"][0]
@@ -771,7 +778,7 @@ lines = open(sys.argv[1]).read().splitlines()
 at = lambda pat: next(i for i, l in enumerate(lines) if pat in l)
 assert at(" landing") < at("✓ api ref") < at(" docs"), lines
 PY2
-python3 - "$DATA" <<'PY2' && echo "PASS store holds api ref under landing, done" || { echo "FAIL api ref's parent or status in the store"; fails=$((fails+1)); }
+python3 - "$(store_json)" <<'PY2' && echo "PASS store holds api ref under landing, done" || { echo "FAIL api ref's parent or status in the store"; fails=$((fails+1)); }
 import json, sys
 d = json.load(open(sys.argv[1]))
 landing = [t for t in d["tasks"] if t["title"] == "landing"][0]
@@ -783,7 +790,7 @@ b send-keys -s host -w deck Enter >/dev/null
 b send-text -s host -w deck '(top level of deck)'; b send-keys -s host -w deck ctrl+s >/dev/null; settle; deckcap 20d-top
 check "status reports the move to a project's top level" "$SCRATCH/out/20d-top.txt" 'api ref: moved to the top level of deck'
 check "api ref is top-level in deck" "$SCRATCH/out/20d-top.txt" 'path *deck › api ref'
-python3 - "$DATA" <<'PY2' && echo "PASS store holds api ref at the top level of deck" || { echo "FAIL api ref is not top-level in deck"; fails=$((fails+1)); }
+python3 - "$(store_json)" <<'PY2' && echo "PASS store holds api ref at the top level of deck" || { echo "FAIL api ref is not top-level in deck"; fails=$((fails+1)); }
 import json, sys
 d = json.load(open(sys.argv[1]))
 api = [t for t in d["tasks"] if t["title"] == "api ref"][0]
@@ -795,7 +802,7 @@ b send-keys -s host -w deck Enter >/dev/null
 b send-text -s host -w deck 'deck / api ref / child'; b send-keys -s host -w deck ctrl+s >/dev/null; settle; deckcap 20e-cycle
 check "moving a task under its own subtask is refused" "$SCRATCH/out/20e-cycle.txt" 'cannot move under itself or one of its subtasks'
 cancel_form
-python3 - "$DATA" <<'PY2' && echo "PASS the refused move left the store alone" || { echo "FAIL the cycle reached the store"; fails=$((fails+1)); }
+python3 - "$(store_json)" <<'PY2' && echo "PASS the refused move left the store alone" || { echo "FAIL the cycle reached the store"; fails=$((fails+1)); }
 import json, sys
 d = json.load(open(sys.argv[1]))
 api = [t for t in d["tasks"] if t["title"] == "api ref"][0]
@@ -814,7 +821,7 @@ check "ctrl+l walks back down the way it came" "$SCRATCH/out/21c-down.txt" '╭�
 b send-keys -s host -w deck ctrl+h >/dev/null
 b send-text -s host -w deck 'top again'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 21d-added
 check "the new task is added at the top level" "$SCRATCH/out/21d-added.txt" 'added deck / top again'
-python3 - "$DATA" <<'PY2' && echo "PASS store holds the new task at the top level of deck" || { echo "FAIL top again is not top-level in deck"; fails=$((fails+1)); }
+python3 - "$(store_json)" <<'PY2' && echo "PASS store holds the new task at the top level of deck" || { echo "FAIL top again is not top-level in deck"; fails=$((fails+1)); }
 import json, sys
 d = json.load(open(sys.argv[1]))
 t = [t for t in d["tasks"] if t["title"] == "top again"][0]
@@ -836,7 +843,7 @@ b send-keys -s host -w deck s >/dev/null; settle   # planned
 b send-keys -s host -w deck s >/dev/null; settle   # open again for the checks that follow
 
 echo "== M opens the glyph table: move, jump, pick, cancel"
-glyph_of() { python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print([t for t in d["tasks"] if t["title"]=="command palette"][0]["theme"]["glyph"])' "$DATA"; }
+glyph_of() { python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print([t for t in d["tasks"] if t["title"]=="command palette"][0]["theme"]["glyph"])' "$(store_json)"; }
 b send-keys -s host -w deck g >/dev/null; b send-keys -s host -w deck M >/dev/null; settle; deckcap 20h-glyph-project
 check "M on a project row opens its glyph table" "$SCRATCH/out/20h-glyph-project.txt" '╭─ glyph for project deck ─'
 cancel_form
@@ -1016,7 +1023,7 @@ b send-keys -s host -w deck ctrl+s >/dev/null; settle; deckcap 20d-mass-added
 check "status counts what was added; existing ones are reused" "$SCRATCH/out/20d-mass-added.txt" 'added 0 projects, 2 tasks'
 check "the tasks page shows the new subtask" "$SCRATCH/out/20d-mass-added.txt" 'verb autocomplete'
 check "the tasks page keeps its selection" "$SCRATCH/out/20d-mass-added.txt" 'path *deck › command palette$'
-python3 - "$DATA" <<'PY2' && echo "PASS store holds the outline, nothing duplicated" || { echo "FAIL store shape after the mass add"; fails=$((fails+1)); }
+python3 - "$(store_json)" <<'PY2' && echo "PASS store holds the outline, nothing duplicated" || { echo "FAIL store shape after the mass add"; fails=$((fails+1)); }
 import json, sys
 d = json.load(open(sys.argv[1]))
 proj = {p["name"]: p for p in d["projects"]}
@@ -1050,7 +1057,7 @@ b send-text -s host -w deck 'tabbed sibling'; b send-keys -s host -w deck 'BTab'
 check "shift+tab outdents by one level" "$SCRATCH/out/20h-mass-btab.txt" '│       tabbed sibling▏'
 b send-keys -s host -w deck ctrl+s >/dev/null; settle; deckcap 20i-mass-tabbed
 check "the tabbed outline is added" "$SCRATCH/out/20i-mass-tabbed.txt" 'added 0 projects, 3 tasks'
-python3 - "$DATA" <<'PY3' && echo "PASS store nests the tabbed outline" || { echo "FAIL store shape after the tabbed mass add"; fails=$((fails+1)); }
+python3 - "$(store_json)" <<'PY3' && echo "PASS store nests the tabbed outline" || { echo "FAIL store shape after the tabbed mass add"; fails=$((fails+1)); }
 import json, sys
 d = json.load(open(sys.argv[1]))
 deck = [p for p in d["projects"] if p["name"] == "deck"][0]
@@ -1083,7 +1090,7 @@ assert rows[i:i+4] == want, rows[i:i+4]
 PYC
 b send-keys -s host -w deck ctrl+s >/dev/null; settle; deckcap 20m-cur-added
 check "the cursor-edited outline is added" "$SCRATCH/out/20m-cur-added.txt" 'added 0 projects, 3 tasks'
-python3 - "$DATA" <<'PY4' && echo "PASS store nests the cursor-edited outline" || { echo "FAIL store shape after the cursor-edited mass add"; fails=$((fails+1)); }
+python3 - "$(store_json)" <<'PY4' && echo "PASS store nests the cursor-edited outline" || { echo "FAIL store shape after the cursor-edited mass add"; fails=$((fails+1)); }
 import json, sys
 d = json.load(open(sys.argv[1]))
 deck = [p for p in d["projects"] if p["name"] == "deck"][0]
@@ -1117,7 +1124,7 @@ b send-text -s host -w deck 'dim child'; settle; deckcap 20o-tree-typed
 check "the new subtask line sits under command palette" "$SCRATCH/out/20o-tree-typed.txt" '│         dim child▏'
 b send-keys -s host -w deck ctrl+s >/dev/null; settle; deckcap 20p-tree-added
 check "only the new subtask is added" "$SCRATCH/out/20p-tree-added.txt" 'added 0 projects, 1 task$'
-python3 - "$DATA" <<'PY5' && echo "PASS store has dim child under command palette, nothing duplicated" || { echo "FAIL store after adding under an existing task"; fails=$((fails+1)); }
+python3 - "$(store_json)" <<'PY5' && echo "PASS store has dim child under command palette, nothing duplicated" || { echo "FAIL store after adding under an existing task"; fails=$((fails+1)); }
 import json, sys
 d = json.load(open(sys.argv[1]))
 def one(title):
@@ -1135,7 +1142,7 @@ b send-keys -s host -w deck 'ctrl+u Backspace' >/dev/null; settle; deckcap 20r-t
 if grep -q 'verb autocomplete' "$SCRATCH/out/20r-tree-removed.txt"; then echo "FAIL the prefilled line was not removed"; fails=$((fails+1)); else echo "PASS ctrl+u and backspace remove the prefilled line"; fi
 b send-keys -s host -w deck ctrl+s >/dev/null; settle; deckcap 20s-tree-kept
 check "removing a prefilled line adds nothing" "$SCRATCH/out/20s-tree-kept.txt" 'added 0 projects, 0 tasks'
-python3 - "$DATA" <<'PY6' && echo "PASS the removed line's task is still in the store" || { echo "FAIL removing a prefilled line deleted its task"; fails=$((fails+1)); }
+python3 - "$(store_json)" <<'PY6' && echo "PASS the removed line's task is still in the store" || { echo "FAIL removing a prefilled line deleted its task"; fails=$((fails+1)); }
 import json, sys
 d = json.load(open(sys.argv[1]))
 cp = [t for t in d["tasks"] if t["title"] == "command palette"][0]
@@ -1172,7 +1179,7 @@ check "ctrl+s in the mass-add box returns to the tree" "$SCRATCH/out/21d-resumed
 check "the new task is highlighted" "$SCRATCH/out/21d-resumed.txt" '│path *deck › brand new task'
 b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 21e-assigned
 check "status reports the assignment to the new task" "$SCRATCH/out/21e-assigned.txt" 'assigned extra to deck › brand new task'
-python3 - "$DATA" "$EXTRA" <<'PY2' && echo "PASS extra is assigned to the new task in the store" || { echo "FAIL extra is not assigned to brand new task"; fails=$((fails+1)); }
+python3 - "$(store_json)" "$EXTRA" <<'PY2' && echo "PASS extra is assigned to the new task in the store" || { echo "FAIL extra is not assigned to brand new task"; fails=$((fails+1)); }
 import json, sys
 d = json.load(open(sys.argv[1]))
 deck = [p for p in d["projects"] if p["name"] == "deck"][0]
@@ -1196,8 +1203,8 @@ check "a filter row drives the context page" "$SCRATCH/out/21p-protos.txt" ' 1 s
 check "the right side names the pane an assign is for" "$SCRATCH/out/21p-protos.txt" 'enter assigns target › fake'
 check "the right side lists the highlighted prototype's keys" "$SCRATCH/out/21p-protos.txt" 'ctrl+n/ctrl+p or ↓/↑ move'
 # assigned PANE TASK-ID PROJECT-ID: the store holds that assignment for the pane.
-assigned() { python3 -c 'import json,sys; a=json.load(open(sys.argv[1]))["assignments"].get(sys.argv[2],{}); sys.exit(0 if a.get("task_id","")==sys.argv[3] and a.get("project_id","")==sys.argv[4] else 1)' "$DATA" "$@"; }
-LANDING=$(python3 -c 'import json,sys; print([t["id"] for t in json.load(open(sys.argv[1]))["tasks"] if t["title"]=="landing"][0])' "$DATA")
+assigned() { python3 -c 'import json,sys; a=json.load(open(sys.argv[1]))["assignments"].get(sys.argv[2],{}); sys.exit(0 if a.get("task_id","")==sys.argv[3] and a.get("project_id","")==sys.argv[4] else 1)' "$(store_json)" "$@"; }
+LANDING=$(python3 -c 'import json,sys; print([t["id"] for t in json.load(open(sys.argv[1]))["tasks"] if t["title"]=="landing"][0])' "$(store_json)")
 
 b send-keys -s host -w deck 'g Enter' >/dev/null; settle; deckcap 21q-fuzzy
 check "prototype 1 opens as a box" "$SCRATCH/out/21q-fuzzy.txt" '╭─ assign fake · single fuzzy list'
@@ -1239,7 +1246,7 @@ b send-text -s host -w deck '?'; settle; deckcap 21x3-preview-off
 if grep -q '│path *deck › command palette' "$SCRATCH/out/21x3-preview-off.txt"; then echo "FAIL ? did not close the preview"; fails=$((fails+1)); else echo "PASS ? again closes the preview"; fi
 cancel_form
 
-cp "$DATA" "$SCRATCH/out/store-before-esc.json"
+cp "$(store_json)" "$SCRATCH/out/store-before-esc.json"
 for row in 1 4 5; do # prototypes 2, 5 and 6
 	b send-keys -s host -w deck g >/dev/null; b send-keys -s host -w deck j --repeat $row >/dev/null; b send-keys -s host -w deck Enter >/dev/null; settle
 	deckcap "21y-open-$row"
@@ -1250,7 +1257,7 @@ done
 check "prototype 2 shows a preview beside the list" "$SCRATCH/out/21y-open-1.txt" 'path *deck'
 check "prototype 5 shows the breadcrumb" "$SCRATCH/out/21y-open-4.txt" '╭─ assign fake · miller columns'
 check "prototype 6 shows the input" "$SCRATCH/out/21y-open-5.txt" '╭─ assign fake · type-ahead chips'
-cmp -s "$DATA" "$SCRATCH/out/store-before-esc.json" && echo "PASS the store is unchanged after the three cancels" || { echo "FAIL a cancelled prototype changed the store"; fails=$((fails+1)); }
+cmp -s "$(store_json)" "$SCRATCH/out/store-before-esc.json" && echo "PASS the store is unchanged after the three cancels" || { echo "FAIL a cancelled prototype changed the store"; fails=$((fails+1)); }
 cancel_form; deckcap 21z-back
 check "esc on the prototypes page returns to the deck" "$SCRATCH/out/21z-back.txt" 'tuios-deck.* deck '
 
@@ -1261,7 +1268,7 @@ b send-keys -s host -w deck a >/dev/null; settle; deckcap 22-ctx-assign
 check "the item's assign box is the tree" "$SCRATCH/out/22-ctx-assign.txt" '╭─ assign https://example.com/tui-link ─'
 b send-text -s host -w deck 'deck'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 22b-ctx-assigned
 check "status reports the item's assignment" "$SCRATCH/out/22b-ctx-assigned.txt" 'assigned https://example.com/tui-link to deck'
-python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if any(c["text"]=="https://example.com/tui-link" and c["project_id"]=="p_e2e001" for c in d["context_items"]) else 1)' "$DATA" \
+python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if any(c["text"]=="https://example.com/tui-link" and c["project_id"]=="p_e2e001" for c in d["context_items"]) else 1)' "$(store_json)" \
 	&& echo "PASS the store holds the link under deck" || { echo "FAIL the link is not assigned to deck"; fails=$((fails+1)); }
 
 echo "== f on the context page: the same tree, counting items, hiding what has none, searching item text"

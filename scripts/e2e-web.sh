@@ -11,6 +11,8 @@ PORT=${PORT:-18787}
 SCRATCH=${SCRATCH:-${TMPDIR:-/tmp}/tuios-deck-web-e2e-$(id -u)}
 rm -rf "$SCRATCH"; mkdir -p "$SCRATCH/out" "$SCRATCH/captures"
 fails=0
+# The store as JSON, exported from the deck's database to a file whose path it prints.
+store_json() { "$DECK" export -data "$SCRATCH/deck.json" > "$SCRATCH/out/store.json" && echo "$SCRATCH/out/store.json"; }
 check() { if grep -q -- "$3" "$2"; then echo "PASS $1"; else echo "FAIL $1: no '$3' in $2"; fails=$((fails+1)); fi; }
 
 isolate() {
@@ -259,9 +261,9 @@ check "state pane shows its task" "$SCRATCH/out/pane-assignment.json" '"task": "
 check "state pane shows its project" "$SCRATCH/out/pane-assignment.json" '"project": "deckproj"'
 check "state pane shows its top task" "$SCRATCH/out/pane-assignment.json" '"top": "palette"'
 echo "== task snooze and working visibility"
-if python3 - "$base" "$TID" "$TASKED" "$SCRATCH/deck.json" <<'PY'
-import datetime, json, sys, urllib.request
-base, task, window, path = sys.argv[1:]
+if python3 - "$base" "$TID" "$TASKED" "$DECK" "$SCRATCH/deck.json" <<'PY'
+import datetime, json, subprocess, sys, urllib.request
+base, task, window, deck, data = sys.argv[1:]
 def api(route, body=None):
     req = urllib.request.Request(base + route, data=None if body is None else json.dumps(body).encode(),
         headers={'Content-Type':'application/json'}, method='GET' if body is None else 'PATCH')
@@ -273,7 +275,7 @@ result = api('/api/tasks/' + task, {'snoozed': True})['task']
 tomorrow = datetime.datetime.combine(datetime.date.today() + datetime.timedelta(days=1), datetime.time())
 assert result['snoozed_until'] == int(tomorrow.timestamp())
 assert pane()['rail_hidden'] is True
-saved = next(t for t in json.load(open(path))['tasks'] if t['id'] == task)
+saved = next(t for t in json.loads(subprocess.check_output([deck, 'export', '-data', data]))['tasks'] if t['id'] == task)
 assert saved['snoozed_until'] == result['snoozed_until']
 assert api('/api/tasks/' + task, {'snoozed': False})['task']['snoozed_until'] == 0
 assert pane()['rail_hidden'] is False
@@ -360,7 +362,7 @@ curl -s -X DELETE "$base/api/context/$LINK" > "$SCRATCH/out/ctx-delete.json"
 check "DELETE context item" "$SCRATCH/out/ctx-delete.json" '"status":"deleted '
 curl -s "$base/api/context" > "$SCRATCH/out/ctx-after-delete.json"
 if grep -q "$LINK" "$SCRATCH/out/ctx-after-delete.json"; then echo "FAIL context item still listed"; fails=$((fails+1)); else echo "PASS context item is gone"; fi
-grep -q '"version": 1' "$SCRATCH/deck.json" && echo "PASS store written under the scratch folder" || { echo "FAIL store file"; fails=$((fails+1)); }
+[ -s "$SCRATCH/deck.db" ] && grep -q '"version": 1' "$(store_json)" && echo "PASS store written under the scratch folder" || { echo "FAIL store file"; fails=$((fails+1)); }
 
 echo "== notes: ancestors and descendants see each other, siblings do not"
 post() { curl -s -X POST -H "$J" -d "$2" "$base$1"; }
@@ -396,7 +398,7 @@ curl -s -X PATCH -H "$J" -d '{"text":"edited-na1"}' "$base/api/notes/$N2" > "$SC
 check "PATCH note" "$SCRATCH/out/note-edit.json" '"status":"edited note '
 curl -s "$base/api/notes?task=$NA" > "$SCRATCH/out/notes-na-edited.json"
 check "edit shows on the parent" "$SCRATCH/out/notes-na-edited.json" 'edited-na1'
-grep -q 'edited-na1' "$SCRATCH/deck.json" && echo "PASS notes persisted in deck.json" || { echo "FAIL notes not persisted"; fails=$((fails+1)); }
+grep -q 'edited-na1' "$(store_json)" && echo "PASS notes persisted in the store" || { echo "FAIL notes not persisted"; fails=$((fails+1)); }
 curl -s -X PATCH -H "$J" -d "{\"parent_id\":\"\",\"project_id\":\"$NP\"}" "$base/api/tasks/$NA2" > /dev/null
 curl -s "$base/api/notes?task=$NA" > "$SCRATCH/out/notes-na-moved.json"
 if grep -q 'note-on-na2' "$SCRATCH/out/notes-na-moved.json"; then echo "FAIL moved-away child's note still seen by old parent"; fails=$((fails+1)); else echo "PASS moving a task out takes its notes out of the old parent"; fi
@@ -412,7 +414,7 @@ curl -s "$base/api/notes?project=$NP" > "$SCRATCH/out/notes-after-task.json"
 if grep -q 'note-on-na"\|note-on-na1' "$SCRATCH/out/notes-after-task.json"; then echo "FAIL deleted task kept notes"; fails=$((fails+1)); else echo "PASS deleting a task deletes its notes"; fi
 check "other notes survive" "$SCRATCH/out/notes-after-task.json" 'note-on-nb'
 curl -s -X DELETE "$base/api/projects/$NP" > /dev/null
-if grep -q 'note-on-' "$SCRATCH/deck.json"; then echo "FAIL project delete left notes"; fails=$((fails+1)); else echo "PASS deleting a project deletes all its notes"; fi
+if grep -q 'note-on-' "$(store_json)"; then echo "FAIL project delete left notes"; fails=$((fails+1)); else echo "PASS deleting a project deletes all its notes"; fi
 
 echo "== new items take random colours from the unassigned pool"
 # Creates a project and tasks past the point where every colour is held.

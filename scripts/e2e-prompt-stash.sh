@@ -19,12 +19,24 @@ isolate() {
 a() { (isolate "$SCRATCH/A"; tuios "$@"); }
 B="$SCRATCH/B"
 b() { (isolate "$B"; tuios "$@"); }
-cleanup() { a kill-server >/dev/null 2>&1 || :; b kill-server >/dev/null 2>&1 || :; }
+LOCK=
+cleanup() { [ -z "$LOCK" ] || kill "$LOCK" 2>/dev/null || :; a kill-server >/dev/null 2>&1 || :; b kill-server >/dev/null 2>&1 || :; }
 trap cleanup EXIT
 keys() { b send-keys -s host -w deck "$1" >/dev/null; settle; }
 text() { b send-text -s host -w deck "$1" >/dev/null; settle; }
 paste() { text $'\033[200~'"$1"$'\033[201~'; }
 settle() { b wait-for window-idle -s host -w deck --idle 200 --timeout 10000 >/dev/null; }
+# The store as JSON, exported from the deck's database to a file whose path it prints.
+store_json() { "$DECK" export -data "$DATA" > "$SCRATCH/out/store.json" && echo "$SCRATCH/out/store.json"; }
+# A second connection holds the database's write lock, so the deck's next
+# save fails at once (TUIOS_DECK_BUSY_TIMEOUT=0); unlock releases it.
+lock_store() {
+  rm -f "$SCRATCH/locked"
+  python3 -c 'import sqlite3,sys,time; c=sqlite3.connect(sys.argv[1], isolation_level=None, timeout=10); c.execute("BEGIN EXCLUSIVE"); open(sys.argv[2],"w").close(); time.sleep(600)' "$SCRATCH/deck.db" "$SCRATCH/locked" &
+  LOCK=$!
+  until [ -e "$SCRATCH/locked" ]; do sleep .05; done
+}
+unlock_store() { kill "$LOCK"; wait "$LOCK" 2>/dev/null || :; LOCK=; }
 cap() { b capture-pane -s host -w deck > "$SCRATCH/out/$1.txt"; }
 # cancel sends the key (esc unless given) and answers y when an edited form
 # asks before closing; a form whose autosave failed stays open and asks nothing.
@@ -35,7 +47,7 @@ palette() { keys ctrl+p; text "$1"; keys Enter; }
 start_deck() {
   b new boot --detach --cwd "$SCRATCH" >/dev/null
   b call new-session "{\"name\":\"host\",\"width\":160,\"height\":50,\"cwd\":\"$SCRATCH\"}" >/dev/null
-  b new-window -s host deck --no-focus -- env TUIOS_DECK_DATA="$DATA" "$DECK" tui --socket "$SCRATCH/A/run/tuios/tuios.sock" --captures "$SCRATCH/captures" >/dev/null
+  b new-window -s host deck --no-focus -- env TUIOS_DECK_DATA="$DATA" TUIOS_DECK_BUSY_TIMEOUT=0 "$DECK" tui --socket "$SCRATCH/A/run/tuios/tuios.sock" --captures "$SCRATCH/captures" >/dev/null
   b wait-for window-output -s host -w deck --pattern tuios-deck --timeout 15000 >/dev/null
   settle
 }
@@ -54,7 +66,7 @@ keys ctrl+u; cap cleared
 check cleared 'keep-first'
 check cleared '日本語 café'
 absent cleared 'recover-last'
-python3 - "$DATA" <<'PY'
+python3 - "$(store_json)" <<'PY'
 import json,sys
 s=json.load(open(sys.argv[1]))['prompt_stashes']
 assert 'keep-first\n日本語 café\nrecover-last' in [p['text'] for p in s], s
@@ -75,7 +87,7 @@ keys ctrl+z; cap undo-restore
 check undo-restore 'displaced draft▏'
 keys ctrl+r; paste 'recover-last'; keys Enter
 keys ctrl+s
-python3 - "$DATA" <<'PY'
+python3 - "$(store_json)" <<'PY'
 import json,sys
 s=json.load(open(sys.argv[1]))
 assert {'displaced draft','keep-first\n日本語 café\nrecover-last'} <= {p['text'] for p in s['prompt_stashes']}, s['prompt_stashes']
@@ -126,7 +138,7 @@ keys Escape; cancel
 # An empty final line still permits stashing; identical and empty drafts do not multiply.
 keys 'g j p'; paste $'trailing-newline\n'; keys 'ctrl+u ctrl+u'; cancel
 keys p; paste 'single stash'; keys 'ctrl+u ctrl+u ctrl+u'; cancel
-python3 - "$DATA" <<'PY'
+python3 - "$(store_json)" <<'PY'
 import json,sys
 texts=[p['text'] for p in json.load(open(sys.argv[1]))['prompt_stashes']]
 assert 'trailing-newline\n' in texts, texts
@@ -134,9 +146,9 @@ assert 'single stash' in texts, texts
 assert all(t.strip() for t in texts), texts
 print('PASS trailing newline and empty-draft suppression')
 PY
-# Force atomic rename to fail even when running as root; never touch the real store.
+# Hold the scratch store's write lock so saves fail, even when running as root; never touch the real store.
 keys p; paste 'cannot-lose-this-draft'
-mv "$DATA" "$DATA.saved"; mkdir "$DATA"
+lock_store
 keys ctrl+u; cap save-failure
 check save-failure 'cannot-lose-this-draft▏'
 check save-failure 'prompt not saved; draft unchanged'
@@ -144,18 +156,18 @@ keys ctrl+r; paste 'café'; keys Enter; cap restore-failure
 check restore-failure 'prompt not saved; draft unchanged'
 keys Escape; cap failed-restore-draft
 check failed-restore-draft 'cannot-lose-this-draft▏'
-rmdir "$DATA"; mv "$DATA.saved" "$DATA"
+unlock_store
 keys ctrl+r; paste 'cannot-lose'; cap rollback
 check rollback 'cannot-lose-this-draft'
 keys Escape; cancel
 # A failed autosave must retain the editor until persistence works again.
 keys p
-mv "$DATA" "$DATA.saved"; mkdir "$DATA"
+lock_store
 paste 'unsaved-after-storage-failure'
 keys Escape; cap autosave-failure
 check autosave-failure 'unsaved-after-storage-failure▏'
 check autosave-failure 'prompt autosave failed'
-rmdir "$DATA"; mv "$DATA.saved" "$DATA"
+unlock_store
 cancel; keys 'p ctrl+r'; paste 'unsaved-after-storage-failure'; keys Enter; cap autosave-retry
 check autosave-retry 'unsaved-after-storage-failure▏'
 cancel
@@ -177,7 +189,7 @@ paste $'autosave-without-submit
 日本語 café
 last line'
 text ' updated'
-python3 - "$DATA" <<'PY'
+python3 - "$(store_json)" <<'PY'
 import json,sys
 s=json.load(open(sys.argv[1]))['prompt_stashes']
 assert 'autosave-without-submit\n日本語 café\nlast line updated' in [p['text'] for p in s], s

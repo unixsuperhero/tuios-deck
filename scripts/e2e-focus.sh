@@ -41,6 +41,8 @@ cat > "$SCRATCH/deck.json" <<JSON
 {"version":1,"projects":[{"id":"p_focus","name":"Focus project","status":"open","theme":{"color":"blue","glyph":"D"}},{"id":"p_other","name":"Unrelated project","status":"open","theme":{"color":"red","glyph":"D"}}],"tasks":[{"id":"t_parent","project_id":"p_focus","parent_id":"","title":"Parent task","status":"open","theme":{"color":"green","glyph":"O"}},{"id":"t_child","project_id":"","parent_id":"t_parent","title":"Child task","status":"open","theme":{"color":"cyan","glyph":"O"}},{"id":"t_sibling","project_id":"p_focus","parent_id":"","title":"Empty sibling","status":"open","theme":{"color":"yellow","glyph":"O"}},{"id":"t_other","project_id":"p_other","parent_id":"","title":"Unrelated task","status":"open","theme":{"color":"red","glyph":"O"}}],"assignments":{"$parent":{"session":"target","task_id":"t_parent"},"$child":{"session":"target","task_id":"t_child"},"$other":{"session":"target","task_id":"t_other"}}}
 JSON
 cp "$SCRATCH/deck.json" "$SCRATCH/web.json"
+# Each seed is migrated into the .db beside it; the checks read it back as JSON.
+store_json() { "$DECK" export -data "$SCRATCH/$1" > "$SCRATCH/out/$1" && echo "$SCRATCH/out/$1"; }
 b new boot --detach --cwd "$SCRATCH" >/dev/null
 b call new-session "{\"name\":\"host\",\"width\":160,\"height\":45,\"cwd\":\"$SCRATCH\"}" >/dev/null
 b new-window -s host focus --no-focus -- env -u NO_COLOR TERM=xterm-256color "$DECK" tui -socket "$SCRATCH/A/run/tuios/tuios.sock" -data "$SCRATCH/deck.json" -captures "$SCRATCH/captures" >/dev/null
@@ -61,7 +63,7 @@ if [ "${FOCUS_WORK_SMOKE:-0}" = 1 ]; then
  keys g; shot work-created
  check "$SCRATCH/out/work-created.txt" 'focus-work-terminal' 'new terminal remains visible in focus'
  a list-windows -s target --json > "$SCRATCH/out/work-windows.json"
- bun -e 'const fs=require("fs"), assert=require("assert/strict"); const d=JSON.parse(fs.readFileSync(process.argv[1])); const a=Object.values(d.assignments).find(a=>a.task_id==="t_sibling"); assert.ok(a,"new terminal assigned to empty focused task"); assert.equal(a.session,"target"); console.log("PASS persisted focused task assignment")' "$SCRATCH/deck.json"
+ bun -e 'const fs=require("fs"), assert=require("assert/strict"); const d=JSON.parse(fs.readFileSync(process.argv[1])); const a=Object.values(d.assignments).find(a=>a.task_id==="t_sibling"); assert.ok(a,"new terminal assigned to empty focused task"); assert.equal(a.session,"target"); console.log("PASS persisted focused task assignment")' "$(store_json deck.json)"
  keys p
  b send-text -s host -w focus "printf '\\033[31mFOCUS_WORK_%s\\033[0m\\n' OK" >/dev/null
  shot work-command-form
@@ -82,14 +84,14 @@ if [ "${FOCUS_WORK_SMOKE:-0}" = 1 ]; then
  b call resize '{"session":"host","window":"focus","width":120,"height":32}' > "$SCRATCH/out/work-resize.json"
  keys r; shot work-resized
  bun -e 'const fs=require("fs"), assert=require("assert/strict"); for(const [file,w,h] of [["work-output.txt",158,43],["work-resized.txt",120,32]]){const lines=fs.readFileSync(process.argv[1]+"/"+file,"utf8").trimEnd().split("\n"); assert.equal(lines.length,h,file); assert.equal(lines[0],"┌"+"─".repeat(w-2)+"┐",file); assert.equal(lines.at(-1),"└"+"─".repeat(w-2)+"┘",file); for(const l of lines.slice(1,-1)){assert.ok(l.startsWith("│")&&l.endsWith("│"),file); assert.equal([...l].length,w,file)} assert.match(lines.at(-2),/help/,"footer remains inside border");} const ansi=fs.readFileSync(process.argv[1]+"/work-output.ansi","utf8"); assert.match(ansi,/\x1b\[[0-9;]*31[;m]/,"terminal red ANSI survives focus"); console.log("PASS one-cell borders, footer, resize and terminal ANSI")' "$SCRATCH/out"
- cp "$SCRATCH/deck.json" "$SCRATCH/out/work-store.json"
+ cp "$(store_json deck.json)" "$SCRATCH/out/work-store.json"
  echo "PASS focused work smoke; artifacts: $SCRATCH/out"
  exit 0
 fi
 keys 'T j E ctrl+f'; shot easy
 check "$SCRATCH/out/easy.txt" 'Parent task \[easy\]' 'saved easy list contains marked task'
 absent "$SCRATCH/out/easy.txt" 'Unrelated' 'saved easy list hides unrelated tasks'
-check "$SCRATCH/deck.json" '"easy": true' 'easy flag persisted on disk'
+check "$(store_json deck.json)" '"easy": true' 'easy flag persisted on disk'
 keys F; shot parent
 check "$SCRATCH/out/parent.txt" 'FOCUS · Parent task' 'focus starts from saved easy list'
 check "$SCRATCH/out/parent.txt" 'parent-pane' 'task scope includes its own pane'
@@ -122,7 +124,7 @@ webpid=$!
 for ((i=0; i<75; i++)); do if curl -fsS "http://127.0.0.1:$PORT/api/state" > "$SCRATCH/out/state.json" 2>/dev/null; then break; fi; sleep .2; done
 curl -fsS -X PATCH -H 'Content-Type: application/json' -d '{"easy":true}' "http://127.0.0.1:$PORT/api/tasks/t_child" > "$SCRATCH/out/easy-api.json"
 check "$SCRATCH/out/easy-api.json" '"easy":true' 'web API saves an easy flag on a descendant'
-check "$SCRATCH/web.json" '"easy": true' 'web easy flag persisted in the existing store'
+check "$(store_json web.json)" '"easy": true' 'web easy flag persisted in the existing store'
 curl -fsS -X PATCH -H 'Content-Type: application/json' -d '{"easy":false}' "http://127.0.0.1:$PORT/api/tasks/t_child" > "$SCRATCH/out/easy-clear.json"
 check "$SCRATCH/out/easy-clear.json" '"easy":false' 'web API clears a saved easy flag'
 echo "PASS focus scenarios; artifacts: $SCRATCH/out"
