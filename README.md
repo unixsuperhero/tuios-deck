@@ -717,6 +717,31 @@ file puts its path, relative to the cwd, in place of the `@` and what
 followed it. `esc` closes the list and keeps the form. A symlink that leads
 outside the cwd is not listed.
 
+#### Attachments and slash commands in an agent's prompt
+
+The daemon's `queue-prompt` carries text only, so an attachment is a file
+reference the agent reads itself, not an upload. In the prompt for an agent
+(`p`) and the new agent's first prompt, `@` keeps the `@` in front of the
+path (`@src/main.go `, a space ends it) so Claude Code and the like read the
+file; names with whitespace are not listed. `ctrl+o` opens the OS file
+dialog (`osascript` on macOS, `zenity` or `kdialog` elsewhere), several files
+at once, and adds each as `@path`: relative to the cwd when inside it,
+absolute otherwise. A prompt to a plain terminal keeps the plain-path `@`.
+
+A `/` typed as the first character lists the slash commands and skills the
+agent can run: for Claude Code (harness `claude` or `claude-code`),
+`commands/<name>.md` (a subfolder becomes `folder:name`) and
+`skills/<name>/SKILL.md` under `~/.claude` and every `.claude` folder from
+the cwd up. `tab` or `enter` puts `/name ` in the prompt; nothing runs until
+you submit it. Other harnesses list nothing, since the deck reads no
+convention for them. Plugin-provided commands are not listed.
+
+`deck web` does the same in the prompt box and the new-agent first prompt:
+the suggestions list under the box (`↓`/`↑` or `ctrl+n`/`ctrl+p`, `tab` or
+`enter` to take, `esc` to close), and `Attach files…` browses the daemon
+machine's files through `/api/files` (click folders to open, files to
+select, across folders) since a browser's picker cannot name a path there.
+
 A confirmation (closing a pane, deleting a row, a capture or a context
 item) asks on the status line and defaults to yes, `(Y/n)`: `enter` or `y`
 confirms, `n` or `esc` cancels, and any other key does nothing.
