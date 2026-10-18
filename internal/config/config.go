@@ -12,6 +12,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 // Config is every setting. The zero value is the deck's defaults, so a
@@ -22,6 +23,25 @@ type Config struct {
 	// Keys are the rebindings: mode name, then action name, then the key.
 	// An action not listed keeps its default key.
 	Keys map[string]map[string]string `json:"keys,omitempty"`
+	// StaleAfter is how long a pane may go without activity before the
+	// deck marks it stale and offers to close it: a Go duration ("45m",
+	// "2h"). Empty is the default, DefaultStaleAfter; "0" turns it off.
+	StaleAfter string `json:"stale_after,omitempty"`
+}
+
+// DefaultStaleAfter is the stale threshold when the file does not set one.
+const DefaultStaleAfter = 45 * time.Minute
+
+// StaleThreshold is the threshold in effect; 0 means never stale.
+func (c *Config) StaleThreshold() time.Duration {
+	if c == nil || c.StaleAfter == "" {
+		return DefaultStaleAfter
+	}
+	d, err := time.ParseDuration(c.StaleAfter)
+	if err != nil || d < 0 {
+		return DefaultStaleAfter
+	}
+	return d
 }
 
 // Dir is the settings folder.
@@ -102,5 +122,11 @@ func (c *Config) Save(path string) error {
 
 // Validate checks the settings; keybindings are checked in keys.go.
 func (c *Config) Validate() error {
+	if c.StaleAfter != "" {
+		d, err := time.ParseDuration(c.StaleAfter)
+		if err != nil || d < 0 {
+			return fmt.Errorf("stale_after is a duration such as 45m or 2h, or 0 to turn it off, not %q", c.StaleAfter)
+		}
+	}
 	return c.validateKeys()
 }

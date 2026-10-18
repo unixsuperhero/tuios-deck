@@ -26,6 +26,7 @@ Commands:
 
 Settings:
   vim_modes            true or false: forms start in insert mode, esc goes to normal mode, esc again cancels
+  stale_after          a duration (default 45m; 0 turns it off): a pane with no activity for this long is marked stale
 Modes for bind: deck, form_normal, form_insert (see "deck config keys")
 `
 
@@ -55,6 +56,8 @@ func runConfig(args []string) error {
 		switch args[1] {
 		case "vim_modes":
 			fmt.Println(c.VimModes)
+		case "stale_after":
+			fmt.Println(c.StaleThreshold())
 		default:
 			return fmt.Errorf("unknown setting %q", args[1])
 		}
@@ -69,6 +72,8 @@ func runConfig(args []string) error {
 				return fmt.Errorf("vim_modes is true or false, not %q", args[2])
 			}
 			c.VimModes = b
+		case "stale_after":
+			c.StaleAfter = args[2]
 		default:
 			return fmt.Errorf("unknown setting %q", args[1])
 		}

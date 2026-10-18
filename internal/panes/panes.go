@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/unixsuperhero/tuios-deck/internal/daemon"
@@ -31,6 +32,15 @@ type Pane struct {
 	Queued    int    `json:"queued"`
 	Unread    int    `json:"unread"`
 	Working   bool   `json:"working"`
+	// StateAt is when the agent last reported a state, from list-agents'
+	// agent_state_at (Unix nanoseconds); zero for a terminal.
+	StateAt int64 `json:"-"`
+	// LastActivity, IdleMS and Stale are filled by Activity.Mark: when the
+	// pane was last seen doing something, how long ago that was, and
+	// whether that is past the stale threshold.
+	LastActivity time.Time `json:"last_activity"`
+	IdleMS       int64     `json:"idle_ms"`
+	Stale        bool      `json:"stale"`
 }
 
 // Session is one session with its panes in window order.
@@ -104,6 +114,7 @@ func Merge(sessions []daemon.Session, agents []daemon.Agent) []Session {
 				p.Message, p.BlockedBy = a.Message, a.BlockedBy
 				p.Ready, p.NeedsYou, p.Queued, p.Unread = a.Ready, a.NeedsYou, a.Queued, a.Unread
 				p.Working = p.State == "working" && !p.NeedsYou
+				p.StateAt = a.AgentStateAt
 			}
 			if p.Name == "" {
 				p.Name = ShortID(w.ID)
@@ -113,6 +124,84 @@ func Merge(sessions []daemon.Session, agents []daemon.Agent) []Session {
 		out = append(out, sess)
 	}
 	return out
+}
+
+// Activity tells stale panes from active ones. It remembers when the deck
+// first saw each pane, so a pane with nothing in history is not stale the
+// moment it appears. One per front end process; safe for concurrent use.
+type Activity struct {
+	mu   sync.Mutex
+	seen map[string]time.Time
+}
+
+// Mark fills each pane's LastActivity, IdleMS and Stale. A pane's last
+// activity is the newest of: the agent's last reported state, the latest
+// history entry for its window (a prompt, a turn end, a command, a window
+// event), and the time this process first saw it. A pane that is working
+// (an agent's turn, a terminal's running command) is never stale, and a
+// threshold of 0 marks nothing. Nothing here closes a pane.
+func (a *Activity) Mark(sessions []Session, last map[string]int64, threshold time.Duration, now time.Time) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.seen == nil {
+		a.seen = map[string]time.Time{}
+	}
+	present := map[string]bool{}
+	for i := range sessions {
+		for j := range sessions[i].Panes {
+			p := &sessions[i].Panes[j]
+			present[p.ID] = true
+			t, ok := a.seen[p.ID]
+			if !ok {
+				t = now
+				a.seen[p.ID] = now
+			}
+			if p.StateAt > 0 {
+				if s := time.Unix(0, p.StateAt); s.After(t) {
+					t = s
+				}
+			}
+			if ms := last[p.ID]; ms > 0 {
+				if h := time.UnixMilli(ms); h.After(t) {
+					t = h
+				}
+			}
+			p.LastActivity = t
+			p.IdleMS = max(now.Sub(t).Milliseconds(), 0)
+			p.Stale = threshold > 0 && !p.Working && now.Sub(t) >= threshold
+		}
+	}
+	for id := range a.seen {
+		if !present[id] {
+			delete(a.seen, id)
+		}
+	}
+}
+
+// Stale is every stale pane of the listing, in listing order.
+func Stale(sessions []Session) []Pane {
+	var out []Pane
+	for _, s := range sessions {
+		for _, p := range s.Panes {
+			if p.Stale {
+				out = append(out, p)
+			}
+		}
+	}
+	return out
+}
+
+// Age writes a duration the way the rail shows it: 40s, 12m, 3h, 2d.
+func Age(d time.Duration) string {
+	switch {
+	case d < time.Minute:
+		return fmt.Sprintf("%ds", int(d.Seconds()))
+	case d < time.Hour:
+		return fmt.Sprintf("%dm", int(d.Minutes()))
+	case d < 48*time.Hour:
+		return fmt.Sprintf("%dh", int(d.Hours()))
+	}
+	return fmt.Sprintf("%dd", int(d.Hours()/24))
 }
 
 // HiddenTasks returns rail-only exclusions and the next snooze expiry.

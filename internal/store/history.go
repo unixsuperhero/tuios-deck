@@ -116,6 +116,20 @@ func (s *Store) History() ([]HistoryEntry, string) {
 	return out, s.historyError
 }
 
+// LastActivity is the newest history time (Unix ms) per window: what the
+// stale mark reads for a pane's last activity.
+func (s *Store) LastActivity() map[string]int64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := map[string]int64{}
+	for _, e := range s.history {
+		if e.Window != "" && e.At > out[e.Window] {
+			out[e.Window] = e.At
+		}
+	}
+	return out
+}
+
 func (s *Store) SetHistoryError(message string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
