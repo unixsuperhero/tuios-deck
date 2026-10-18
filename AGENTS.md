@@ -29,7 +29,9 @@ internal/store/      store.go projects, tasks (status, MoveTask) and assignments
                      theme.go the 16-colour themes and the free-colour pool; context.go the context_items table
 internal/context/    context.go Extract, Unwrap and Gather: context items from scrollback, activity, transcript, command-history;
                      actions.go clipboard Copy, Target, Opener, Start (detached), Programs, Terminal
-internal/autocapture/ autocapture.go the turn/command captures, a goroutine beside either front end
+internal/events/     events.go the process's one daemon subscription: Handler, Runner (New, Include, Tap, Start), resume, fan-out
+internal/autocapture/ autocapture.go the turn/command captures, an events.Handler behind either front end
+internal/history/    history.go the history recorder, an events.Handler that batches live events into one save a second
 internal/ui/         model.go state, keys.go dispatch, commands.go daemon calls as tea.Cmd, view.go (helpLine, paneRow)
                      form.go the form type and its keys, formbox.go the popover box and its key hints,
                      massadd.go the outline screen (A), assign.go the task/project fields and assignment,
@@ -197,10 +199,21 @@ Rules the suites follow, and a new check should too:
   mass-add form, and on its submit or `esc` puts the parked form back
   (`resumeWith` fills the field). There is one slot: never open a third
   form from the mass-add one.
-- **Auto-capture runs outside the Bubble Tea model on purpose.** It is a
-  goroutine started in cmd/deck with its own subscription, so it can never
-  move the selection, reset a scroll or write the status line. `deck tui`
-  gives it no logger; `deck web` logs. Keep it out of `ui.Model`.
+- **One daemon event stream per process, and the recorders run outside the
+  Bubble Tea model on purpose.** cmd/deck builds one `events.Runner` with
+  the auto-capture and history handlers behind it; the TUI taps it once
+  (`ui.EventTypes`, `SetEvents`) and `deck web` once per browser tab
+  (`web.EventTypes`, `Server.Events`). The runner dials, reconnects with
+  backoff and resumes with `after_seq` + `boot_id`; it calls every handler's
+  `Resync` after the first `subscribed` reply, after a daemon `gap`, and
+  after that handler's own queue overflowed. Each handler has its own
+  goroutine and a bounded queue, so neither can move the selection, reset a
+  scroll or write the status line; a tap's channel closes only when the
+  process ends, never on a reconnect, and carries every `subscribed` and
+  `gap` event so the front end lists again. `deck tui` gives the runner no
+  logger; `deck web` logs. Keep the handlers out of `ui.Model`, and wait on
+  `Start`'s done channel before exiting: history flushes its last batch in
+  `Close`.
 - **Context items hold window ids too.** Each item in `deck.json` keeps the
   `window` it came from, so a check that a pane's assignment was pruned
   must match the assignment key (`"<window id>": {`), never the bare id,
