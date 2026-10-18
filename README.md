@@ -237,6 +237,28 @@ saves), `edit note…` and `delete note…` (pick one of the row's own notes).
 On the web page the tasks page's detail has a Notes section with add, edit
 and delete.
 
+## Prompt presets
+
+A preset is a name, a prefix and, optionally, a working directory. Choose
+one in the `preset` field of the prompt form (`p`), the new agent form (`n`)
+or the new terminal form (`t`), in the TUI or on the web page. The prefix
+goes in front of the prompt once, with a space between them unless the prefix
+ends in whitespace, and only when there is a prompt. The preset's directory
+is where a new agent or terminal starts, unless the `cwd` field is filled in.
+Leave the field empty and nothing is added.
+
+Presets are made and kept from the command palette: `prompt presets…` opens
+a list (`n` new, `e` edit, `d` delete, `j`/`k` choose). No preset exists
+until you make one. The list's `x` adds the example "short answer"
+preset (`Answer this question in less than 10 words:`), and nothing else
+adds it. In the preset form, `ctrl+o` opens the operating system's folder
+dialog for the `cwd` field (macOS `osascript`, else `zenity` or `kdialog`); on
+the web page the field has a Browse button. Presets live in `deck.json`
+under `prompt_presets`.
+
+On the web, the `preset` field of `POST /api/agents`, `/api/terminals` and
+`/api/panes/{session}/{id}/prompt` names a preset, and the server applies it.
+
 ## Context items
 
 A context item is something worth keeping that a pane held: a `link`, a
@@ -821,6 +843,9 @@ DELETE /api/panes/{session}/{id}/assignment    drop it
 GET    /api/captures                           the folder, newest first: {name, path, size, modified, session, pane, kind}; kind is "turn", "cmd" or ""
 GET    /api/captures/{name}                    {"name", "content", "lines"}
 DELETE /api/captures/{name}                    remove the file
+GET    /api/prompt-presets                     {"presets": [{id, name, prefix, cwd}]}
+POST   /api/prompt-presets                     {name, prefix, cwd}; PATCH /api/prompt-presets/{id} changes any of them; DELETE removes it
+POST   /api/prompt-presets/example             add the short-answer example preset (only when asked)
 GET    /api/context?kind=&project=&task=&starred=&pinned=&q=
                                                {"items": [{…the stored item, project, task}], "kinds"}; project and task by id or name, q in the text
 POST   /api/panes/{session}/{id}/context/extract

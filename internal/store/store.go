@@ -59,6 +59,8 @@ type Store struct {
 	contexts    []ContextItem
 	reminders   []Reminder
 	notes       []Note
+	presets     []Preset
+	queue       []QueuedPrompt
 }
 
 // file is the JSON shape on disk.
@@ -70,6 +72,8 @@ type file struct {
 	Contexts    []ContextItem         `json:"context_items"`
 	Reminders   []Reminder            `json:"reminders"`
 	Notes       []Note                `json:"notes"`
+	Presets     []Preset              `json:"prompt_presets"`
+	Queue       []QueuedPrompt        `json:"queued_prompts"`
 }
 
 const version = 1
@@ -129,6 +133,8 @@ func Open(path string) (*Store, error) {
 	s.contexts = f.Contexts
 	s.reminders = f.Reminders
 	s.notes = f.Notes
+	s.presets = f.Presets
+	s.queue = f.Queue
 	return s, nil
 }
 
@@ -144,7 +150,7 @@ func (s *Store) Save() error {
 }
 
 func (s *Store) save() error {
-	f := file{Version: version, Projects: s.projects, Tasks: s.tasks, Assignments: s.assignments, Contexts: s.contexts, Reminders: s.reminders, Notes: s.notes}
+	f := file{Version: version, Projects: s.projects, Tasks: s.tasks, Assignments: s.assignments, Contexts: s.contexts, Reminders: s.reminders, Notes: s.notes, Presets: s.presets, Queue: s.queue}
 	if f.Projects == nil {
 		f.Projects = []Project{}
 	}
@@ -159,6 +165,12 @@ func (s *Store) save() error {
 	}
 	if f.Notes == nil {
 		f.Notes = []Note{}
+	}
+	if f.Presets == nil {
+		f.Presets = []Preset{}
+	}
+	if f.Queue == nil {
+		f.Queue = []QueuedPrompt{}
 	}
 	data, err := json.MarshalIndent(f, "", "  ")
 	if err != nil {
@@ -309,6 +321,7 @@ func (s *Store) DeleteProject(id string) error {
 	}
 	s.removeTasks(gone)
 	s.removeNotes(func(n Note) bool { return n.ProjectID == id })
+	s.dropQueued(func(q QueuedPrompt) bool { return q.ProjectID == id })
 	for w, a := range s.assignments {
 		if a.ProjectID == id {
 			delete(s.assignments, w)
@@ -491,6 +504,7 @@ func (s *Store) removeTasks(gone map[string]bool) {
 	}
 	s.tasks = kept
 	s.removeNotes(func(n Note) bool { return n.TaskID != "" && gone[n.TaskID] })
+	s.dropQueued(func(q QueuedPrompt) bool { return gone[q.TaskID] })
 	for w, a := range s.assignments {
 		if gone[a.TaskID] {
 			delete(s.assignments, w)

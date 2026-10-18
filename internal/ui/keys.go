@@ -64,6 +64,9 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	case modeProto:
 		return m.handleProtoKey(msg)
+
+	case modePrompts:
+		return m.handleModalKey(msg)
 	}
 
 	var keep bool
@@ -250,23 +253,30 @@ func (m *Model) openAgentForm() tea.Cmd {
 		{Label: "session", Default: session},
 		{Label: "agent", Default: "claude"},
 		{Label: "name", Keep: true},
-		{Label: "cwd", Default: cwdDefault(p)},
+		{Label: "cwd", Keep: true},
 	}
 	fields = append(fields, m.targetFields(false)...)
+	fields = append(fields, m.presetField("its prefix goes in front of the first prompt, its cwd is used when cwd is empty"))
 	fields = append(fields, field{Label: "first prompt", Keep: true, Multi: true})
 	m.mode = modeForm
 	m.form = &form{
 		Title:  "new agent",
 		Fields: fields,
 		Validate: func(v []string) (int, string) {
+			if _, msg := m.resolvePreset(v[6]); msg != "" {
+				return 6, msg
+			}
 			_, _, f, msg := m.resolveTarget(v[4], v[5], 4, 5, false)
 			return f, msg
 		},
 		Done: func(v []string) tea.Cmd {
 			taskID, projectID, _, _ := m.resolveTarget(v[4], v[5], 4, 5, false)
-			return m.startAgent(v[0], v[1], v[2], v[3], v[6], taskID, projectID)
+			pr, _ := m.resolvePreset(v[6])
+			return m.startAgent(v[0], v[1], v[2], presetCwd(v[3], pr, p), presetPrefix(pr, v[7]), taskID, projectID)
 		},
 	}
+	m.form.Fields[3].HintFn = m.cwdHint(m.form, 6, p)
+	m.cwdKey(m.form, "cwd")
 	return nil
 }
 
@@ -279,22 +289,29 @@ func (m *Model) openTerminalForm() tea.Cmd {
 	fields := []field{
 		{Label: "session", Default: session},
 		{Label: "name", Keep: true},
-		{Label: "cwd", Default: cwdDefault(p)},
+		{Label: "cwd", Keep: true},
 	}
 	fields = append(fields, m.targetFields(false)...)
+	fields = append(fields, m.presetField("its cwd is used when cwd is empty"))
 	m.mode = modeForm
 	m.form = &form{
 		Title:  "new terminal",
 		Fields: fields,
 		Validate: func(v []string) (int, string) {
+			if _, msg := m.resolvePreset(v[5]); msg != "" {
+				return 5, msg
+			}
 			_, _, f, msg := m.resolveTarget(v[3], v[4], 3, 4, false)
 			return f, msg
 		},
 		Done: func(v []string) tea.Cmd {
 			taskID, projectID, _, _ := m.resolveTarget(v[3], v[4], 3, 4, false)
-			return m.newTerminal(v[0], v[1], v[2], taskID, projectID)
+			pr, _ := m.resolvePreset(v[5])
+			return m.newTerminal(v[0], v[1], presetCwd(v[2], pr, p), taskID, projectID)
 		},
 	}
+	m.form.Fields[2].HintFn = m.cwdHint(m.form, 5, p)
+	m.cwdKey(m.form, "cwd")
 	return nil
 }
 
@@ -315,12 +332,19 @@ func (m *Model) openPromptForm() tea.Cmd {
 	m.mode = modeForm
 	m.form = &form{
 		Title:  "prompt",
-		Fields: []field{{Label: label, Keep: true, Multi: true}},
+		Fields: []field{m.presetField("its prefix goes in front of the text"), {Label: label, Keep: true, Multi: true}},
+		Validate: func(v []string) (int, string) {
+			if _, msg := m.resolvePreset(v[0]); msg != "" {
+				return 0, msg
+			}
+			return 0, ""
+		},
 		Done: func(v []string) tea.Cmd {
-			if v[0] == "" {
+			if v[1] == "" {
 				return nil
 			}
-			return m.sendPrompt(p.Session, p.ID, p.Name, p.IsAgent, v[0])
+			pr, _ := m.resolvePreset(v[0])
+			return m.sendPrompt(p.Session, p.ID, p.Name, p.IsAgent, presetPrefix(pr, v[1]))
 		},
 	}
 	return nil

@@ -104,6 +104,8 @@ type form struct {
 	// OnKey, when set, sees every key first from any field; a key it
 	// reports handled goes no further.
 	OnKey func(key string) bool
+	// pending is a command OnKey asked for; handleKey returns it.
+	pending tea.Cmd
 
 	vimNormal bool // normal mode of the vim modes setting; false is insert
 
@@ -285,7 +287,8 @@ func (f *form) handleKey(msg tea.KeyPressMsg) (finished bool, cmd tea.Cmd) {
 	f.Err = ""
 	key := msg.String()
 	if f.OnKey != nil && f.OnKey(key) {
-		return false, nil
+		cmd, f.pending = f.pending, nil
+		return false, cmd
 	}
 	if list := f.list(); len(list) > 0 {
 		switch key {

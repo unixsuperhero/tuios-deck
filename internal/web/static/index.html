@@ -291,6 +291,7 @@ dialog .hint.err:empty { display: none; }
     <label>Task <input name="task" list="dl-tasks" placeholder="project / task / subtask"></label>
     <label>Project <input name="project" list="dl-projects" placeholder="required without a task"></label>
   </div>
+  <label>Preset (optional) <select name="preset" data-preset></select></label>
   <label>First prompt (optional) <textarea name="prompt"></textarea></label>
   <div class="hint">Waits until the agent is at its prompt, which can take a minute.</div>
   <div class="hint err" data-err></div>
@@ -306,6 +307,7 @@ dialog .hint.err:empty { display: none; }
     <label>Task <input name="task" list="dl-tasks" placeholder="project / task / subtask"></label>
     <label>Project <input name="project" list="dl-projects" placeholder="required without a task"></label>
   </div>
+  <label>Preset (optional) <select name="preset" data-preset></select></label>
   <div class="hint">Opens an interactive shell. Send commands to it with Prompt.</div>
   <div class="hint err" data-err></div>
   <div class="actions"><button type="button" data-cancel>Cancel</button><button class="primary" value="ok">Open</button></div>
@@ -322,9 +324,26 @@ dialog .hint.err:empty { display: none; }
 
 <dialog id="dlg-prompt"><form method="dialog">
   <h2 id="prompt-title">Prompt</h2>
+  <label>Preset (optional) <select name="preset" data-preset></select></label>
   <label>Text <textarea name="text" required></textarea></label>
   <div class="hint" id="prompt-hint"></div>
   <div class="actions"><button type="button" data-cancel>Cancel</button><button class="primary" value="ok">Send</button></div>
+</form></dialog>
+
+<dialog id="dlg-presets"><form method="dialog">
+  <h2>Prompt presets</h2>
+  <div id="preset-list"></div>
+  <div class="hint">A preset puts its prefix in front of a prompt, once, and its folder is where a new agent or terminal starts when the folder is left empty.</div>
+  <div class="actions"><button type="button" id="preset-new">New preset…</button><button type="button" id="preset-example">Add the short-answer example</button><button class="primary" value="ok">Close</button></div>
+</form></dialog>
+
+<dialog id="dlg-preset"><form method="dialog">
+  <h2 id="preset-title">Prompt preset</h2>
+  <label>Name <input name="name" required></label>
+  <label>Prefix <textarea name="prefix" placeholder="Answer this question in less than 10 words:"></textarea></label>
+  <div class="row"><label>Working directory (optional) <input name="cwd"></label><button type="button" data-browse="cwd">Browse…</button></div>
+  <div class="hint err" data-err></div>
+  <div class="actions"><button type="button" data-cancel>Cancel</button><button class="primary" value="ok">Save</button></div>
 </form></dialog>
 
 <dialog id="dlg-confirm"><form method="dialog">
@@ -959,8 +978,74 @@ function targetRule(v) {
   return 'a task or a project is required';
 }
 
+// ---------------------------------------------------------------- prompt presets
+async function loadPresets() {
+  try { state.presets = (await api('/api/prompt-presets')).presets || []; } catch (e) { state.presets = []; setStatus('presets: ' + e.message, true); }
+  return state.presets;
+}
+// fillPresetSelects lists the presets in the preset select of a dialog,
+// none first, so no preset is chosen unless the person picks one.
+async function fillPresetSelects(dlgId) {
+  const presets = await loadPresets();
+  const sel = $(dlgId).querySelector('[data-preset]');
+  sel.replaceChildren(new Option('(none)', ''), ...presets.map((p) => new Option(p.name, p.name)));
+  sel.title = presets.map((p) => `${p.name}: ${p.prefix}`).join('\n');
+}
+// A preset with a folder fills the working directory when chosen, where it
+// can still be changed.
+for (const id of ['dlg-agent', 'dlg-term']) {
+  $(id).querySelector('[data-preset]').onchange = (e) => {
+    const p = (state.presets || []).find((x) => x.name === e.target.value);
+    if (p && p.cwd) e.target.form.elements.cwd.value = p.cwd;
+  };
+}
+async function managePresets() {
+  const list = $('preset-list');
+  async function draw() {
+    const presets = await loadPresets();
+    list.replaceChildren();
+    if (!presets.length) { const d = document.createElement('div'); d.className = 'empty'; d.textContent = 'no presets'; list.append(d); }
+    for (const p of presets) {
+      const row = document.createElement('div'); row.className = 'row';
+      const t = document.createElement('span'); t.textContent = `${p.name} — ${p.prefix.replace(/\s+/g, ' ')}${p.cwd ? ' · ' + p.cwd : ''}`;
+      const ed = document.createElement('button'); ed.type = 'button'; ed.textContent = 'Edit';
+      ed.onclick = async () => { await editPreset(p); draw(); };
+      const del = document.createElement('button'); del.type = 'button'; del.textContent = 'Delete'; del.className = 'danger';
+      del.onclick = async () => {
+        $('dlg-presets').close();
+        if (await confirmDialog('Delete preset ' + p.name + '?', '', 'Delete')) {
+          try { const r = await api('/api/prompt-presets/' + enc(p.id), { method: 'DELETE' }); setStatus(r.status); } catch (e) { setStatus('error: ' + e.message, true); }
+        }
+        managePresets();
+      };
+      row.append(t, ed, del); list.append(row);
+    }
+  }
+  $('preset-new').onclick = async () => { await editPreset(null); draw(); };
+  $('preset-example').onclick = async () => {
+    try { const r = await api('/api/prompt-presets/example', { method: 'POST' }); setStatus(r.status); } catch (e) { setStatus('error: ' + e.message, true); }
+    draw();
+  };
+  await draw();
+  $('dlg-presets').showModal();
+}
+// editPreset asks for a preset's fields over the list, which stays open
+// beneath it, and saves them; null makes a new one.
+async function editPreset(p) {
+  $('preset-title').textContent = p ? 'Edit preset ' + p.name : 'New prompt preset';
+  const dlg = $('dlg-preset');
+  const v = await dialog('dlg-preset', p ? { name: p.name, prefix: p.prefix, cwd: p.cwd } : null);
+  if (!v) return;
+  try {
+    const r = p ? await api('/api/prompt-presets/' + enc(p.id), { method: 'PATCH', body: JSON.stringify(v) })
+                : await api('/api/prompt-presets', { method: 'POST', body: JSON.stringify(v) });
+    setStatus(r.status);
+  } catch (e) { setStatus('error: ' + e.message, true); }
+}
+
 // ---------------------------------------------------------------- deck actions
 async function newAgent(fill) {
+  await fillPresetSelects('dlg-agent');
   const v = await dialog('dlg-agent', { ...defaults(), ...fill }, targetRule);
   if (!v) return;
   setStatus(`starting ${v.agent} in ${v.session}, waiting for its prompt…`);
@@ -969,6 +1054,7 @@ async function newAgent(fill) {
   scheduleRefresh();
 }
 async function newTerminal(fill) {
+  await fillPresetSelects('dlg-term');
   const v = await dialog('dlg-term', { ...defaults(), ...fill }, targetRule);
   if (!v) return;
   try { const r = await api('/api/terminals', { method: 'POST', body: JSON.stringify({ ...v, cols: 120, rows: 36 }) }); setStatus(r.status); }
@@ -1007,9 +1093,10 @@ async function promptPane() {
   if (p.blocked_by) { setStatus(`${p.name} is waiting on ${p.blocked_by}; answer it in tuios, not here`, true); return; }
   $('prompt-title').textContent = (p.is_agent ? 'Prompt for ' : 'Text for ') + p.name;
   $('prompt-hint').textContent = p.is_agent ? 'Queued by the daemon and typed when the agent is at rest.' : 'Typed into the shell with Enter.';
+  await fillPresetSelects('dlg-prompt');
   const v = await dialog('dlg-prompt');
   if (!v || !v.text.trim()) return;
-  try { const r = await api(`/api/panes/${enc(p.session)}/${enc(p.id)}/prompt`, { method: 'POST', body: JSON.stringify({ text: v.text, is_agent: p.is_agent }) }); setStatus(`${r.status} (${p.name})`); }
+  try { const r = await api(`/api/panes/${enc(p.session)}/${enc(p.id)}/prompt`, { method: 'POST', body: JSON.stringify({ text: v.text, is_agent: p.is_agent, preset: v.preset }) }); setStatus(`${r.status} (${p.name})`); }
   catch (e) { setStatus('error: ' + e.message, true); }
   scheduleRefresh();
 }
@@ -1559,6 +1646,7 @@ function deckCommands() {
     { label: 'new agent', run: () => newAgent() },
     { label: 'new terminal', run: () => newTerminal() },
     { label: 'prompt selected pane', run: promptPane },
+    { label: 'prompt presets…', desc: 'create, edit and delete prompt presets', run: managePresets },
     { label: 'capture selected pane', run: capturePane },
     { label: 'close selected pane', run: closePane },
     { label: 'refresh', run: () => { refresh(); if (state.page === 'captures') loadCaptures(); } },

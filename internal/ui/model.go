@@ -25,6 +25,7 @@ const (
 	modeConfirm
 	modePalette
 	modeProto // a prototype picker is up
+	modePrompts
 )
 
 // page is which view the deck shows: the deck of panes, the tasks tree or
@@ -137,8 +138,9 @@ type Model struct {
 		Do   tea.Cmd
 	}
 
-	pal        *palette // the command palette while open
-	verbs      []verb   // the daemon's list-verbs, fetched on the first open
+	pm         *promptModal // the prompt presets or queued prompts while open
+	pal        *palette     // the command palette while open
+	verbs      []verb       // the daemon's list-verbs, fetched on the first open
 	verbsBusy  bool
 	optionKeys []string // list-options paths, fetched when a form needs them
 	themeNames []string // list-themes ids, likewise
@@ -336,6 +338,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.rebuildContext()
 		}
 		return m, m.refreshList()
+
+	case dirPickedMsg:
+		m.fillPickedDir(msg)
+		return m, nil
+
+	case modalMsg:
+		m.reopenModal(msg)
+		return m, nil
 
 	case tickMsg:
 		var cmds []tea.Cmd

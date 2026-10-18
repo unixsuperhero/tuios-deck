@@ -90,6 +90,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/reminders", s.createReminder)
 	mux.HandleFunc("PATCH /api/reminders/{id}", s.patchReminder)
 	mux.HandleFunc("DELETE /api/reminders/{id}", s.deleteReminder)
+	mux.HandleFunc("GET /api/prompt-presets", s.listPresets)
+	mux.HandleFunc("POST /api/prompt-presets", s.createPreset)
+	mux.HandleFunc("POST /api/prompt-presets/example", s.createExamplePreset)
+	mux.HandleFunc("PATCH /api/prompt-presets/{id}", s.patchPreset)
+	mux.HandleFunc("DELETE /api/prompt-presets/{id}", s.deletePreset)
 	mux.HandleFunc("GET /api/palette", s.palette)
 	mux.HandleFunc("GET /api/verbs", s.listVerbs)
 	mux.HandleFunc("POST /api/call", s.call)
@@ -300,9 +305,15 @@ func (s *Server) prompt(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Text    string `json:"text"`
 		IsAgent bool   `json:"is_agent"`
+		Preset  string `json:"preset"`
 	}
 	if err := readJSON(r, &in); err != nil || strings.TrimSpace(in.Text) == "" {
 		writeJSON(w, 400, map[string]any{"error": "text is required"})
+		return
+	}
+	var err error
+	if _, in.Text, err = s.applyPreset(in.Preset, "", in.Text); err != nil {
+		badRequest(w, err.Error())
 		return
 	}
 	ctx, cancel := callCtx(r)
@@ -366,6 +377,7 @@ func (s *Server) startAgent(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		daemon.StartAgentParams
 		target
+		Preset string `json:"preset"`
 	}
 	if err := readJSON(r, &in); err != nil || strings.TrimSpace(in.Agent) == "" {
 		writeJSON(w, 400, map[string]any{"error": "agent is required"})
@@ -373,6 +385,10 @@ func (s *Server) startAgent(w http.ResponseWriter, r *http.Request) {
 	}
 	taskID, projectID, err := s.resolveNew(in.target)
 	if err != nil {
+		badRequest(w, err.Error())
+		return
+	}
+	if in.Cwd, in.Prompt, err = s.applyPreset(in.Preset, in.Cwd, in.Prompt); err != nil {
 		badRequest(w, err.Error())
 		return
 	}
@@ -419,6 +435,7 @@ func (s *Server) newTerminal(w http.ResponseWriter, r *http.Request) {
 		Cwd     string `json:"cwd"`
 		Cols    int    `json:"cols"`
 		Rows    int    `json:"rows"`
+		Preset  string `json:"preset"`
 		target
 	}
 	if err := readJSON(r, &in); err != nil || in.Session == "" {
@@ -427,6 +444,10 @@ func (s *Server) newTerminal(w http.ResponseWriter, r *http.Request) {
 	}
 	taskID, projectID, err := s.resolveNew(in.target)
 	if err != nil {
+		badRequest(w, err.Error())
+		return
+	}
+	if in.Cwd, _, err = s.applyPreset(in.Preset, in.Cwd, ""); err != nil {
 		badRequest(w, err.Error())
 		return
 	}

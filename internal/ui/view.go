@@ -88,6 +88,11 @@ func (m *Model) View() tea.View {
 		box = m.proto.view(boxW, bodyH)
 		boxX, boxY = (m.width-boxW)/2, (bodyH-len(box))/2
 	}
+	if m.mode == modePrompts && m.pm != nil {
+		boxW = formWidth(m.width)
+		box = m.modalBox(boxW, bodyH)
+		boxX, boxY = (m.width-boxW)/2, (bodyH-len(box))/2
+	}
 	for i := 0; i < bodyH; i++ {
 		if j := i - (bodyH - len(under)); j >= 0 {
 			b.WriteString(pad(under[j], m.width))
@@ -312,6 +317,8 @@ func (m *Model) helpLine() string {
 		return cDim.Render(" " + m.form.Title + " · the keys are in the box · esc cancel")
 	case modeConfirm:
 		return cDim.Render(" enter/y confirm · n/esc cancel")
+	case modePrompts:
+		return cDim.Render(" the keys are in the box · esc close")
 	case modePalette:
 		return cDim.Render(" type to filter · ↑/↓ ctrl+p/n pick · enter run · tab complete · esc close")
 	case modeProto:
