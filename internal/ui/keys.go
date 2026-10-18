@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"strings"
+
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/unixsuperhero/tuios-deck/internal/config"
@@ -33,6 +35,9 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.setStatus("cancelled")
 			m.resumeProto()
 			return m, nil
+		}
+		if msg.String() == "ctrl+o" && m.form.Fields[m.form.Cur].Attach {
+			return m, m.pickAttachments()
 		}
 		done, cmd := m.form.handleKey(msg)
 		switch {
@@ -275,8 +280,14 @@ func (m *Model) openAgentForm() tea.Cmd {
 			return m.startAgent(v[0], v[1], v[2], presetCwd(v[3], pr, p), presetPrefix(pr, v[7]), taskID, projectID)
 		},
 	}
-	m.form.Fields[3].HintFn = m.cwdHint(m.form, 6, p)
-	m.cwdKey(m.form, "cwd")
+	f := m.form
+	f.Fields[3].HintFn = m.cwdHint(f, 6, p)
+	m.cwdKey(f, "cwd")
+	f.cwdFn = func() string {
+		pr, _ := m.resolvePreset(f.Fields[6].result())
+		return expandHome(presetCwd(f.Fields[3].result(), pr, p))
+	}
+	f.enableAttach(7, func() string { return strings.TrimSpace(f.Fields[1].result()) })
 	return nil
 }
 
@@ -346,6 +357,9 @@ func (m *Model) openPromptForm() tea.Cmd {
 			pr, _ := m.resolvePreset(v[0])
 			return m.sendPrompt(p.Session, p.ID, p.Name, p.IsAgent, presetPrefix(pr, v[1]))
 		},
+	}
+	if p.IsAgent {
+		m.form.enableAttach(1, func() string { return p.Harness })
 	}
 	return nil
 }

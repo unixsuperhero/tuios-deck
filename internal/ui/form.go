@@ -39,9 +39,16 @@ type field struct {
 	// Preview, when set, works out a preview of the highlighted option: metadata
 	// and a pane's recent output, drawn under the list. Options is unchanged.
 	Preview func(option string) previewSpec
+	// Attach, on a Multi field, makes `@` complete a file the harness reads as
+	// a reference: the `@` stays in front of the path, and ctrl+o picks files
+	// with the OS file dialog. Slash, when set, lists the slash commands and
+	// skills that a `/` typed as the first character completes.
+	Attach bool
+	Slash  func() []string
 
 	hl int // the highlighted list entry plus one; 0 is none
 	at int // the offset of the '@' being completed plus one; 0 is none
+	sl int // the offset after the leading '/' being completed; 0 is none
 }
 
 func (f field) result() string {
@@ -111,8 +118,19 @@ type form struct {
 
 	adding int // the field whose addNew was taken, plus one; 0 is none
 
-	cwd  string              // the folder `@` completes under
-	dirs map[string][]string // the entries read so far, by folder under cwd
+	cwd   string              // the folder `@` completes under
+	cwdFn func() string       // when set, the folder worked out afresh instead of cwd
+	dirs  map[string][]string // the entries read so far, by folder under cwd
+}
+
+// root is the folder `@` completes under.
+func (f *form) root() string {
+	if f.cwdFn != nil {
+		if c := f.cwdFn(); c != "" {
+			return c
+		}
+	}
+	return f.cwd
 }
 
 // maxEntries caps how many entries of one folder `@` lists.
@@ -130,14 +148,15 @@ func splitPath(rel string) (dir, name string) {
 // listed only when it points inside the cwd, and a folder outside it is
 // never read.
 func (f *form) entries(dir string) []string {
-	if e, ok := f.dirs[dir]; ok {
+	key := f.root() + "\x00" + dir
+	if e, ok := f.dirs[key]; ok {
 		return e
 	}
 	if f.dirs == nil {
 		f.dirs = map[string][]string{}
 	}
-	f.dirs[dir] = readEntries(f.cwd, dir)
-	return f.dirs[dir]
+	f.dirs[key] = readEntries(f.root(), dir)
+	return f.dirs[key]
 }
 
 func readEntries(cwd, dir string) []string {
@@ -188,9 +207,23 @@ func readEntries(cwd, dir string) []string {
 // list is the completion list open under the current field, nil when none.
 func (f *form) list() []string {
 	cur := f.Fields[f.Cur]
+	if cur.sl > 0 {
+		return fuzzy(cur.Slash(), cur.Value[cur.sl:])
+	}
 	if cur.at > 0 {
 		dir, name := splitPath(cur.Value[cur.at:])
-		return fuzzy(f.entries(dir), name)
+		ents := f.entries(dir)
+		if cur.Attach {
+			// The harness ends an @path at whitespace, so such names are not offered.
+			var ok []string
+			for _, e := range ents {
+				if !strings.ContainsAny(e, " \t") {
+					ok = append(ok, e)
+				}
+			}
+			ents = ok
+		}
+		return fuzzy(ents, name)
 	}
 	if cur.Options == nil {
 		return nil
@@ -213,10 +246,23 @@ func (f *form) accept(list []string) {
 		}
 		i = 0
 	}
+	if cur.sl > 0 {
+		cur.Value, cur.sl, cur.hl = cur.Value[:cur.sl]+list[i]+" ", 0, 0
+		return
+	}
 	if cur.at > 0 {
 		// A folder is descended into; a file replaces the @query with its
-		// path relative to the cwd and closes the list.
+		// path relative to the cwd and closes the list. An Attach field keeps
+		// the @ and ends the reference with a space.
 		dir, _ := splitPath(cur.Value[cur.at:])
+		if cur.Attach {
+			if strings.HasSuffix(list[i], "/") {
+				cur.Value, cur.hl = cur.Value[:cur.at]+dir+list[i], 1
+				return
+			}
+			cur.Value, cur.at, cur.hl = cur.Value[:cur.at]+dir+list[i]+" ", 0, 0
+			return
+		}
 		if strings.HasSuffix(list[i], "/") {
 			cur.Value, cur.hl = cur.Value[:cur.at]+dir+list[i], 1
 			return
@@ -235,10 +281,10 @@ func (f *form) accept(list []string) {
 // esc closes the list before it cancels the form.
 func (f *form) escape() bool {
 	cur := &f.Fields[f.Cur]
-	if cur.at == 0 {
+	if cur.at == 0 && cur.sl == 0 {
 		return false
 	}
-	cur.at, cur.hl = 0, 0
+	cur.at, cur.sl, cur.hl = 0, 0, 0
 	return true
 }
 
@@ -265,6 +311,12 @@ func (f *form) edited(typed string) {
 	cur := &f.Fields[f.Cur]
 	if cur.at > 0 && (len(cur.Value) < cur.at || strings.ContainsAny(cur.Value[cur.at:], " \t\n")) {
 		cur.at = 0
+	}
+	if cur.sl > 0 && (len(cur.Value) < cur.sl || strings.ContainsAny(cur.Value[cur.sl:], " \t\n")) {
+		cur.sl = 0
+	}
+	if cur.Slash != nil && typed == "/" && cur.Value == "/" {
+		cur.sl = 1
 	}
 	if cur.Multi && typed == "@" {
 		before := cur.Value[:len(cur.Value)-1]

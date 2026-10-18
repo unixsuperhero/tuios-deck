@@ -154,6 +154,37 @@ b send-text -s host -w deck 'do the thing'
 b send-keys -s host -w deck ctrl+s >/dev/null; settle; deckcap 05-queued
 check "queue-prompt was used for the agent" "$SCRATCH/out/05-queued.txt" 'prompt \(queued\|delivering\)'
 
+echo "== an agent prompt: @ keeps the reference, / completes a command or skill"
+# The fake agent reports claude-code and runs in $SCRATCH, so its project
+# folder holds the command and the skill the prompt completes. It is held
+# working so the queued prompt stays in the daemon's queue to be read back.
+mkdir -p "$SCRATCH/.claude/commands" "$SCRATCH/.claude/skills/e2e-skill"
+printf 'run it\n' > "$SCRATCH/.claude/commands/e2e-cmd.md"
+printf -- '---\nname: e2e-skill\n---\n' > "$SCRATCH/.claude/skills/e2e-skill/SKILL.md"
+a set-agent-state working -s target -w fake --harness claude-code >/dev/null
+select_pane 2
+b send-keys -s host -w deck p >/dev/null; settle
+b send-text -s host -w deck '/e2e-'; settle; deckcap 05a-slash
+check "/ lists a project command" "$SCRATCH/out/05a-slash.txt" '▸ e2e-cmd'
+check "/ lists a project skill" "$SCRATCH/out/05a-slash.txt" 'e2e-skill'
+b send-keys -s host -w deck Tab >/dev/null; settle
+b send-text -s host -w deck 'see @deck.j'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 05b-attach
+check "enter on a file keeps the @ in front of the path" "$SCRATCH/out/05b-attach.txt" '/e2e-cmd see @deck.json'
+check "the agent prompt's help names ctrl+o" "$SCRATCH/out/05b-attach.txt" 'ctrl+o pick files'
+b send-keys -s host -w deck ctrl+s >/dev/null; settle
+a call list-queued '{"session":"target","window":"fake"}' > "$SCRATCH/out/05c-queued.json"
+check "the queued text is the command and the @ reference, as typed" "$SCRATCH/out/05c-queued.json" '/e2e-cmd see @deck.json'
+a call cancel-queued '{"session":"target","window":"fake","all":true}' >/dev/null
+a set-agent-state idle -s target -w fake --harness claude-code >/dev/null
+
+echo "== ctrl+o picks files with the OS dialog (a stand-in osascript/zenity prints two paths)"
+printf '#!/bin/sh\nprintf "%%s\\n%%s\\n" "%s/deck.json" "/etc/hosts"\n' "$SCRATCH" > "$SCRATCH/bin/osascript"
+cp "$SCRATCH/bin/osascript" "$SCRATCH/bin/zenity"; chmod +x "$SCRATCH/bin/osascript" "$SCRATCH/bin/zenity"
+b send-keys -s host -w deck p >/dev/null; settle
+b send-text -s host -w deck 'read'; b send-keys -s host -w deck ctrl+o >/dev/null; wait_deck '@/etc/hosts' 10; deckcap 05d-pick
+check "the dialog's files become @ references, relative inside the cwd" "$SCRATCH/out/05d-pick.txt" 'read @deck.json @/etc/hosts'
+b send-keys -s host -w deck Escape >/dev/null; settle
+
 echo "== automatic captures: an agent turn and a shell command"
 # A capture file is written by the deck itself, so there is no daemon
 # condition to wait on; poll the folder like wait_deck polls the screen.

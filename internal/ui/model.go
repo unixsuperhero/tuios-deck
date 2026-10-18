@@ -6,6 +6,7 @@ package ui
 import (
 	"context"
 	"os"
+	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -350,6 +351,17 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case attachPickedMsg:
+		switch {
+		case msg.form != m.form || m.mode != modeForm:
+		case msg.err != nil:
+			m.form.Err = msg.err.Error()
+		default:
+			if bad := m.form.attach(msg.paths); len(bad) > 0 {
+				m.form.Err = "not attached, whitespace in the path: " + strings.Join(bad, ", ")
+			}
+		}
+		return m, nil
 	case tickMsg:
 		var cmds []tea.Cmd
 		if m.mode != modeConfirm && m.page == pageDeck {
