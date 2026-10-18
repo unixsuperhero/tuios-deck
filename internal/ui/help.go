@@ -238,6 +238,10 @@ func (m *Model) helpRows(mode string) []helpRow {
 			{"j/k", "select row", "presets/queue"}, {"n/e/d", "new/edit/delete", "presets/queue"}, {"x", "add example preset", "presets"}, {"enter", "start queued prompt", "queue"}, {"esc, ctrl+c", "close", "presets/queue"},
 			{"h/j/k/l, arrows", "move", "glyph table"}, {"text", "find or add glyph", "glyph table"}, {"enter", "pick glyph", "glyph table"},
 			{"backspace", "clear typed or custom glyph", "glyph table"}, {"esc", "cancel", "glyph table"},
+			{"j/k, up/down", "select node", "task tree"}, {"g/G", "project/last node", "task tree"}, {"s", "cycle status: open, done, skipped, planned", "task tree"},
+			{"e", "edit node; the tree comes back", "task tree"}, {"n", "add a subtask under the node in the outline", "task tree"},
+			{"x", "delete node, naming what goes with it", "task tree"}, {"a", "assign the pane to the node (unassigned: the assign picker)", "task tree"},
+			{"enter", "tasks page with the node selected", "task tree"}, {"esc, q", "close; rail selection and detail unchanged", "task tree"},
 			{"ctrl+n/p, up/down", "select result", "typing pickers"}, {"enter", "pick result", "pickers"}, {"?", "toggle preview (not help)", "preview picker prototypes"}, {"esc", "clear filter or cancel", "pickers"}, {"ctrl+c", "cancel", "pickers/glyph table"},
 		}
 	case "actions":
@@ -245,7 +249,7 @@ func (m *Model) helpRows(mode string) []helpRow {
 		bound := map[string]string{
 			"go to review queue":       "review",
 			"go to history":            "history",
-			"keybindings and actions…": "help", "live": "live", "assign to task…": "assign", "assign to project…": "assign", "new agent": "new_agent", "new terminal": "new_terminal", "prompt": "prompt", "capture": "capture", "close pane": "close", "refresh": "refresh", "go to tasks": "tasks", "go to captures": "captures", "go to context": "context", "extract context from pane": "extract", "add many…": "add_many",
+			"keybindings and actions…": "help", "live": "live", "assign to task…": "assign", "assign to project…": "assign", "task tree…": "tree", "new agent": "new_agent", "new terminal": "new_terminal", "prompt": "prompt", "capture": "capture", "close pane": "close", "refresh": "refresh", "go to tasks": "tasks", "go to captures": "captures", "go to context": "context", "extract context from pane": "extract", "add many…": "add_many",
 		}
 		fixed := map[string]helpRow{
 			"prototypes": {"U", "", "all pages"}, "go to deck": {"esc", "", "other pages"}, "new project": {"N", "", "tasks"}, "filter context…": {"f", "", "context"}, "context scope: current pane / all": {"t", "", "context"}, "delete capture": {"x", "", "captures"},

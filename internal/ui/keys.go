@@ -119,6 +119,9 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	case modeGlyph:
 		return m.handleGlyphKey(msg)
+
+	case modeTree:
+		return m.handleTreeKey(msg)
 	}
 
 	var keep bool
@@ -263,6 +266,8 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, m.openPromptForm()
 	case "a":
 		return m, m.openAssign()
+	case "w":
+		return m, m.openTree()
 	case "c":
 		return m, m.captureToFile()
 	case "i":

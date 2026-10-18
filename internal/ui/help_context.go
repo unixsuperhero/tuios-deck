@@ -7,7 +7,7 @@ import (
 	"github.com/unixsuperhero/tuios-deck/internal/config"
 )
 
-var contextHelpModes = []string{"prompt", "saved prompts", "palette", "confirmation", "presets", "queue", "glyph table", "picker", "focus buffer", "detail", "turns"}
+var contextHelpModes = []string{"prompt", "saved prompts", "palette", "confirmation", "presets", "queue", "glyph table", "task tree", "picker", "focus buffer", "detail", "turns"}
 
 func (m *Model) helpContext() string {
 	if m.focus != nil && !m.focus.clock.BufferUntil.IsZero() {
@@ -42,6 +42,8 @@ func (m *Model) helpContext() string {
 		return "presets"
 	case modeGlyph:
 		return "glyph table"
+	case modeTree:
+		return "task tree"
 	case modeProto:
 		return "picker"
 	}
@@ -97,7 +99,7 @@ func (m *Model) contextHelpRows(mode string) []helpRow {
 			{"backspace", "delete the last search character", "saved prompts"},
 			{"ctrl+u", "clear search, not the draft", "saved prompts"},
 		}
-	case "palette", "confirmation", "presets", "queue", "glyph table", "focus buffer":
+	case "palette", "confirmation", "presets", "queue", "glyph table", "task tree", "focus buffer":
 		var rows []helpRow
 		for _, row := range m.helpRows("modals") {
 			scope, _, _ := strings.Cut(row.scope, ";")

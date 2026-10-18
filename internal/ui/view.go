@@ -116,6 +116,11 @@ func (m *Model) View() tea.View {
 		box = m.modalBox(boxW, bodyH)
 		boxX, boxY = (m.width-boxW)/2, (bodyH-len(box))/2
 	}
+	if m.mode == modeTree && m.tree != nil {
+		boxW = formWidth(m.width)
+		box = m.treeBox(boxW, bodyH)
+		boxX, boxY = (m.width-boxW)/2, (bodyH-len(box))/2
+	}
 	if m.mode == modeGlyph && m.glyph != nil {
 		boxW = formWidth(m.width)
 		box = m.glyphBox(boxW, bodyH)

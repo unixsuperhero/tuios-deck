@@ -353,6 +353,7 @@ func (m *Model) deckCommands() []palItem {
 		{"deck", "go to context", "the context items page (I)", func() tea.Cmd { m.openContext(); return nil }},
 		{"deck", "go to history", "the persisted history timeline", func() tea.Cmd { m.openHistory(); return nil }},
 		{"deck", "live", "go live: type into the selected pane until the prefix and detach (enter)", needPane(func(*panes.Pane) tea.Cmd { return m.openLive() })},
+		{"deck", "task tree…", "review and manage the selected pane's or group's project tree (w)", m.openTree},
 		{"deck", "filter context…", "filter the context page by kind, project, task or item text (f on the page)", func() tea.Cmd { m.openContext(); return m.openContextFilter() }},
 		{"deck", "prototypes", "try the picker prototypes for assign and filter (U)", func() tea.Cmd { m.openProtos(); return nil }},
 		{"deck", "context scope: current pane / all", "toggle the context page between the selected pane's items and all (t on the page)", func() tea.Cmd {

@@ -56,6 +56,7 @@ var actions = map[string][]Action{
 		{"new_terminal", "t", "open a shell", false},
 		{"prompt", "p", "send a prompt", false},
 		{"assign", "a", "assign the pane to a task or project", false},
+		{"tree", "w", "review and manage the selected pane's or group's whole task tree", false},
 		{"capture", "c", "capture the pane's screen", false},
 		{"extract", "i", "extract context from the pane", false},
 		{"snooze", "z", "snooze the selected pane's task until midnight", false},

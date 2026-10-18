@@ -28,6 +28,7 @@ const (
 	modeProto // a prototype picker is up
 	modePrompts
 	modeGlyph // the glyph table is up
+	modeTree  // the task tree modal is up
 )
 
 // confirmState is the question modeConfirm asks. Yes runs Then on the model
@@ -163,6 +164,7 @@ type Model struct {
 
 	pm         *promptModal // the prompt presets or queued prompts while open
 	glyph      *glyphTable  // the glyph table while open
+	tree       *treeModal   // the task tree modal, kept while a form it opened is up
 	pal        *palette     // the command palette while open
 	verbs      []verb       // the daemon's list-verbs, fetched on the first open
 	verbsBusy  bool
@@ -220,6 +222,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}()
 	defer m.autofillTaskProject()
+	defer m.reshowTree()
 	wasBuffer := m.focus != nil && !m.focus.clock.BufferUntil.IsZero()
 	switch msg.(type) {
 	case tea.KeyPressMsg, tea.PasteMsg, tea.MouseMsg:
