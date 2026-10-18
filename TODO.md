@@ -81,11 +81,11 @@ be used to walk up in the list of options
 
 ---
 
-- [ ] mass-add projects/tasks - tab and shift-tab should change indentation/nesting level
-- [ ] the filter and assign style modals absolutely suck to use.  let's make
+- [x] mass-add projects/tasks - tab and shift-tab should change indentation/nesting level
+- [x] the filter and assign style modals absolutely suck to use.  let's make
 many prototypes and a prototypes screen which i can go to and test the various
 versions
-- [ ] need a way to jump in list by group or nesting level probably `{` and `}`
+- [x] need a way to jump in list by group or nesting level probably `{` and `}`
 - [ ] using the glyph keybinding causes a panic
 - [ ] able to schedule recurring reminders , with terminal/os notificatoins
 - [ ] able to assign notes to projects/tasks. a parent and child inherit each other's notes
