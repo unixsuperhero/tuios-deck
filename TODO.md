@@ -2,7 +2,7 @@
 
 ## Priority
 
-- [ ] migrate data store to an sqlite db
+- [x] migrate data store to an sqlite db
 - [x] keybindings help has to be grouped better and searchable.  very hard to
 find things right now
 - [x] make md report open with mdoc of the components and modules that make
