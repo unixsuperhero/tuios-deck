@@ -104,6 +104,7 @@ written whole through a temp file and a rename.
 ```json
 {
   "vim_modes": true,
+  "stale_after": "45m",
   "keys": {
     "deck":        { "quit": "Z", "close": "w" },
     "form_normal": { "next_field": "n" },
@@ -111,6 +112,11 @@ written whole through a temp file and a rename.
   }
 }
 ```
+
+`stale_after` is how long a pane may go without activity before it is
+marked stale (a Go duration such as `45m` or `2h`; unset is `45m`, `0` turns
+the mark off). `deck config set stale_after 2h` changes it; `deck web` reads
+it at startup, `deck tui` at startup and when the settings form saves.
 
 `deck config path|show|get|set|init` reads and changes it from the shell;
 `deck config keys` lists every action with its default and current key, and
@@ -707,7 +713,23 @@ harness follows the state, dimmed, when the rail has room for it:
 ```
 
 A narrow rail drops the harness first, then cuts the task title, then the
-name. A pane assigned to nothing shows `!!!!`
+name.
+
+A pane with no activity for longer than `stale_after` (settings, default
+`45m`) is stale: its row shows a dim `⏾` and how long it has been idle
+before its state (`⏾ 2h idle`), and the detail's header says
+`stale · last activity 2h ago`. A pane's last activity is the newest of the
+agent's last reported state, the latest history entry for its window (a
+prompt, a turn end, a command started or finished, a window event), and
+when this deck first saw the pane, so a pane with no history is not stale
+the moment it appears. A pane that is working (an agent's turn, a running
+command) is never stale. The palette's `close stale panes…` lists every
+stale pane with its age on the right and closes them all on `y`; `n` keeps
+them. Nothing is ever closed on its own. `group by stale` puts the stale
+panes together. The web page marks the same panes and has a **Close stale**
+button that asks first.
+
+A pane assigned to nothing shows `!!!!`
 in place of the project, and its name, in bold black on red, so it stands
 out until `a` gives it a home.
 
@@ -833,8 +855,8 @@ signal that the pane printed.
 
 A grouping is a list of levels, outermost first, written `a > b > c`. The
 levels are session, project, task, parent task (the task's parent, or the
-task itself when it is top-level), top-level task, cwd, harness, state and
-kind (agents or terminals). `o` cycles the presets:
+task itself when it is top-level), top-level task, cwd, harness, state,
+kind (agents or terminals) and stale (stale or active, see below). `o` cycles the presets:
 
 ```
 session
@@ -848,6 +870,7 @@ cwd
 harness
 state
 kind
+stale
 none
 ```
 
