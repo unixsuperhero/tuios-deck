@@ -687,8 +687,8 @@ value, and `enter` takes it too unless what you typed is already one of the
 values.
 
 Task, project, parent and window fields (the assign forms, the new and edit
-task forms' `parent`, the context filter's project and task, the palette's
-`window` parameter) also preview the highlighted entry under the list: its path and
+task forms' `parent`, the context filter's project and task, the queue
+prompt form's task, project and pane, the palette's `window` parameter) also preview the highlighted entry under the list: its path and
 status or the pane's metadata, the live panes assigned to it (the task's own
 first, then needs-you ones, then agents), and the last six lines of the
 first one's output. A task with no live pane says so. The output is read in
@@ -855,6 +855,9 @@ of the datalist's entries: the same head and recent output as the TUI's,
 fetched from `/api/preview`; a newer value cancels the older request. The
 web page has no parent field, and its context filters are plain selects, so
 they have no preview; a dialog's buttons stay in view on a short window.
+The queue dialog's running-agent select previews too. A dialog's previews are
+cleared when it closes and read again from its actual fields when it opens, so
+a reopened dialog never shows the last one's preview.
 
 The `⌘` button, `ctrl+k` or `ctrl+p` open the command palette, with the
 same two categories as the TUI's; `ctrl+n` `ctrl+p` (or `↓` `↑`) move in

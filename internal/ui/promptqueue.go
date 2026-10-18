@@ -43,6 +43,15 @@ func (m *Model) findPaneLabel(text string) *panes.Pane {
 	return nil
 }
 
+// paneLabelPreview is the pane field's preview: the pane the label names.
+func (m *Model) paneLabelPreview(opt string) previewSpec {
+	p := m.findPaneLabel(opt)
+	if p == nil {
+		return previewSpec{}
+	}
+	return m.windowPreview("")(p.ID)
+}
+
 // queueTargetValues are the task and project field values for the row
 // selected on the tasks page, so queueing from there starts on that task.
 func (m *Model) queueTargetValues() (task, project string) {
@@ -69,8 +78,8 @@ func (m *Model) openQueueForm(edit *store.QueuedPrompt) tea.Cmd {
 		session = "deck"
 	}
 	fields := []field{
-		{Label: "task", Keep: true, Options: m.taskOptions, New: "task"},
-		{Label: "project", Keep: true, Options: m.projectOptions, New: "project"},
+		{Label: "task", Keep: true, Options: m.taskOptions, Preview: m.taskPreview, New: "task"},
+		{Label: "project", Keep: true, Options: m.projectOptions, Preview: m.projectPreview, New: "project"},
 	}
 	if edit == nil {
 		fields = append(fields, m.presetField("its prefix goes in front of the prompt now, once; its cwd is used when cwd is empty"))
@@ -79,7 +88,7 @@ func (m *Model) openQueueForm(edit *store.QueuedPrompt) tea.Cmd {
 		field{Label: "agent", Default: "claude", Hint: "started when the prompt runs, unless a pane is chosen"},
 		field{Label: "session", Default: session},
 		field{Label: "cwd", Keep: true, Hint: "where the agent starts; empty takes the preset's, else the selected pane's · ctrl+o chooses a folder"},
-		field{Label: "pane", Keep: true, Options: m.paneOptions, Hint: "send to this running agent instead of starting one; empty starts the agent"},
+		field{Label: "pane", Keep: true, Options: m.paneOptions, Preview: m.paneLabelPreview, Hint: "send to this running agent instead of starting one; empty starts the agent"},
 		field{Label: "prompt", Keep: true, Multi: true},
 	)
 	idx := map[string]int{}

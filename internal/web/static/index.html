@@ -749,8 +749,14 @@ function renderDatalists() {
 // the pane behind it under the field. A newer value aborts the older
 // request, so a slow answer never overwrites the current one.
 const PREVIEW_PARAM = { 'dl-tasks': 'task', 'dl-projects': 'project', 'dl-windows': 'window' };
+// previewKind is what a field previews: a list field by its datalist, a
+// select marked data-panes as a window.
+function previewKind(input) {
+  if (input.matches('select[data-panes]')) return 'window';
+  return PREVIEW_PARAM[input.getAttribute('list')];
+}
 function previewFor(input) {
-  const kind = PREVIEW_PARAM[input.getAttribute('list')];
+  const kind = previewKind(input);
   if (!kind) return;
   let box = input._preview;
   if (!box) {
@@ -760,13 +766,16 @@ function previewFor(input) {
   clearTimeout(input._pvTimer);
   if (input._pvAbort) input._pvAbort.abort();
   const v = input.value.trim();
-  const dl = $(input.getAttribute('list'));
-  const known = v && [...dl.options].some((o) => o.value.toLowerCase() === v.toLowerCase());
+  let known = !!v;
+  if (v && input.tagName !== 'SELECT') {
+    const dl = $(input.getAttribute('list'));
+    known = [...dl.options].some((o) => o.value.toLowerCase() === v.toLowerCase());
+  }
   if (!known) { box.replaceChildren(); return; }
   input._pvTimer = setTimeout(async () => {
     const ctl = input._pvAbort = new AbortController();
     let q = `${kind}=${enc(v)}`;
-    if (kind === 'window') {
+    if (kind === 'window' && input.tagName !== 'SELECT') {
       const sess = input.form && input.form.elements.session;
       if (sess && sess.value.trim()) q += `&session=${enc(sess.value.trim())}`;
     }
@@ -785,8 +794,22 @@ function previewFor(input) {
     } catch (e) { if (e.name !== 'AbortError') box.textContent = String(e.message || e); }
   }, 120);
 }
+// previewsSync re-reads every previewing field of a form from its actual
+// value: a form that was reset or filled by script fires no input event,
+// so an old preview would stay. Pending and in-flight requests of fields
+// that now hold nothing are aborted, so no late answer lands.
+function previewsClear(form) {
+  for (const input of form.querySelectorAll('input[list], select[data-panes]')) {
+    clearTimeout(input._pvTimer);
+    if (input._pvAbort) input._pvAbort.abort();
+    if (input._preview) input._preview.replaceChildren();
+  }
+}
+function previewsSync(form) {
+  for (const input of form.querySelectorAll('input[list], select[data-panes]')) previewFor(input);
+}
 document.addEventListener('input', (e) => { if (e.target.matches && e.target.matches('input[list]')) previewFor(e.target); });
-document.addEventListener('change', (e) => { if (e.target.matches && e.target.matches('input[list]')) previewFor(e.target); });
+document.addEventListener('change', (e) => { if (e.target.matches && e.target.matches('input[list], select[data-panes]')) previewFor(e.target); });
 
 // ---------------------------------------------------------------- pages
 function setPage(name, fromHash) {
@@ -964,8 +987,13 @@ function dialog(id, fill, validate) {
       const msg = validate(Object.fromEntries(new FormData(form)));
       if (msg) { e.preventDefault(); if (err) err.textContent = msg; }
     };
-    dlg.onclose = () => resolve(dlg.returnValue === 'ok' ? Object.fromEntries(new FormData(form)) : null);
+    dlg.onclose = () => {
+      const v = dlg.returnValue === 'ok' ? Object.fromEntries(new FormData(form)) : null;
+      previewsClear(form);
+      resolve(v);
+    };
     dlg.showModal();
+    previewsSync(form);
   });
 }
 // confirm asks in the page, never through the browser's own dialog.
