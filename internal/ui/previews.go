@@ -41,7 +41,7 @@ type previewState struct {
 	err   string
 }
 
-type previewMsg struct {
+type formPreviewMsg struct {
 	seq   int
 	key   string
 	lines []string
@@ -103,14 +103,14 @@ func (m *Model) previewCmd(tick bool) tea.Cmd {
 		defer cancel()
 		c, err := m.client.CapturePane(ctx, session, window, previewLines*4, false)
 		if err != nil {
-			return previewMsg{seq: seq, key: key, err: err}
+			return formPreviewMsg{seq: seq, key: key, err: err}
 		}
-		return previewMsg{seq: seq, key: key, lines: tailLines(c.Content, previewLines)}
+		return formPreviewMsg{seq: seq, key: key, lines: tailLines(c.Content, previewLines)}
 	}
 }
 
 // applyPreview keeps a capture only if it is for the entry still shown.
-func (m *Model) applyPreview(msg previewMsg) {
+func (m *Model) applyPreview(msg formPreviewMsg) {
 	pv := &m.previews
 	if msg.seq != pv.seq || msg.key != pv.key {
 		return

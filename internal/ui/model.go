@@ -199,7 +199,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		mm, cmd := m.handleKey(msg)
 		return mm, tea.Batch(cmd, m.previewCmd(false))
 
-	case previewMsg:
+	case formPreviewMsg:
 		m.applyPreview(msg)
 		return m, nil
 
