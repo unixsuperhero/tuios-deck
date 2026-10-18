@@ -152,7 +152,23 @@ instead of a horizontal list. `?` on a page and the palette’s
 the page that opened the palette.
 Tables show the current configured keys, action names and scopes. `tab` / `shift+tab` or
 left/right select another mode, including vim form normal/insert, all page-local
-keys, form editing, modal navigation, or all palette actions. In the actions
+keys, form editing, modal navigation, or all palette actions. A tab bar under
+the mode line names every mode; when they do not fit, it shows the current
+one and its neighbours with `…` for the rest. Within a tab, rows sit under a
+header per scope: keys for every page first, the deck page's motion keys
+together under `deck page, motion`, daemon verbs last and the rest
+alphabetically. The pages tab has one header per page, in page order, and a
+page's own tab lists that page's keys before the global ones.
+
+`/` searches every mode at once. Type on the query line at the bottom of the
+box; rows whose key, action or scope contain every word of the query
+(case-insensitive substrings) are listed under a header for the mode they
+come from. A row shared by several modes is listed once, under the first,
+and the per-page tabs are left out because the pages tab holds their rows.
+Up/down and PageUp/PageDown scroll the results while typing; `enter` keeps
+the filter so `j/k` and the other scroll keys work, and `/` edits it again.
+`esc` clears the query and returns to the tabs, as does `backspace` on an
+empty query; changing tabs clears it too. In the actions
 table, `u` limits the list to
 commands without direct shortcuts, including daemon verbs. Empty results
 in another mode mean every listed action has a binding; they do not disable
