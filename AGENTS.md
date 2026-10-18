@@ -34,7 +34,10 @@ internal/ui/         model.go state, keys.go dispatch, commands.go daemon calls 
                      form.go the form type and its keys, formbox.go the popover box and its key hints,
                      massadd.go the outline screen (A), assign.go the task/project fields and assignment,
                      tasks.go, captures.go and contextpage.go the other pages, contextactions.go copy/insert/open,
-                     turns.go the Turns tab, grouping.go the left rail's groupings, palette.go the command palette and the verb forms
+                     turns.go the Turns tab, grouping.go the left rail's groupings, palette.go the command palette and the verb forms,
+                     jump.go the { } ( ) group and level jumps for the rail, tasks, context and Turns,
+                     pickers.go the prototypes page (U), the picker interface and finish; picker_fuzzy/tree/hotkey/miller/chips.go
+                     one prototype each (fuzzy also draws the two-pane one), picker_preview.go the shared ? preview and its screen reads
 internal/web/        server.go routes (Handler), stream.go the WebSocket bridge to stream-pane, static/index.html the page
                      store.go the projects/tasks/assignments API, captures.go the captures API, verbs.go list-verbs and call,
                      context.go the context list/extract/patch/delete API, contextactions.go insert and open
@@ -181,6 +184,15 @@ Rules the suites follow, and a new check should too:
   extractor's `Unwrap` rejoins wrapped rows of the scrollback (a row as wide
   as the widest is taken to continue) before it searches them; history
   lines come as the daemon sends them. The real fix is in tuios.
+- **`send-keys` in the e2e suites sends several keys only as one quoted
+  argument**: `b send-keys ... 'Tab Tab BTab'`. Written as separate
+  arguments, nothing is sent and the check fails on a screen that never
+  changed.
+- **The picker prototypes are parallel implementations on purpose.** Each
+  `picker_*.go` sits behind the `picker` interface in `pickers.go` and
+  shares only `pickBase`, the targets and `picker_preview.go`. Do not factor them
+  together; once the person picks a winner the rest are deleted and the
+  winner replaces the assign and filter forms.
 - **Agents work in clones under `.dev/work/<name>`** (ignored, so the main
   tree's `go build ./...` never sees them), each on its own branch, and the
   coordinator fast-forwards `main` from them. Do not edit the main tree

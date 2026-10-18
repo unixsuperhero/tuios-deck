@@ -28,7 +28,7 @@ same panes you see in `tuios attach`.
 ▾ side                                      │ ■ turn ended
   ○ web  landing  helper                idle│
 captured to ~/.local/share/tuios-deck/captures/work-build-20261017-133455.txt
- j/k move · l main area · [/] or 1-4 tab · J/K scroll · G follow · o group · n agent · t term · p prompt · a assign · c capture · i context · x close · T tasks · C captures · I context · r refresh · q quit
+ j/k move · l main area · {/} group · (/) level · [/] or 1-4 tab · J/K scroll · G follow · o group · n agent · t term · p prompt · a assign · c capture · i context · x close · T tasks · C captures · I context · r refresh · q quit
 ```
 
 ## Install
@@ -240,7 +240,7 @@ With the rail focused:
 | --- | --- |
 | `j` `k` (`↓` `↑`), `g` | Select a pane, or the first one |
 | `{` `}` | The first pane of the previous or next group at the same depth; stops at the ends |
-| `(` `)` | With nested groups: `(` makes `{` `}` jump between the outer groups and selects the first pane of the one holding the selection; `)` steps back in |
+| `(` `)` | With nested groups: `(` makes `{` `}` jump between the outer groups and selects the first pane of the one holding the selection; `)` steps back in a level. The status line names the level `{` `}` now jump by |
 | `l` (`→`) | Focus the main area |
 | `1` `2` `3` `4`, `[` `]`, `tab` `shift+tab` | Screen, activity, transcript or turns of the selected pane |
 | `J` `K` (`ctrl+d` `ctrl+u`, `pgdown` `pgup`), `G` | Scroll the detail half a page; `G` follows the newest output again |
@@ -367,10 +367,11 @@ web
 A line with no indent is a project: an existing name is reused, a new one
 is created. Each further indent, two spaces or a tab, nests a task under
 the line above it, so `verb autocomplete` becomes a subtask of `command
-palette`. `tab` indents the line being typed by one level and `shift+tab`
-takes one level off it, so an outline can be typed without counting
-spaces; `shift+tab` on a line with no indent does nothing. A title already taken under the same parent is reused rather than
-added twice, which is how sub-items go under an existing task; a line with
+palette`. In this form `tab` indents the line being typed by one level
+(two spaces) and `shift+tab` takes one level off it, so an outline can be
+typed without counting spaces; `shift+tab` on a line with no indent does
+nothing, and neither key moves between fields here. A title already taken
+under the same parent is reused rather than added twice, which is how sub-items go under an existing task; a line with
 no indent may also name an existing task by its path, `deck / command
 palette`, to add under it. Blank lines and lines starting with `#` are
 skipped. `ctrl+s` checks the whole outline first: a line indented under
@@ -427,9 +428,12 @@ the real store and panes side by side. Each row names the prototype, what
 it drives and how it works; the right side lists its keys. `enter` runs it
 for real: an assign row assigns the pane selected on the deck page and
 reports it on the status line the way the assign form does, and a filter
-row filters the context page and goes there. `esc` cancels a prototype and
-leaves the page; `esc` on the page goes back to the deck. These will be
-consolidated into one picker once one wins.
+row filters the context page and goes there. The first six rows assign,
+the next five filter. While a prototype is up the help line names it, and
+`esc` (or `ctrl+c`, which works even where `esc` clears a filter first)
+cancels it and comes back to the page; `esc` on the page goes back to the
+deck. These are parallel takes on one job and will be consolidated into
+one picker once one wins.
 
 1. **Single fuzzy list**: one query line under a tall list of every target
    (`project`, `project / task`, `project / task / subtask`), ranked like
@@ -543,31 +547,43 @@ The bottom line names the keys of what has focus. On the deck page, rail
 focused:
 
 ```
- j/k move · l main area · [/] or 1-4 tab · J/K scroll · G follow · o group · n agent · t term · p prompt · a assign · c capture · i context · x close · T tasks · C captures · I context · r refresh · q quit
+ j/k move · l main area · {/} group · (/) level · [/] or 1-4 tab · J/K scroll · G follow · o group · n agent · t term · p prompt · a assign · c capture · i context · x close · T tasks · C captures · I context · r refresh · q quit
 ```
 
 Main area focused, and main area focused on the Turns tab:
 
 ```
  main area: h rail · j/k scroll · J/K half page · g top · G follow · [/] or 1-4 tab · p prompt · c capture · T tasks · C captures · q quit
- main area: h rail · j/k row · enter/space expand · y copy · g top · G newest · J/K half page · [/] or 1-4 tab · p prompt · T tasks · q quit
+ main area: h rail · j/k row · enter/space expand · y copy · {/} group · g top · G newest · J/K half page · [/] or 1-4 tab · p prompt · T tasks · q quit
 ```
 
 The tasks, captures, context and prototypes pages:
 
 ```
- j/k select · N project · n task/subtask · A add many · e edit · s status · m colour · M glyph · a assign pane · enter go to pane · x delete · esc deck · q quit
+ j/k select · {/} group · (/) level · N project · n task/subtask · A add many · e edit · s status · m colour · M glyph · a assign pane · enter go to pane · x delete · esc deck · q quit
  j/k select · J/K scroll · G follow · enter go to pane · x delete · r refresh · T tasks · esc deck · q quit
- j/k select · s sort · f filter · o/O group · * star · ! pin · a assign · y copy · enter insert · ^o open · w open with · x delete · esc deck · q quit
+ j/k select · {/} group · s sort · f filter · o/O group · * star · ! pin · a assign · y copy · enter insert · ^o open · w open with · x delete · esc deck · q quit
  j/k select · enter try it for real · T tasks · I context · esc deck · q quit
 ```
 
-A form, a confirmation and the palette:
+A form, a confirmation, the palette and a running prototype:
 
 ```
  <form title> · the keys are in the box · esc cancel
  enter/y confirm · n/esc cancel
  type to filter · ↑/↓ ctrl+p/n pick · enter run · tab complete · esc close
+ <assign <pane> | filter context> · <prototype> · the keys are in the box · ctrl+c cancel
+```
+
+Inside a prototype the box's last line names its keys:
+
+```
+type to filter · ctrl+n/ctrl+p move · enter pick · ? preview · esc cancel
+j/k move · l open · h close · / filter · enter pick · ? preview · esc cancel
+type to filter · ↓/↑ move · enter pick · ? preview · esc clear the filter
+1-9 pick · 0 more… · j/k and enter · esc cancel
+j/k move · l/h next/previous column · enter pick · ? preview · esc cancel
+/ or tab lock · backspace pops · ctrl+n/p move · enter pick · ? preview · esc cancel
 ```
 
 Inside a form box the bottom line follows the current field:
@@ -577,6 +593,7 @@ Inside a form box the bottom line follows the current field:
 6/6 · enter submit · tab default · shift+tab back · esc cancel
 2/6 · ctrl+n/ctrl+p pick · tab accept · enter accept or next · shift+tab back · esc cancel
 6/6 · enter newline · ctrl+s submit · @ a file · shift+tab back · esc cancel
+1/1 · enter newline · tab/shift+tab indent · ctrl+s submit · @ a file · esc cancel
 6/6 · ctrl+n/ctrl+p pick · tab or enter take the path, or open the folder · esc close the list
 ```
 
@@ -734,8 +751,9 @@ newest tag, or the newest commit on `main` while there are no tags.
 - `internal/autocapture`: the automatic captures at a turn's or a
   command's end.
 - `internal/ui`: the Bubble Tea model, keys, forms, daemon commands and
-  view, with the tasks, captures and context pages, the mass-add screen,
-  the Turns tab, the grouping of the list and the command palette.
+  view, with the tasks, captures, context and prototypes pages, the
+  mass-add screen, the Turns tab, the grouping of the list, the group
+  jumps and the command palette.
 - `internal/web`: the HTTP API, the event relay, the WebSocket bridge and
   the embedded page in `static/index.html`.
 - `internal/capture`: capture files, and the listing of the folder.
