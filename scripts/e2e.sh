@@ -513,6 +513,62 @@ wait_store '"hero text"' absent 10 && echo "PASS subtask gone from the store" ||
 deckcap 16-deleted
 check "selection fell back to the task" "$SCRATCH/out/16-deleted.txt" 'path *web › landing$'
 
+echo "== notes: added through the palette, seen by ancestors and descendants, not siblings"
+palette() { b send-text -s host -w deck ':'; settle; b send-text -s host -w deck "$1"; b send-keys -s host -w deck Enter >/dev/null; settle; }
+addnote() { palette 'add note'; b send-text -s host -w deck "$1"; b send-keys -s host -w deck ctrl+s >/dev/null; settle; }
+# Rows of the tasks page here: 0 deck, 1 command palette, 2 web, 3 landing, then landing's subtasks.
+goto_row() { b send-keys -s host -w deck g >/dev/null; [ "$1" -gt 0 ] && b send-keys -s host -w deck j --repeat "$1" >/dev/null; settle; }
+goto_row 3
+addnote 'tui-note-landing'; deckcap 16a-note-added
+check "add note names its target" "$SCRATCH/out/16a-note-added.txt" 'added a note to landing'
+check "task detail lists its own note" "$SCRATCH/out/16a-note-added.txt" 'tui-note-landing'
+goto_row 2
+addnote 'tui-note-web'; deckcap 16a2-project-note
+check "a project lists its own note" "$SCRATCH/out/16a2-project-note.txt" 'tui-note-web'
+check "and sees the task's note under it" "$SCRATCH/out/16a2-project-note.txt" 'under landing'
+goto_row 3; deckcap 16b-child-sees-project
+check "a task sees its project's note, marked with where it came from" "$SCRATCH/out/16b-child-sees-project.txt" 'from web'
+check "and the project's text" "$SCRATCH/out/16b-child-sees-project.txt" 'tui-note-web'
+b send-keys -s host -w deck n >/dev/null; settle; b send-text -s host -w deck 'kid'; b send-keys -s host -w deck Enter >/dev/null; settle
+addnote 'tui-note-kid'; deckcap 16b2-kid
+check "a subtask sees its parent's note" "$SCRATCH/out/16b2-kid.txt" 'tui-note-landing'
+goto_row 3; deckcap 16c-parent-sees-child
+check "a task sees its subtask's note" "$SCRATCH/out/16c-parent-sees-child.txt" 'tui-note-kid'
+check "marked as under the subtask" "$SCRATCH/out/16c-parent-sees-child.txt" 'under kid'
+goto_row 2; deckcap 16d-project-sees-all
+check "a project sees the notes of the tasks under it" "$SCRATCH/out/16d-project-sees-all.txt" 'tui-note-kid'
+goto_row 3
+b send-keys -s host -w deck n >/dev/null; settle; b send-text -s host -w deck 'sib'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 16e-sibling
+check "a new sibling sees the parent's note" "$SCRATCH/out/16e-sibling.txt" 'tui-note-landing'
+if grep -q 'tui-note-kid' "$SCRATCH/out/16e-sibling.txt"; then echo "FAIL sibling sees its sibling's note"; fails=$((fails+1)); else echo "PASS a sibling's note is not inherited"; fi
+palette 'edit note'; deckcap 16f-edit-none
+check "edit note refuses when the row has no note of its own" "$SCRATCH/out/16f-edit-none.txt" 'sib has no notes of its own'
+goto_row 4   # kid
+palette 'edit note'; deckcap 16g-edit-form
+check "edit note opens a form listing the row's own notes" "$SCRATCH/out/16g-edit-form.txt" 'edit note of kid'
+b send-keys -s host -w deck Enter >/dev/null; b send-text -s host -w deck 'tui-kid-edited'; b send-keys -s host -w deck ctrl+s >/dev/null; settle; deckcap 16h-edited
+check "edit reports the note" "$SCRATCH/out/16h-edited.txt" 'edited note n_'
+check "the new text shows" "$SCRATCH/out/16h-edited.txt" 'tui-kid-edited'
+wait_store 'tui-kid-edited' present 10 && echo "PASS the edit is in the store" || { echo "FAIL edit not in $DATA"; fails=$((fails+1)); }
+goto_row 3; deckcap 16i-parent-edited
+check "the parent sees the edited text" "$SCRATCH/out/16i-parent-edited.txt" 'tui-kid-edited'
+goto_row 4
+palette 'delete note'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 16j-deleted
+check "delete note reports" "$SCRATCH/out/16j-deleted.txt" 'deleted note n_'
+wait_store 'tui-kid-edited' absent 10 && echo "PASS the deleted note left the store" || { echo "FAIL note still in $DATA"; fails=$((fails+1)); }
+# deleting a task deletes its notes: give kid another, then remove kid and sib
+addnote 'tui-note-doomed'
+b send-keys -s host -w deck x >/dev/null; settle; b send-keys -s host -w deck y >/dev/null; settle
+wait_store 'tui-note-doomed' absent 10 && echo "PASS deleting a task deletes its notes" || { echo "FAIL task's note survived in $DATA"; fails=$((fails+1)); }
+goto_row 4   # sib
+b send-keys -s host -w deck x >/dev/null; settle; b send-keys -s host -w deck y >/dev/null; settle
+goto_row 3
+palette 'delete note'; b send-keys -s host -w deck Enter >/dev/null; settle
+goto_row 2
+palette 'delete note'; b send-keys -s host -w deck Enter >/dev/null; settle
+goto_row 3
+wait_store 'tui-note' absent 10 && echo "PASS every note deleted from the store" || { echo "FAIL notes left in $DATA"; fails=$((fails+1)); }
+
 echo "== a project's status cycles too"
 b send-keys -s host -w deck k >/dev/null; b send-keys -s host -w deck s >/dev/null; settle; deckcap 16b-project-done
 check "s marks the project done" "$SCRATCH/out/16b-project-done.txt" 'web is done'

@@ -58,6 +58,7 @@ type Store struct {
 	assignments map[string]Assignment
 	contexts    []ContextItem
 	reminders   []Reminder
+	notes       []Note
 }
 
 // file is the JSON shape on disk.
@@ -68,6 +69,7 @@ type file struct {
 	Assignments map[string]Assignment `json:"assignments"`
 	Contexts    []ContextItem         `json:"context_items"`
 	Reminders   []Reminder            `json:"reminders"`
+	Notes       []Note                `json:"notes"`
 }
 
 const version = 1
@@ -126,6 +128,7 @@ func Open(path string) (*Store, error) {
 	}
 	s.contexts = f.Contexts
 	s.reminders = f.Reminders
+	s.notes = f.Notes
 	return s, nil
 }
 
@@ -141,7 +144,7 @@ func (s *Store) Save() error {
 }
 
 func (s *Store) save() error {
-	f := file{Version: version, Projects: s.projects, Tasks: s.tasks, Assignments: s.assignments, Contexts: s.contexts, Reminders: s.reminders}
+	f := file{Version: version, Projects: s.projects, Tasks: s.tasks, Assignments: s.assignments, Contexts: s.contexts, Reminders: s.reminders, Notes: s.notes}
 	if f.Projects == nil {
 		f.Projects = []Project{}
 	}
@@ -153,6 +156,9 @@ func (s *Store) save() error {
 	}
 	if f.Reminders == nil {
 		f.Reminders = []Reminder{}
+	}
+	if f.Notes == nil {
+		f.Notes = []Note{}
 	}
 	data, err := json.MarshalIndent(f, "", "  ")
 	if err != nil {
@@ -190,7 +196,7 @@ func (s *Store) newID(prefix string) string {
 		b := make([]byte, 3)
 		rand.Read(b)
 		id := prefix + hex.EncodeToString(b)
-		if s.projectIndex(id) < 0 && s.taskIndex(id) < 0 && s.contextIndex(id) < 0 && s.reminderIndex(id) < 0 {
+		if s.projectIndex(id) < 0 && s.taskIndex(id) < 0 && s.contextIndex(id) < 0 && s.reminderIndex(id) < 0 && s.noteIndex(id) < 0 {
 			return id
 		}
 	}
@@ -302,6 +308,7 @@ func (s *Store) DeleteProject(id string) error {
 		}
 	}
 	s.removeTasks(gone)
+	s.removeNotes(func(n Note) bool { return n.ProjectID == id })
 	for w, a := range s.assignments {
 		if a.ProjectID == id {
 			delete(s.assignments, w)
@@ -483,6 +490,7 @@ func (s *Store) removeTasks(gone map[string]bool) {
 		}
 	}
 	s.tasks = kept
+	s.removeNotes(func(n Note) bool { return n.TaskID != "" && gone[n.TaskID] })
 	for w, a := range s.assignments {
 		if gone[a.TaskID] {
 			delete(s.assignments, w)

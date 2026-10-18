@@ -350,6 +350,13 @@ dialog .hint.err:empty { display: none; }
   <div class="actions"><button type="button" data-cancel>Cancel</button><button class="primary" value="ok" id="name-ok">Create</button></div>
 </form></dialog>
 
+<dialog id="dlg-note"><form method="dialog">
+  <h2 id="note-title">Note</h2>
+  <label>Text <textarea name="text" rows="6" required style="width:100%"></textarea></label>
+  <div class="hint err" data-err></div>
+  <div class="actions"><button type="button" data-cancel>Cancel</button><button class="primary" value="ok" id="note-ok">Save</button></div>
+</form></dialog>
+
 <dialog id="dlg-theme"><form method="dialog">
   <h2 id="theme-title">Theme</h2>
   <div class="row">
@@ -1133,7 +1140,64 @@ function renderTaskInfo() {
     li.append(d, name, st, go); ul2.append(li);
   }
   box.append(ul2);
+  renderNotes(box, kind, it.id);
   box.scrollTop = scroll;
+}
+// The notes a project or task sees come from the server, which knows the
+// ancestors and descendants; the last answer is drawn at once and replaced
+// when a fresh one arrives, so a refresh never blanks the section.
+state.notes = {};
+function renderNotes(box, kind, id) {
+  const key = `${kind}:${id}`;
+  const sec = document.createElement('div');
+  sec.id = 'notesbox';
+  box.append(sec);
+  const draw = (notes) => {
+    sec.replaceChildren();
+    const h = document.createElement('h3'); h.textContent = `Notes (${notes.length})`;
+    const add = document.createElement('button'); add.className = 'link'; add.textContent = ' + add note'; add.onclick = () => addNote(kind, id);
+    h.append(add); sec.append(h);
+    for (const n of notes) {
+      const d = document.createElement('div'); d.className = 'note';
+      const meta = document.createElement('div'); meta.className = 'state';
+      meta.textContent = `${n.id} · ${when(n.updated)} · ` + (n.relation === 'own' ? 'own' : n.relation === 'ancestor' ? `from ${n.owner}` : `under ${n.owner}`);
+      const text = document.createElement('div'); text.style.whiteSpace = 'pre-wrap'; text.textContent = n.text;
+      d.append(meta, text);
+      if (n.relation === 'own') {
+        const e = document.createElement('button'); e.className = 'link'; e.textContent = 'edit'; e.onclick = () => editNote(n);
+        const x = document.createElement('button'); x.className = 'link'; x.textContent = 'delete'; x.onclick = () => deleteNote(n);
+        d.append(e, document.createTextNode(' '), x);
+      }
+      sec.append(d);
+    }
+  };
+  draw(state.notes[key] || []);
+  api(`/api/notes?${kind}=${enc(id)}`).then((r) => {
+    state.notes[key] = r.notes || [];
+    if (sec.isConnected) draw(state.notes[key]);
+  }).catch(() => {});
+}
+async function addNote(kind, id) {
+  $('note-title').textContent = 'Add note';
+  const v = await dialog('dlg-note');
+  if (!v) return;
+  try { const r = await api('/api/notes', { method: 'POST', body: JSON.stringify({ [kind + '_id']: id, text: v.text }) }); setStatus(r.status); }
+  catch (e) { setStatus('error: ' + e.message, true); }
+  await refresh();
+}
+async function editNote(n) {
+  $('note-title').textContent = 'Edit note';
+  const v = await dialog('dlg-note', { text: n.text });
+  if (!v) return;
+  try { const r = await api(`/api/notes/${enc(n.id)}`, { method: 'PATCH', body: JSON.stringify({ text: v.text }) }); setStatus(r.status); }
+  catch (e) { setStatus('error: ' + e.message, true); }
+  await refresh();
+}
+async function deleteNote(n) {
+  if (!(await confirmDialog(`Delete note ${n.id}?`, n.text.slice(0, 80), 'Delete'))) return;
+  try { const r = await api(`/api/notes/${enc(n.id)}`, { method: 'DELETE' }); setStatus(r.status); }
+  catch (e) { setStatus('error: ' + e.message, true); }
+  await refresh();
 }
 async function newProject() {
   $('name-title').textContent = 'New project';

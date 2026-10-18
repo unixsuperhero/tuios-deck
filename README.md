@@ -198,6 +198,9 @@ through a temp file and a rename, so it can be read or copied at any time:
     { "id": "c_4d5e6f", "kind": "pr", "text": "https://github.com/unixsuperhero/tuios-deck/pull/12",
       "session": "work", "window": "98db8226-1829-468e-89a8-41a2baa0ddab", "pane": "reviewer",
       "project_id": "p_8f3a1c", "task_id": "t_1a2b3c", "starred": true, "pinned": false, "created": 1760000002 }
+  ],
+  "notes": [
+    { "id": "n_7a8b9c", "text": "ship after the palette lands", "task_id": "t_1a2b3c", "project_id": "", "created": 1760000003, "updated": 1760000003 }
   ]
 }
 ```
@@ -216,6 +219,23 @@ different `-data` files, or run one.
 Deleting a task takes its subtasks with it, deleting a project takes its
 tasks, and either takes the assignments that pointed at any of them. A
 context item that pointed at one keeps its place and loses the reference.
+Notes are the exception: they belong to their project or task and go with it.
+
+### Notes
+
+A note is free text on a project or a task (`notes` in the store: one of
+`task_id` and `project_id`). Notes are shared along the tree, not copied: a
+project or task sees its own notes, those of its ancestors (the task chain
+above it and its project) and those of its descendants (subtasks at any
+depth; a project sees every task's). Siblings and cousins are not related
+and do not see each other's notes. A note stores only its owner, so moving a
+task moves what it sees with it. Only a note's owner edits or deletes it;
+the tasks page detail lists the ones it sees, own first, an inherited one
+marked `from <owner>` or `under <owner>`. In the TUI, select a row on the
+tasks page and use the palette: `add note` (a multi-line form, `ctrl+s`
+saves), `edit note…` and `delete note…` (pick one of the row's own notes).
+On the web page the tasks page's detail has a Notes section with add, edit
+and delete.
 
 ## Context items
 
@@ -571,8 +591,9 @@ then the query anywhere in it, then its letters in order. `ctrl+n` `ctrl+p`
   assignment, new agent, new terminal, prompt, capture, close pane,
   refresh, go to deck, go to tasks, go to captures, go to context, prototypes, extract
   context from pane, group by each of the presets, group by… for any
-  levels, new project, new task, new subtask of…, add many…, delete
-  capture. Each does what its key does.
+  levels, new project, new task, new subtask of…, add many…, add note,
+  edit note…, delete note… (of the row selected on the tasks page),
+  delete capture. Each does what its key does.
 - `[tuios]`: every verb the daemon lists in `list-verbs`, asked for once per
   run, with its description. Picking one asks for its parameters in a form,
   required ones first, with the parameter's description as the hint and
@@ -790,6 +811,10 @@ GET    /api/tasks?project=                     {"tasks": [{id, parent_id, projec
 POST   /api/tasks                              {"project_id", "title"} for a top-level task; {"parent_id", "title"} for a subtask; "theme"?
 PATCH  /api/tasks/{id}                         {"title"}, {"status": "open"|"done"|"skipped"}, {"theme": {…}}; a move: {"parent_id"} or {"parent": path} under a task, {"project_id"} or {"project": name} to a project's top level
 DELETE /api/tasks/{id}                         with its subtasks and their assignments
+GET    /api/notes?task=ID | ?project=ID        {"notes": [{id, text, relation: own|ancestor|descendant, owner, task_id, project_id, created, updated}]}: every note that task or project sees
+POST   /api/notes                              {"task_id" | "project_id", "text"}
+PATCH  /api/notes/{id}                         {"text"}
+DELETE /api/notes/{id}                         remove the note
 GET    /api/assignments                        {window id: {session, task_id, project_id, resolved: {project, task, top}}}
 PUT    /api/panes/{session}/{id}/assignment    a target; names resolve the way the TUI's forms do
 DELETE /api/panes/{session}/{id}/assignment    drop it

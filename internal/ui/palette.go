@@ -363,6 +363,9 @@ func (m *Model) deckCommands() []palItem {
 		palItem{"deck", "new task", "add a top-level task; the project of the selected pane is offered", m.openNewTaskForm},
 		palItem{"deck", "new subtask of…", "add a subtask under a task", m.openSubtaskForm},
 		palItem{"deck", "add many…", "add projects, tasks and subtasks from an indented outline (A)", func() tea.Cmd { return m.openMassAdd("") }},
+		palItem{"deck", "add note", "add a note to the project or task selected on the tasks page", m.openAddNoteForm},
+		palItem{"deck", "edit note…", "replace the text of a note of the selected project or task", m.openEditNoteForm},
+		palItem{"deck", "delete note…", "delete a note of the selected project or task", m.openDeleteNoteForm},
 		palItem{"deck", "delete capture", "delete the capture selected on the captures page (x)", m.deleteSelectedCapture},
 	)
 }

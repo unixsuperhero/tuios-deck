@@ -267,6 +267,58 @@ curl -s "$base/api/context" > "$SCRATCH/out/ctx-after-delete.json"
 if grep -q "$LINK" "$SCRATCH/out/ctx-after-delete.json"; then echo "FAIL context item still listed"; fails=$((fails+1)); else echo "PASS context item is gone"; fi
 grep -q '"version": 1' "$SCRATCH/deck.json" && echo "PASS store written under the scratch folder" || { echo "FAIL store file"; fails=$((fails+1)); }
 
+echo "== notes: ancestors and descendants see each other, siblings do not"
+post() { curl -s -X POST -H "$J" -d "$2" "$base$1"; }
+NP=$(post /api/projects '{"name":"notesproj"}' | python3 -I -c 'import json,sys; print(json.load(sys.stdin)["project"]["id"])')
+tid() { python3 -I -c 'import json,sys; print(json.load(sys.stdin)["task"]["id"])'; }
+NA=$(post /api/tasks "{\"project_id\":\"$NP\",\"title\":\"na\"}" | tid)
+NA1=$(post /api/tasks "{\"parent_id\":\"$NA\",\"title\":\"na1\"}" | tid)
+NA2=$(post /api/tasks "{\"parent_id\":\"$NA\",\"title\":\"na2\"}" | tid)
+NB=$(post /api/tasks "{\"project_id\":\"$NP\",\"title\":\"nb\"}" | tid)
+post /api/notes "{\"project_id\":\"$NP\",\"text\":\"note-on-project\"}" > "$SCRATCH/out/note-p.json"
+check "POST note on a project" "$SCRATCH/out/note-p.json" '"status":"added note n_'
+N1=$(post /api/notes "{\"task_id\":\"$NA1\",\"text\":\"note-on-na1\"}" | field /dev/stdin note id 2>/dev/null || true)
+post /api/notes "{\"task_id\":\"$NA\",\"text\":\"note-on-na\"}" > /dev/null
+post /api/notes "{\"task_id\":\"$NA2\",\"text\":\"note-on-na2\"}" > /dev/null
+post /api/notes "{\"task_id\":\"$NB\",\"text\":\"note-on-nb\"}" > /dev/null
+post /api/notes "{\"task_id\":\"$NA\",\"project_id\":\"$NP\",\"text\":\"x\"}" > "$SCRATCH/out/note-both.json"
+check "a note on a task and a project is refused" "$SCRATCH/out/note-both.json" '"error"'
+curl -s "$base/api/notes?task=$NA1" > "$SCRATCH/out/notes-na1.json"
+check "child sees its own note" "$SCRATCH/out/notes-na1.json" 'note-on-na1'
+check "child sees its parent's note" "$SCRATCH/out/notes-na1.json" 'note-on-na"'
+check "child sees the project's note" "$SCRATCH/out/notes-na1.json" 'note-on-project'
+if grep -q 'note-on-na2\|note-on-nb' "$SCRATCH/out/notes-na1.json"; then echo "FAIL sibling note leaked into child"; fails=$((fails+1)); else echo "PASS siblings and cousins are not inherited"; fi
+curl -s "$base/api/notes?task=$NA" > "$SCRATCH/out/notes-na.json"
+check "parent sees a child's note" "$SCRATCH/out/notes-na.json" 'note-on-na1'
+check "parent sees the other child's note" "$SCRATCH/out/notes-na.json" 'note-on-na2'
+if grep -q 'note-on-nb' "$SCRATCH/out/notes-na.json"; then echo "FAIL other branch leaked into parent"; fails=$((fails+1)); else echo "PASS another top-level task's note is not seen"; fi
+[ "$(grep -o 'note-on-na1' "$SCRATCH/out/notes-na.json" | wc -l | tr -d ' ')" = 1 ] && echo "PASS a note is listed once, not duplicated" || { echo "FAIL duplicate note"; fails=$((fails+1)); }
+curl -s "$base/api/notes?project=$NP" > "$SCRATCH/out/notes-proj.json"
+check "project sees a task's note" "$SCRATCH/out/notes-proj.json" 'note-on-nb'
+N2=$(field "$SCRATCH/out/notes-na1.json" notes 0 id)
+[ "$(field "$SCRATCH/out/notes-na1.json" notes 0 text)" = note-on-na1 ] && echo "PASS own notes come first" || { echo "FAIL own notes come first"; fails=$((fails+1)); }
+curl -s -X PATCH -H "$J" -d '{"text":"edited-na1"}' "$base/api/notes/$N2" > "$SCRATCH/out/note-edit.json"
+check "PATCH note" "$SCRATCH/out/note-edit.json" '"status":"edited note '
+curl -s "$base/api/notes?task=$NA" > "$SCRATCH/out/notes-na-edited.json"
+check "edit shows on the parent" "$SCRATCH/out/notes-na-edited.json" 'edited-na1'
+grep -q 'edited-na1' "$SCRATCH/deck.json" && echo "PASS notes persisted in deck.json" || { echo "FAIL notes not persisted"; fails=$((fails+1)); }
+curl -s -X PATCH -H "$J" -d "{\"parent_id\":\"\",\"project_id\":\"$NP\"}" "$base/api/tasks/$NA2" > /dev/null
+curl -s "$base/api/notes?task=$NA" > "$SCRATCH/out/notes-na-moved.json"
+if grep -q 'note-on-na2' "$SCRATCH/out/notes-na-moved.json"; then echo "FAIL moved-away child's note still seen by old parent"; fails=$((fails+1)); else echo "PASS moving a task out takes its notes out of the old parent"; fi
+curl -s "$base/api/notes?task=$NA2" > "$SCRATCH/out/notes-na2-moved.json"
+check "moved task keeps its own note" "$SCRATCH/out/notes-na2-moved.json" 'note-on-na2'
+if grep -q 'note-on-na"\|edited-na1' "$SCRATCH/out/notes-na2-moved.json"; then echo "FAIL moved task still inherits old parent"; fails=$((fails+1)); else echo "PASS moved task no longer inherits the old parent's notes"; fi
+curl -s -X DELETE "$base/api/notes/$N2" > "$SCRATCH/out/note-delete.json"
+check "DELETE note" "$SCRATCH/out/note-delete.json" '"status":"deleted note '
+curl -s "$base/api/notes?task=$NA" > "$SCRATCH/out/notes-na-deleted.json"
+if grep -q 'edited-na1' "$SCRATCH/out/notes-na-deleted.json"; then echo "FAIL deleted note still seen"; fails=$((fails+1)); else echo "PASS deleted note gone from the parent too"; fi
+curl -s -X DELETE "$base/api/tasks/$NA" > /dev/null
+curl -s "$base/api/notes?project=$NP" > "$SCRATCH/out/notes-after-task.json"
+if grep -q 'note-on-na"\|note-on-na1' "$SCRATCH/out/notes-after-task.json"; then echo "FAIL deleted task kept notes"; fails=$((fails+1)); else echo "PASS deleting a task deletes its notes"; fi
+check "other notes survive" "$SCRATCH/out/notes-after-task.json" 'note-on-nb'
+curl -s -X DELETE "$base/api/projects/$NP" > /dev/null
+if grep -q 'note-on-' "$SCRATCH/deck.json"; then echo "FAIL project delete left notes"; fails=$((fails+1)); else echo "PASS deleting a project deletes all its notes"; fi
+
 echo "== new items take random colours from the unassigned pool"
 # Creates a project and tasks past the point where every colour is held.
 # The first N items, N the colours free beforehand, must all differ; a
