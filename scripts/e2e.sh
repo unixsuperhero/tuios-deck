@@ -178,6 +178,33 @@ b send-keys -s host -w deck ctrl+s >/dev/null; settle
 a call list-queued '{"session":"target","window":"fake"}' > "$SCRATCH/out/05c-queued.json"
 check "the queued text is the command and the @ reference, as typed" "$SCRATCH/out/05c-queued.json" '/e2e-cmd see @deck.json'
 a call cancel-queued '{"session":"target","window":"fake","all":true}' >/dev/null
+
+echo "== prompt line clearing is reversible"
+b send-keys -s host -w deck p >/dev/null; settle
+b send-text -s host -w deck $'\033[200~keep-first\nkeep-second\nrecover-café\033[201~'; settle
+b send-keys -s host -w deck ctrl+u >/dev/null; settle; deckcap 05-undo-cleared
+check "ctrl+u keeps the first prompt line" "$SCRATCH/out/05-undo-cleared.txt" 'keep-first'
+check "ctrl+u keeps the second prompt line" "$SCRATCH/out/05-undo-cleared.txt" 'keep-second'
+if grep -q 'recover-café' "$SCRATCH/out/05-undo-cleared.txt"; then echo "FAIL ctrl+u kept the last line"; fails=$((fails+1)); else echo "PASS ctrl+u clears only the last line"; fi
+b send-keys -s host -w deck 'ctrl+u ctrl+z' >/dev/null; settle; deckcap 05-undo-restored
+check "undo after repeated clear restores Unicode text" "$SCRATCH/out/05-undo-restored.txt" 'recover-café▏'
+b send-keys -s host -w deck ctrl+w >/dev/null; settle
+b send-keys -s host -w deck ctrl+z >/dev/null; settle; deckcap 05-undo-word
+check "undo restores a deleted word" "$SCRATCH/out/05-undo-word.txt" 'recover-café▏'
+b send-text -s host -w deck $'\033[200~\nextra-pasted-line\033[201~'; settle
+b send-keys -s host -w deck ctrl+z >/dev/null; settle; deckcap 05-undo-paste
+check "undo removes a whole paste and restores the draft" "$SCRATCH/out/05-undo-paste.txt" 'recover-café▏'
+if grep -q 'extra-pasted-line' "$SCRATCH/out/05-undo-paste.txt"; then echo "FAIL undo kept pasted text"; fails=$((fails+1)); else echo "PASS pasted text was undone"; fi
+b send-keys -s host -w deck 'shift+tab ctrl+z Enter' >/dev/null; settle
+b send-keys -s host -w deck ctrl+s >/dev/null; settle
+a call list-queued '{"session":"target","window":"fake"}' > "$SCRATCH/out/05-undo-queued.json"
+python3 - "$DATA" <<'PYUNDO' && echo "PASS recovered draft submits byte-for-byte after switching fields" || { echo "FAIL recovered draft differs"; fails=$((fails+1)); }
+import json, sys
+store = json.load(open(sys.argv[1]))
+prompts = [e["detail"].split("\n\n", 1)[1] for e in store["history"] if e["kind"] == "prompt-queued"]
+assert "keep-first\nkeep-second\nrecover-café" in prompts, prompts
+PYUNDO
+a call cancel-queued '{"session":"target","window":"fake","all":true}' >/dev/null
 a set-agent-state idle -s target -w fake --harness claude-code >/dev/null
 
 echo "== a path with spaces is written @\"path\" (Claude Code and OMP read the quoted form), never skipped"

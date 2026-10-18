@@ -52,11 +52,27 @@ type field struct {
 	// the status when it is final.
 	Known func(value string) []string
 
-	hl  int // the highlighted list entry plus one; 0 is none
-	at  int // the offset of the '@' being completed plus one; 0 is none
-	sl  int // the offset after the leading '/' being completed; 0 is none
-	pos int // an Outline field's cursor, a byte offset into Value
-	top int // the first of an Outline field's lines in sight
+	hl   int // the highlighted list entry plus one; 0 is none
+	at   int // the offset of the '@' being completed plus one; 0 is none
+	sl   int // the offset after the leading '/' being completed; 0 is none
+	pos  int // an Outline field's cursor, a byte offset into Value
+	top  int // the first of an Outline field's lines in sight
+	undo []fieldEdit
+}
+
+type fieldEdit struct {
+	value                string
+	hl, at, sl, pos, top int
+}
+
+func (f *field) editState() fieldEdit {
+	return fieldEdit{f.Value, f.hl, f.at, f.sl, f.pos, f.top}
+}
+
+func (f *field) remember(before fieldEdit) {
+	if f.Value != before.value {
+		f.undo = append(f.undo, before)
+	}
 }
 
 func (f field) result() string {
@@ -385,6 +401,16 @@ func (f *form) handleKey(msg tea.KeyPressMsg) (finished bool, cmd tea.Cmd) {
 	cur := &f.Fields[f.Cur]
 	f.Err = ""
 	key := msg.String()
+	if key == "ctrl+z" {
+		if n := len(cur.undo); n > 0 {
+			previous := cur.undo[n-1]
+			cur.undo[n-1] = fieldEdit{}
+			cur.undo = cur.undo[:n-1]
+			cur.Value, cur.hl, cur.at, cur.sl, cur.pos, cur.top = previous.value, previous.hl, previous.at, previous.sl, previous.pos, previous.top
+		}
+		return false, nil
+	}
+	defer cur.remember(cur.editState())
 	if f.OnKey != nil && f.OnKey(key) {
 		cmd, f.pending = f.pending, nil
 		return false, cmd
@@ -441,7 +467,7 @@ func (f *form) handleKey(msg tea.KeyPressMsg) (finished bool, cmd tea.Cmd) {
 	case "backspace":
 		cur.Value = dropLastGrapheme(cur.Value)
 	case "ctrl+u":
-		cur.Value = ""
+		cur.Value = cur.Value[:strings.LastIndex(cur.Value, "\n")+1]
 	case "ctrl+w":
 		cur.Value = strings.TrimRight(cur.Value, " ")
 		if i := strings.LastIndexAny(cur.Value, " \n"); i >= 0 {
@@ -506,6 +532,8 @@ func indentLast(v string, in bool) string {
 // paste adds text to the current field. A Multi field keeps its newlines;
 // any other field gets them as spaces.
 func (f *form) paste(text string) {
+	cur := &f.Fields[f.Cur]
+	defer cur.remember(cur.editState())
 	text = strings.ReplaceAll(text, "\r\n", "\n")
 	if !f.Fields[f.Cur].Multi {
 		text = strings.ReplaceAll(text, "\n", " ")

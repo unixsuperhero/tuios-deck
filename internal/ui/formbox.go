@@ -209,7 +209,7 @@ func (m *Model) formHelp() string { return m.vimFormHelp(m.formHelpPlain()) }
 func (m *Model) formHelpPlain() string {
 	f := m.form
 	cur := f.Fields[f.Cur]
-	pos := fmt.Sprintf("%d/%d", f.Cur+1, len(f.Fields))
+	pos := fmt.Sprintf("%d/%d · ctrl+z undo", f.Cur+1, len(f.Fields))
 	switch {
 	case cur.at > 0:
 		return pos + " · ctrl+n/ctrl+p pick · tab or enter take the path, or open the folder · esc close the list"

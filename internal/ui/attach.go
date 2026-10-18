@@ -78,6 +78,7 @@ func (m *Model) pickAttachments() tea.Cmd {
 // reference and is reported back.
 func (f *form) attach(paths []string) (skipped []string) {
 	cur := &f.Fields[f.Cur]
+	defer cur.remember(cur.editState())
 	for _, p := range paths {
 		if rel := relativeTo(f.root(), p); rel != "" {
 			p = rel

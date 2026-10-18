@@ -91,11 +91,12 @@ func (m *Model) vimFormKey(msg tea.KeyPressMsg) (tea.KeyPressMsg, bool) {
 			f.Cur--
 		}
 	case "D":
+		defer cur.remember(cur.editState())
 		cur.Value = ""
 		f.edited("")
 	case "enter":
 		return keyFromName("ctrl+s"), false
-	case "esc", "ctrl+c", "ctrl+s":
+	case "esc", "ctrl+c", "ctrl+s", "ctrl+z":
 		return msg, false
 	}
 	return msg, true

@@ -1009,7 +1009,9 @@ on the status line.
 | `shift+tab` `↑` | The previous field |
 | `tab` | Take the field's default when it is empty |
 | `ctrl+s` | Submit from any field |
-| `ctrl+u` `ctrl+w` | Clear the field, delete the last word |
+| `ctrl+u` | Clear the current line only; earlier prompt lines stay intact |
+| `ctrl+w` | Delete the last word |
+| `ctrl+z` | Undo the current field's last edit, including clearing, typing, completion or a paste; repeat to undo further |
 | `esc` | Cancel |
 
 A field with known values (tasks, projects, sessions, windows, option keys,
@@ -1045,6 +1047,9 @@ The prompt (`p`), the new agent's first prompt and the mass-add outline are
 multiline: `enter` starts a new line (the outline edits at a line cursor,
 see [Adding many at once](#adding-many-at-once); the others type at the end), `ctrl+s` (or `ctrl+enter` where the
 terminal reports it) submits, and a paste keeps its newlines.
+Undo history belongs to each field and lasts while the form is open; cancelling
+or submitting the form discards it. A repeated `ctrl+u` on an empty line does
+nothing and does not replace the edit you can undo.
 
 In a multiline field other than the outline `@` at the start of a word lists what is in the
 selected pane's cwd (the deck's own when no pane is selected): folders with
