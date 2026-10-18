@@ -337,6 +337,7 @@ func (m *Model) deckCommands() []palItem {
 		{"deck", "clear assignment", "drop the selected pane's task and project", needPane(func(p *panes.Pane) tea.Cmd { return m.assignPane(p.ID, p.Session, p.Name, "", "") })},
 		{"deck", "new agent", "start an agent in a new pane (n)", m.openAgentForm},
 		{"deck", "new terminal", "open a shell in a new pane (t)", m.openTerminalForm},
+		{"deck", "new editor", "open neovim or vim in a new shell pane of the active project (e)", m.openEditorForm},
 		{"deck", "prompt", "send a prompt or a line to the selected pane (p)", m.openPromptForm},
 		{"deck", "prompt presets…", "create, edit and delete prompt presets: a prefix and a cwd for prompts and new panes", m.openPresetModal},
 		{"deck", "queue prompt…", "keep a prompt for a task or a project, to start later from the queue", func() tea.Cmd { return m.openQueueForm(nil) }},

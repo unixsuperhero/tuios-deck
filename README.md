@@ -277,7 +277,7 @@ The palette has `active project or task…` and `clear active project`; the
 pair is kept in the store, so it survives a restart, and it is cleared when
 its project or task is deleted.
 
-The new agent (`n`), new terminal (`t`), queued-prompt and new editor (`v`)
+The new agent (`n`), new terminal (`t`), queued-prompt and new editor (`e`)
 forms start from the active pair: the task field holds the active task's
 path and the project field defaults to the active project (else to the
 selected pane's project), and an empty cwd starts the pane in the project's
@@ -765,13 +765,16 @@ grouping when it is not by session; on the context page, its sort, grouping and 
 ### The deck page
 
 Each pane's row in the left rail opens with its kind, a bold cyan `AI`
-for an agent or a dim `$` for a terminal, then carries its state dot, the
-first four letters of its project in the project's colour, its task's title
-in the task's colour, its name, and its state flush right. An agent's
-harness follows the state, dimmed, when the rail has room for it:
+for an agent, a bold green `vi` for a vim pane (a terminal whose
+foreground program is `nvim`, `vim` or `vi`) or a dim `$` for any other
+terminal, then carries its state dot, the first four letters of its
+project in the project's colour, its task's title in the task's colour, its
+name, and its state flush right. An agent's harness follows the state,
+dimmed, when the rail has room for it:
 
 ```
   AI ○ web  landing  helper      idle claude
+  vi · deck build    editor             nvim
   $  · deck build                       zsh
 ```
 
@@ -816,6 +819,7 @@ With the rail focused:
 | `o` `O` | Group the list the next way, or the previous one (below) |
 | `n` | Start an agent: session, agent command, name, cwd, task or project, first prompt. Waits until it is at its prompt. The task, project and cwd default to the active pair and its folder |
 | `t` | Open a terminal: session, name, cwd, task or project. Always an interactive shell, the pane tuios itself opens; send commands to it with `p`. Creates the session when it does not exist. Defaults like `n` |
+| `e` | Open an editor: session, name (empty takes the editor's), cwd, task or project, and the editor, `nvim`, `vim` or `vi` as found on `PATH`, `nvim` first. The pane is a shell like `t` opens; the deck waits for its prompt and types the editor's name into it, so the shell is back when the editor exits. Defaults like `n`, so with an active project the editor opens in its folder |
 | `p` | Send a prompt. An agent gets it through `queue-prompt`, typed when the agent is at rest; a plain terminal gets the text and Enter |
 | `a` | Assign the pane to a task or a project through the assign tree (below) |
 | `w` | The task tree modal for the selected pane or group header: its whole project, managed in place (below) |
@@ -920,7 +924,7 @@ signal that the pane printed.
 A grouping is a list of levels, outermost first, written `a > b > c`. The
 levels are session, project, task, parent task (the task's parent, or the
 task itself when it is top-level), top-level task, cwd, harness, state,
-kind (agents or terminals) and stale (stale or active, see below). `o` cycles the presets:
+kind (agents, vim or terminals) and stale (stale or active, see below). `o` cycles the presets:
 
 ```
 session

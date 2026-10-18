@@ -205,8 +205,11 @@ func (m *Model) groupKey(l level, p *panes.Pane, underProject bool) (key, label 
 		}
 		return "active", "active", nil
 	case lvKind:
-		if p.IsAgent {
+		switch {
+		case p.IsAgent:
 			return "agents", "agents", nil
+		case p.Vim:
+			return "vim", "vim", nil
 		}
 		return "terminals", "terminals", nil
 	}

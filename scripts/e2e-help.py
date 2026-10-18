@@ -84,7 +84,12 @@ try:
     assert "V" == next(line for line in text.splitlines() if "review:" in line).strip("│ ").split()[0]
     print("PASS help shows configured quit key", flush=True)
     assert "── all pages, not dialogs" in text
+    # The motion group starts past the first page; scroll a line at a time until its header is in sight.
     keys("PageDown")
+    for _ in range(40):
+        if "── deck page, motion" in run("B", "capture-pane", "-s", "host", "-w", "deck"):
+            break
+        keys("Down")
     screen("deck-motion", "── deck page, motion", previous=text)
     keys("Home")
     screen("deck-top", "── all pages, not dialogs")

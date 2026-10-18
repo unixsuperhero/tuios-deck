@@ -262,6 +262,8 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, m.openAgentForm()
 	case "t":
 		return m, m.openTerminalForm()
+	case "e":
+		return m, m.openEditorForm()
 	case "p":
 		return m, m.openPromptForm()
 	case "a":

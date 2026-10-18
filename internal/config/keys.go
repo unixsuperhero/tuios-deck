@@ -55,6 +55,7 @@ var actions = map[string][]Action{
 		{"sort_next", "s", "next sort of the rail panes", false},
 		{"new_agent", "n", "start an agent", false},
 		{"new_terminal", "t", "open a shell", false},
+		{"new_editor", "e", "open neovim (or vim) in a new shell pane of the active project", false},
 		{"prompt", "p", "send a prompt", false},
 		{"assign", "a", "assign the pane to a task or project", false},
 		{"tree", "w", "review and manage the selected pane's or group's whole task tree", false},

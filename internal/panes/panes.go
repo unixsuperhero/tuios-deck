@@ -27,11 +27,15 @@ type Pane struct {
 	Message   string `json:"message"`
 	BlockedBy string `json:"blocked_by"`
 	IsAgent   bool   `json:"is_agent"`
-	Ready     bool   `json:"ready"`
-	NeedsYou  bool   `json:"needs_you"`
-	Queued    int    `json:"queued"`
-	Unread    int    `json:"unread"`
-	Working   bool   `json:"working"`
+	// Vim says the pane's foreground program is an editor of the vi family
+	// (nvim, vim, vi): the rail tags it vi and the kind grouping puts it
+	// with the other editors.
+	Vim      bool `json:"is_vim"`
+	Ready    bool `json:"ready"`
+	NeedsYou bool `json:"needs_you"`
+	Queued   int  `json:"queued"`
+	Unread   int  `json:"unread"`
+	Working  bool `json:"working"`
 	// StateAt is when the agent last reported a state, from list-agents'
 	// agent_state_at (Unix nanoseconds); zero for a terminal.
 	StateAt int64 `json:"-"`
@@ -69,6 +73,7 @@ func List(ctx context.Context, c *daemon.Client) ([]Session, error) {
 				ID            string `json:"window_id"`
 				AtPrompt      *bool  `json:"at_prompt"`
 				MarksCommands bool   `json:"marks_commands"`
+				Cmdline       string `json:"running_cmdline"`
 			} `json:"windows"`
 		}
 		if err := c.Call(ctx, "list-windows", map[string]any{"session": out[i].Name}, &windows); err != nil {
@@ -82,6 +87,14 @@ func List(ctx context.Context, c *daemon.Client) ([]Session, error) {
 			for _, w := range windows.Windows {
 				if w.ID == p.ID {
 					p.Working = w.MarksCommands && w.AtPrompt != nil && !*w.AtPrompt
+					// The shell's command marks name the running program when the
+					// daemon reports no foreground; an editor shows as one either way.
+					if prog, _, _ := strings.Cut(strings.TrimSpace(w.Cmdline), " "); p.Working && IsEditor(prog) {
+						p.Vim = true
+						if p.Fg == "" {
+							p.Fg = prog
+						}
+					}
 					break
 				}
 			}
@@ -119,11 +132,31 @@ func Merge(sessions []daemon.Session, agents []daemon.Agent) []Session {
 			if p.Name == "" {
 				p.Name = ShortID(w.ID)
 			}
+			p.Vim = !p.IsAgent && IsEditor(p.Fg)
 			sess.Panes = append(sess.Panes, p)
 		}
 		out = append(out, sess)
 	}
 	return out
+}
+
+// Editors is the vi-family programs a pane counts as an editor for, in the
+// order the new editor form offers them.
+var Editors = []string{"nvim", "vim", "vi"}
+
+// IsEditor says whether a foreground command is one of Editors, by the
+// program's base name.
+func IsEditor(fg string) bool {
+	name := fg
+	if i := strings.LastIndex(name, "/"); i >= 0 {
+		name = name[i+1:]
+	}
+	for _, e := range Editors {
+		if name == e {
+			return true
+		}
+	}
+	return false
 }
 
 // Activity tells stale panes from active ones. It remembers when the deck

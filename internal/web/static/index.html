@@ -853,7 +853,7 @@ function groupKey(level, p, underProject) {
     case 'cwd': return [p.cwd || '', p.cwd || ''];
     case 'harness': return [p.harness || '', p.harness || ''];
     case 'state': return p.is_agent ? [p.state || '', p.state || ''] : ['terminal', 'terminal'];
-    case 'kind': return p.is_agent ? ['agent', 'agent'] : ['terminal', 'terminal'];
+    case 'kind': return p.is_agent ? ['agent', 'agent'] : p.is_vim ? ['vim', 'vim'] : ['terminal', 'terminal'];
     case 'stale': return p.stale ? ['stale', 'stale'] : ['active', 'active'];
     default: return [p.session, p.session];
   }
@@ -1023,11 +1023,12 @@ function renderList() {
     const dot = p.is_agent ? (DOTS[p.state] || '?') : '·';
     let st = p.is_agent ? p.state : (p.foreground || '');
     if (p.queued) st += ` +${p.queued}`;
-    // The kind leads the row: AI for an agent, $ for a terminal.
+    // The kind leads the row: AI for an agent, vi for a vi-family editor, $ for a terminal.
     el.innerHTML = `<span class="kind"></span><span class="dot"></span><span class="name"></span><span class="state"></span>`;
-    el.children[0].textContent = p.is_agent ? 'AI' : '$';
+    const kind = p.is_agent ? 'agent' : p.is_vim ? 'vim' : 'terminal';
+    el.children[0].textContent = p.is_agent ? 'AI' : p.is_vim ? 'vi' : '$';
     el.children[0].className = 'kind ' + (p.is_agent ? 'kind-agent' : 'kind-terminal');
-    el.children[0].title = p.is_agent ? 'agent' : 'terminal';
+    el.children[0].title = kind;
     el.children[1].textContent = dot; el.children[1].className = 'dot s-' + (p.is_agent ? p.state : 'none');
     const name = el.children[2];
     // The project's first four letters and the task title lead the

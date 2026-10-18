@@ -258,12 +258,15 @@ func (m *Model) listLines(width, height int) []string {
 	return lines
 }
 
-// Every pane row opens with its kind: AI for an agent, $ for a terminal.
-// Both are two columns wide so the rows stay lined up.
+// Every pane row opens with its kind: AI for an agent, vi for a pane
+// running an editor of the vi family, $ for a terminal. All are two
+// columns wide so the rows stay lined up.
 var (
 	kindAgent    = "AI"
+	kindVim      = "vi"
 	kindTerminal = "$ "
 	cKindAgent   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("6"))
+	cKindVim     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("2"))
 )
 
 // paneRow is a pane's line in the rail, indented by its depth: its kind
@@ -281,8 +284,11 @@ func (m *Model) paneRow(p *panes.Pane, dot, state string, depth, width int, sel 
 		chip, chipStyle, task, taskStyle, nameStyle = a.chip, a.chipStyle, a.task, a.taskStyle, plain
 	}
 	kind, kindStyle := kindTerminal, cDim
-	if p.IsAgent {
+	switch {
+	case p.IsAgent:
 		kind, kindStyle = kindAgent, cKindAgent
+	case p.Vim:
+		kind, kindStyle = kindVim, cKindVim
 	}
 	indent := strings.Repeat("  ", max(depth, 1))
 	lead := len(indent) + 10 // the indent, the kind, " ", the dot, " ", the chip, " "

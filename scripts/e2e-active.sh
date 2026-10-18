@@ -159,6 +159,20 @@ key 't i'; settle; deckcap 06d-fresh-hint
 check "a new terminal defaults to the new project" "$SCRATCH/out/06d-fresh-hint.txt" '  project: fresh'
 cancel_form
 
+echo "== e opens an editor in a shell pane of the active project; the rail tags it vi"
+key e; settle; deckcap 06e-editor-form
+check "e opens the new editor form" "$SCRATCH/out/06e-editor-form.txt" '╭─ new editor'
+check "the editor form defaults to the active project" "$SCRATCH/out/06e-editor-form.txt" '  project: fresh'
+key e; key ctrl+u; text 'vi'; key ctrl+s; settle   # e: the editor field's hotkey, into input mode there; vi is on every PATH
+a wait-for window-output -s target -w vi --pattern '.' --timeout 10000 >/dev/null 2>&1 || true
+wait_deck '^  vi . fres' 15 && echo "PASS the rail tags the pane vi" || { echo "FAIL no vi row in the rail"; fails=$((fails+1)); }
+deckcap 06f-vi-row
+a list-windows -s target --json > "$SCRATCH/out/windows-vi.json"
+check "the pane is named after the editor" "$SCRATCH/out/windows-vi.json" '"vi"'
+vicwd=$(python3 -c 'import json,sys; print([w.get("cwd","") for w in json.load(open(sys.argv[1]))["windows"] if w["title"]=="vi"][0])' "$SCRATCH/out/windows-vi.json")
+[ "$vicwd" = "$FRESH" ] && echo "PASS the editor opened in the active project's repo" || { echo "FAIL the editor's cwd is '$vicwd', not $FRESH"; fails=$((fails+1)); }
+check "the shell's command marks name the editor as the running command" "$SCRATCH/out/windows-vi.json" '"running_cmdline": *"vi"'
+
 echo "== a worktree without a repo is refused; clearing the active pair"
 text 'T'; settle; key g; settle; key j; settle   # the second row: fresh? rows sort by name: deck, fresh, web
 key G; settle; key 'e w'; text "$WT"; key ctrl+s; settle; deckcap 07-refused   # w: the worktree field's hotkey
