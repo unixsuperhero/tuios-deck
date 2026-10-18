@@ -3,6 +3,7 @@ package store
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -24,28 +25,33 @@ type Reminder struct {
 // MinInterval is the shortest repeat, in seconds.
 const MinInterval = 1
 
+var dayPrefix = regexp.MustCompile(`^(\d+(?:\.\d+)?)d(.*)$`)
+
 // ParseInterval reads "90s", "30m", "2h", "1d" or a Go duration such as
 // "1h30m". A bare number is minutes.
 func ParseInterval(s string) (int64, error) {
 	s = strings.TrimSpace(strings.ToLower(s))
+	orig := s
 	if s == "" {
 		return 0, errors.New("interval is empty")
 	}
 	if _, err := strconv.ParseInt(s, 10, 64); err == nil {
 		s += "m"
 	}
+	// Days are not a Go unit: take a leading "Nd" apart, so what
+	// FormatInterval writes ("1d2h3m") reads back.
 	var d time.Duration
-	if strings.HasSuffix(s, "d") {
-		n, err := strconv.ParseFloat(strings.TrimSuffix(s, "d"), 64)
-		if err != nil {
-			return 0, fmt.Errorf("interval %q is not a duration like 30m, 2h or 1d", s)
-		}
+	if m := dayPrefix.FindStringSubmatch(s); m != nil {
+		n, _ := strconv.ParseFloat(m[1], 64)
 		d = time.Duration(n * float64(24*time.Hour))
-	} else {
-		var err error
-		if d, err = time.ParseDuration(s); err != nil {
-			return 0, fmt.Errorf("interval %q is not a duration like 30m, 2h or 1d", s)
+		s = m[2]
+	}
+	if s != "" {
+		rest, err := time.ParseDuration(s)
+		if err != nil {
+			return 0, fmt.Errorf("interval %q is not a duration like 30m, 2h or 1d", orig)
 		}
+		d += rest
 	}
 	if d < MinInterval*time.Second {
 		return 0, errors.New("interval must be at least 1s")

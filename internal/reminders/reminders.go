@@ -50,15 +50,20 @@ func deliver(ctx context.Context, client *daemon.Client, r store.Reminder, os bo
 	if text == "" {
 		text = r.Title
 	}
-	cctx, cancel := context.WithTimeout(ctx, callTimeout)
-	defer cancel()
-	if err := client.Notice(cctx, "", "reminder: "+r.Title, text); err != nil {
+	// Each delivery gets its own deadline, so a daemon that hangs cannot
+	// leave the OS notification without time.
+	nctx, cancel := context.WithTimeout(ctx, callTimeout)
+	err := client.Notice(nctx, "", "reminder: "+r.Title, text)
+	cancel()
+	if err != nil {
 		log("reminder " + r.Title + ": notice: " + err.Error())
 	} else {
 		log("reminder " + r.Title + ": delivered")
 	}
 	if os {
-		if err := osNotify(cctx, r.Title, text); err != nil {
+		octx, cancel := context.WithTimeout(ctx, callTimeout)
+		defer cancel()
+		if err := osNotify(octx, r.Title, text); err != nil {
 			log("reminder " + r.Title + ": os notification: " + err.Error())
 		}
 	}

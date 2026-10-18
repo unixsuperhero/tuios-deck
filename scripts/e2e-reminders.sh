@@ -141,7 +141,6 @@ PY
 mark=$(notices 'web ping')
 startweb
 next_notice 10000
-a wait-for agent-message -s target --timeout 1500 >/dev/null 2>&1
 ok "exactly one catch-up notice, not one per missed interval" test "$(( $(notices 'web ping') - mark ))" -eq 1
 curl -s "$base/api/reminders" > "$SCRATCH/out/w6.json"
 ok "next due moved into the future" python3 -c 'import json,sys,time; r={x["id"]:x for x in json.load(open(sys.argv[1]))["reminders"]}; sys.exit(0 if r[sys.argv[2]]["next"]>time.time()-1 else 1)' "$SCRATCH/out/w6.json" "$id"
@@ -149,5 +148,40 @@ curl -s -X DELETE "$base/api/reminders/$id" > "$SCRATCH/out/w7.json"
 check "delete via API" "$SCRATCH/out/w7.json" 'deleted'
 curl -s "$base/api/reminders" > "$SCRATCH/out/w8.json"
 if grep -q "web ping" "$SCRATCH/out/w8.json"; then echo "FAIL deleted reminder still listed"; fails=$((fails+1)); else echo "PASS deleted reminder is gone"; fi
+echo "== an interval with days and hours round-trips through edit"
+curl -s -X POST -H "$J" "$base/api/reminders" -d '{"title":"mixed","every":"1d2h3m4s"}' > "$SCRATCH/out/w9.json"
+check "created with a mixed interval" "$SCRATCH/out/w9.json" '"every":"1d2h3m4s"'
+mid=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["reminder"]["id"])' "$SCRATCH/out/w9.json")
+curl -s -X PATCH -H "$J" "$base/api/reminders/$mid" -d '{"title":"mixed2","every":"1d2h3m4s"}' > "$SCRATCH/out/w10.json"
+check "editing with the displayed interval unchanged succeeds" "$SCRATCH/out/w10.json" '"every":"1d2h3m4s"'
+curl -s -X PATCH -H "$J" "$base/api/reminders/$mid" -d '{"every":"1d12h"}' > "$SCRATCH/out/w11.json"
+check "days with hours are accepted as typed" "$SCRATCH/out/w11.json" '"interval":129600'
+curl -s -X DELETE "$base/api/reminders/$mid" > /dev/null
 kill "$webpid"; wait "$webpid" 2>/dev/null; webpid=
+echo "== a daemon that never answers does not stop the OS notification"
+# A unix socket that accepts and stays silent stands in for a hung daemon; no
+# real session is involved. The notice call runs out its own 10s deadline and
+# the OS notifier must still be called after it.
+HUNG="$SCRATCH/hung.sock"
+python3 - "$HUNG" <<'PY' &
+import socket, sys, os, time
+s = socket.socket(socket.AF_UNIX); s.bind(sys.argv[1]); s.listen(8)
+conns = []
+while True:
+    c, _ = s.accept(); conns.append(c)
+PY
+hungpid=$!
+for i in $(seq 20); do [ -S "$HUNG" ] && break; sleep 0.2; done
+: > "$SCRATCH/os-args.txt"; HUNGDATA="$SCRATCH/hung.json"
+cat > "$HUNGDATA" <<JSON
+{"version":1,"projects":[],"tasks":[],"assignments":{},"context_items":[],"reminders":[{"id":"r_hung01","title":"hung ping","message":"daemon is silent","interval":3600,"enabled":true,"next":$(( $(date +%s) - 1 )),"last":0,"created":1760000000}]}
+JSON
+(unset TUIOS_ENV TUIOS_SESSION TUIOS_PANE_ID TUIOS_PANE_TOKEN TUIOS_SOCKET; export TUIOS_DECK_DATA="$HUNGDATA" PATH="$SCRATCH/bin:$PATH"; exec "$DECK" web --listen "127.0.0.1:$((PORT+1))" --socket "$HUNG" --auto-capture=false --captures "$SCRATCH/captures" > "$SCRATCH/out/hung.log" 2>&1) &
+webpid=$!
+got=no
+for i in $(seq 25); do grep -qxF 'daemon is silent' "$SCRATCH/os-args.txt" && { got=yes; break; }; sleep 1; done
+ok "OS notifier ran although the daemon call timed out" test "$got" = yes
+for i in $(seq 5); do grep -q 'notice:' "$SCRATCH/out/hung.log" && break; sleep 1; done
+check "the failed notice was logged" "$SCRATCH/out/hung.log" 'hung ping: notice:'
+kill "$webpid" "$hungpid" 2>/dev/null; wait 2>/dev/null; webpid=
 exit "$fails"
