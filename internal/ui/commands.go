@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -195,6 +197,18 @@ func (m *Model) presence() tea.Cmd {
 	}
 }
 
+// readyTimeout is how long start-agent waits for the agent's prompt, in
+// milliseconds, from TUIOS_DECK_READY_TIMEOUT. Unset or invalid takes the
+// daemon's two-minute default; the e2e suite sets it so a program that never
+// shows a prompt reports in seconds, not minutes.
+func readyTimeout() int {
+	n, err := strconv.Atoi(os.Getenv("TUIOS_DECK_READY_TIMEOUT"))
+	if err != nil || n <= 0 {
+		return 0
+	}
+	return n
+}
+
 // startAgent opens an agent pane and, once the daemon names the window,
 // assigns it to the task or project the form gave.
 func (m *Model) startAgent(session, agent, name, cwd, prompt, taskID, projectID string) tea.Cmd {
@@ -204,6 +218,7 @@ func (m *Model) startAgent(session, agent, name, cwd, prompt, taskID, projectID 
 		defer cancel()
 		res, err := m.client.StartAgent(ctx, daemon.StartAgentParams{
 			Session: session, Agent: agent, Name: name, Cwd: cwd, Prompt: prompt,
+			ReadyTimeout: readyTimeout(),
 		})
 		if err != nil {
 			return actionMsg{err: err}

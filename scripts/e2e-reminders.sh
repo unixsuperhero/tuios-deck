@@ -39,7 +39,7 @@ ok() { # name, command...
 	local n=$1; shift
 	if "$@"; then echo "PASS $n"; else echo "FAIL $n"; fails=$((fails+1)); fi
 }
-settle() { b wait-for window-idle -s host -w deck --idle 700 --timeout 10000 >/dev/null; }
+settle() { b wait-for window-idle -s host -w deck --idle 200 --timeout 10000 >/dev/null; }
 deckcap() { b capture-pane -s host -w deck > "$SCRATCH/out/$1.txt"; }
 # notices counts the reminder notices in the session's ring.
 notices() { a read-agent-messages -s target 2>/dev/null | grep -c "^subject: reminder: $1\$"; }
@@ -179,9 +179,9 @@ JSON
 (unset TUIOS_ENV TUIOS_SESSION TUIOS_PANE_ID TUIOS_PANE_TOKEN TUIOS_SOCKET; export TUIOS_DECK_DATA="$HUNGDATA" PATH="$SCRATCH/bin:$PATH"; exec "$DECK" web --listen "127.0.0.1:$((PORT+1))" --socket "$HUNG" --auto-capture=false --captures "$SCRATCH/captures" > "$SCRATCH/out/hung.log" 2>&1) &
 webpid=$!
 got=no
-for i in $(seq 25); do grep -qxF 'daemon is silent' "$SCRATCH/os-args.txt" && { got=yes; break; }; sleep 1; done
+for i in $(seq 125); do grep -qxF 'daemon is silent' "$SCRATCH/os-args.txt" && { got=yes; break; }; sleep .2; done
 ok "OS notifier ran although the daemon call timed out" test "$got" = yes
-for i in $(seq 5); do grep -q 'notice:' "$SCRATCH/out/hung.log" && break; sleep 1; done
+for i in $(seq 25); do grep -q 'notice:' "$SCRATCH/out/hung.log" && break; sleep .2; done
 check "the failed notice was logged" "$SCRATCH/out/hung.log" 'hung ping: notice:'
 kill "$webpid" "$hungpid" 2>/dev/null; wait 2>/dev/null; webpid=
 exit "$fails"

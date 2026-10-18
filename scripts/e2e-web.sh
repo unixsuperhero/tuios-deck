@@ -301,10 +301,10 @@ a set-agent-state working -s target -w fake >/dev/null
 a wait-for agent-state -s target -w fake --until working --timeout 10000 >/dev/null
 a set-agent-state idle -s target -w fake -m "fake agent at rest" >/dev/null
 # The deck writes the file itself, so poll the API; there is no daemon condition.
-for i in $(seq 1 15); do
+for i in $(seq 1 75); do
 	curl -s "$base/api/captures" > "$SCRATCH/out/captures-auto.json"
 	grep -q '"name":"target-fake-[0-9-]*-turn.txt"' "$SCRATCH/out/captures-auto.json" && break
-	sleep 1
+	sleep .2
 done
 check "a turn end listed a target-fake turn capture" "$SCRATCH/out/captures-auto.json" '"name":"target-fake-[0-9-]*-turn.txt"'
 check "the turn capture's kind is turn" "$SCRATCH/out/captures-auto.json" '"session":"target","pane":"fake","kind":"turn"'

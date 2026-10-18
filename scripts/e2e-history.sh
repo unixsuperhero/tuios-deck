@@ -117,7 +117,7 @@ wait_deck 'tuios-deck'
 b send-text -s host -w deck H
 wait_deck 'History ·'
 b send-keys -s host -w deck G >/dev/null
-b wait-for window-idle -s host -w deck --idle 700 --timeout 10000 >/dev/null
+b wait-for window-idle -s host -w deck --idle 200 --timeout 10000 >/dev/null
 b capture-pane -s host -w deck > "$SCRATCH/out/tui-before.txt"
 activity idle turn_end 'TUI-new-response'
 wait_deck 'TUI-new'

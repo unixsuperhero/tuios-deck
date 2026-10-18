@@ -24,7 +24,7 @@ trap cleanup EXIT
 keys() { b send-keys -s host -w deck "$1" >/dev/null; settle; }
 text() { b send-text -s host -w deck "$1" >/dev/null; settle; }
 paste() { text $'\033[200~'"$1"$'\033[201~'; }
-settle() { b wait-for window-idle -s host -w deck --idle 700 --timeout 10000 >/dev/null; }
+settle() { b wait-for window-idle -s host -w deck --idle 200 --timeout 10000 >/dev/null; }
 cap() { b capture-pane -s host -w deck > "$SCRATCH/out/$1.txt"; }
 check() { grep -Fq -- "$2" "$SCRATCH/out/$1.txt" || { echo "FAIL $1: missing $2"; exit 1; }; echo "PASS $1: $2"; }
 absent() { if grep -Fq -- "$2" "$SCRATCH/out/$1.txt"; then echo "FAIL $1: unexpected $2"; exit 1; fi; echo "PASS $1: absent $2"; }

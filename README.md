@@ -1352,6 +1352,7 @@ It uses `SCRATCH` and `PORT` (default 18963).
 
 ```sh
 go build -o .dev/deck ./cmd/deck
+scripts/e2e-all.sh                                        # every suite at once, one line each
 scripts/e2e.sh && scripts/e2e-web.sh && scripts/e2e-setup.sh
 scripts/e2e-prompt-stash.sh
 SCRATCH=/tmp/deck-e2e-mine PORT=18799 scripts/e2e-web.sh   # a second run beside the first

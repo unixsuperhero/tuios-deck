@@ -57,7 +57,7 @@ def stage(name, ok, detail=""):
 
 
 def settle():
-    run("B", "wait-for", "window-idle", "-s", "host", "-w", "deck", "--idle", "700", "--timeout", "8000")
+    run("B", "wait-for", "window-idle", "-s", "host", "-w", "deck", "--idle", "200", "--timeout", "8000")
 
 
 def deck_screen(tag):

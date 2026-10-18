@@ -43,21 +43,24 @@ select_pane() { b send-keys -s host -w deck g >/dev/null; [ "$1" -gt 0 ] && b se
 # read the alternate screen the deck draws on.
 wait_deck() { # pattern, seconds
 	local i
-	for ((i=0; i<$2; i++)); do
+	for ((i=0; i<$2*5; i++)); do
 		if b capture-pane -s host -w deck 2>/dev/null | grep -q -- "$1"; then return 0; fi
-		sleep 1
+		sleep .2
 	done
 	return 1
 }
-settle() { b wait-for window-idle -s host -w deck --idle 700 --timeout 10000 >/dev/null; }
+# The deck redraws within milliseconds of a key and a daemon round trip is
+# ~20 ms, so 200 ms of silence is the screen at rest. 700 ms here once cost
+# 277 of the suite's 423 seconds, since the wait always runs its full window.
+settle() { b wait-for window-idle -s host -w deck --idle 200 --timeout 10000 >/dev/null; }
 window_id() { a list-windows -s target --json | python3 -c 'import json,sys; print([w["window_id"] for w in json.load(sys.stdin)["windows"] if w["title"]==sys.argv[1]][0])' "$1"; }
 # Polls the store file, which the deck writes itself after a listing, so
 # there is no daemon condition to wait on.
 wait_store() { # pattern, present|absent, seconds
 	local i
-	for ((i=0; i<$3; i++)); do
+	for ((i=0; i<$3*5; i++)); do
 		if grep -q -- "$1" "$DATA"; then [ "$2" = present ] && return 0; else [ "$2" = absent ] && return 0; fi
-		sleep 1
+		sleep .2
 	done
 	return 1
 }
@@ -98,7 +101,9 @@ mkdir -p "$SCRATCH/bin"
 for t in pbcopy wl-copy xclip; do printf '#!/bin/sh\ncat > "%s/clipboard.txt"\n' "$SCRATCH" > "$SCRATCH/bin/$t"; done
 for t in open xdg-open; do printf '#!/bin/sh\necho "$@" >> "%s/opened.txt"\n' "$SCRATCH" > "$SCRATCH/bin/$t"; done
 chmod +x "$SCRATCH"/bin/*
-b new-window -s host deck --no-focus -- env PATH="$SCRATCH/bin:$PATH" TUIOS_DECK_DATA="$DATA" "$DECK" tui --socket "$ASOCK" --captures "$SCRATCH/captures" >/dev/null
+# TUIOS_DECK_READY_TIMEOUT: the agent the form starts below is a sleep, which
+# never shows a prompt; without it the daemon's two-minute default is paid.
+b new-window -s host deck --no-focus -- env PATH="$SCRATCH/bin:$PATH" TUIOS_DECK_DATA="$DATA" TUIOS_DECK_READY_TIMEOUT=5000 "$DECK" tui --socket "$ASOCK" --captures "$SCRATCH/captures" >/dev/null
 b wait-for window-output -s host -w deck --pattern 'tuios-deck' --timeout 15000 >/dev/null
 b send-keys -s host -w deck r >/dev/null; settle; deckcap 00-r-at-start
 check "r right after start leaves the deck alive" "$SCRATCH/out/00-r-at-start.txt" 'tuios-deck'
@@ -282,9 +287,9 @@ echo "== automatic captures: an agent turn and a shell command"
 # condition to wait on; poll the folder like wait_deck polls the screen.
 wait_file() { # glob, seconds
 	local i
-	for ((i=0; i<$2; i++)); do
+	for ((i=0; i<$2*5; i++)); do
 		compgen -G "$1" >/dev/null && return 0
-		sleep 1
+		sleep .2
 	done
 	return 1
 }
@@ -466,7 +471,7 @@ b send-keys -s host -w deck Enter >/dev/null            # no task
 b send-keys -s host -w deck Tab >/dev/null              # project: the selected pane's, deck
 b send-keys -s host -w deck Enter >/dev/null
 b send-keys -s host -w deck ctrl+s >/dev/null           # no prompt; the prompt field is multiline
-wait_deck 'sleeper .* is' 120 \
+wait_deck 'sleeper .* is' 15 \
 	&& echo "PASS start-agent returned" || { echo "FAIL start-agent did not report"; fails=$((fails+1)); }
 settle; deckcap 07-agent
 check "sleeper listed" "$SCRATCH/out/07-agent.txt" 'sleeper'
@@ -885,9 +890,9 @@ echo "== the assign tree at 80 columns keeps the details, drops the screen"
 b call new-session "{\"name\":\"narrow\",\"width\":80,\"height\":30,\"cwd\":\"$SCRATCH\"}" >/dev/null
 b new-window -s narrow deck80 --no-focus -- env TUIOS_DECK_DATA="$DATA" "$DECK" tui --socket "$ASOCK" --captures "$SCRATCH/captures" >/dev/null
 b wait-for window-output -s narrow -w deck80 --pattern 'tuios-deck' --timeout 15000 >/dev/null
-b wait-for window-idle -s narrow -w deck80 --idle 700 --timeout 10000 >/dev/null
+b wait-for window-idle -s narrow -w deck80 --idle 200 --timeout 10000 >/dev/null
 b send-keys -s narrow -w deck80 'g j a' >/dev/null
-b wait-for window-idle -s narrow -w deck80 --idle 700 --timeout 10000 >/dev/null
+b wait-for window-idle -s narrow -w deck80 --idle 200 --timeout 10000 >/dev/null
 b capture-pane -s narrow -w deck80 > "$SCRATCH/out/19f-narrow.txt"
 check "at 80 columns the assign tree still previews the details" "$SCRATCH/out/19f-narrow.txt" '│path *deck'
 if grep -q '── screen of' "$SCRATCH/out/19f-narrow.txt"; then echo "FAIL the narrow preview kept the screen"; fails=$((fails+1)); else echo "PASS the narrow preview drops the screen"; fi
@@ -1306,7 +1311,7 @@ b send-keys -s host -w deck l >/dev/null; b send-keys -s host -w deck k --repeat
 b send-keys -s host -w deck j >/dev/null; b send-keys -s host -w deck k >/dev/null; settle; deckcap 22b-turns-main
 b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 22c-turns-expanded
 check "enter expands the first command row" "$SCRATCH/out/22c-turns-expanded.txt" '▾ [0-9:]* \$ exit 0 .*echo hello-from-build'
-check "the expanded command shows its cwd" "$SCRATCH/out/22c-turns-expanded.txt" 'cwd  .*deck-e2e'
+check "the expanded command shows its cwd" "$SCRATCH/out/22c-turns-expanded.txt" "cwd  .*$(basename "$SCRATCH")"
 check "the expanded command shows its exit" "$SCRATCH/out/22c-turns-expanded.txt" 'exit 0 after'
 b send-keys -s host -w deck y >/dev/null; settle; deckcap 22d-turns-copy
 check "y copies the command line" "$SCRATCH/out/22d-turns-copy.txt" 'copied echo hello-from-build with OSC 52'

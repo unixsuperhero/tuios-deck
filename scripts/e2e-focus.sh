@@ -21,14 +21,14 @@ fail() { echo "FAIL $*; artifacts: $SCRATCH/out"; exit 1; }
 check() { grep -q -- "$2" "$1" || fail "$3"; echo "PASS $3"; }
 absent() { if grep -q -- "$2" "$1"; then fail "$3"; fi; echo "PASS $3"; }
 shot() { b capture-pane -s host -w focus > "$SCRATCH/out/$1.txt"; }
-keys() { b send-keys -s host -w focus "$1" >/dev/null; b wait-for window-idle -s host -w focus --idle 700 --timeout 10000 >/dev/null; }
+keys() { b send-keys -s host -w focus "$1" >/dev/null; b wait-for window-idle -s host -w focus --idle 200 --timeout 10000 >/dev/null; }
 # capture-pane reads the alternate screen; window-output does not.
 wait_deck() {
  local i
- for ((i=0; i<$2; i++)); do
+ for ((i=0; i<$2*5; i++)); do
   shot waiting
   if grep -q -- "$1" "$SCRATCH/out/waiting.txt"; then return 0; fi
-  sleep 1
+  sleep .2
  done
  fail "deck did not show $1"
 }
@@ -119,7 +119,7 @@ shot idle-unlocked
 check "$SCRATCH/out/idle-unlocked.txt" 'unrelated-pane' 'three-minute idle unlock restores full rail'
 (isolate "$SCRATCH/W"; exec "$DECK" web -socket "$SCRATCH/A/run/tuios/tuios.sock" -data "$SCRATCH/web.json" -captures "$SCRATCH/captures" -listen "127.0.0.1:$PORT") > "$SCRATCH/out/web.log" 2>&1 &
 webpid=$!
-for ((i=0; i<15; i++)); do if curl -fsS "http://127.0.0.1:$PORT/api/state" > "$SCRATCH/out/state.json" 2>/dev/null; then break; fi; sleep 1; done
+for ((i=0; i<75; i++)); do if curl -fsS "http://127.0.0.1:$PORT/api/state" > "$SCRATCH/out/state.json" 2>/dev/null; then break; fi; sleep .2; done
 curl -fsS -X PATCH -H 'Content-Type: application/json' -d '{"easy":true}' "http://127.0.0.1:$PORT/api/tasks/t_child" > "$SCRATCH/out/easy-api.json"
 check "$SCRATCH/out/easy-api.json" '"easy":true' 'web API saves an easy flag on a descendant'
 check "$SCRATCH/web.json" '"easy": true' 'web easy flag persisted in the existing store'

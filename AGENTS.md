@@ -64,14 +64,37 @@ checkout. Dependencies are pinned to the versions tuios itself uses
 There are no unit tests, on purpose. Verification is end to end against
 real throwaway tuios daemons, and each suite leaves what it saw under a
 scratch folder and prints PASS or FAIL per check. The exit status is the
-number of failures. Run them after any change; they take a few minutes.
+number of failures.
 
 ```sh
 GOWORK=off go build -o .dev/deck ./cmd/deck
+scripts/e2e-all.sh     # every suite below at once, one line per suite; ONLY="web history" picks some
 scripts/e2e.sh         # the TUI: daemon A holds panes, daemon B runs deck tui in a pane driven by send-keys
 scripts/e2e-web.sh     # deck web: the API with curl, the event stream, the WebSocket stream with scripts/wscheck
 scripts/e2e-setup.sh   # deck setup against a scratch HOME; release.sh bump maths; the omp extension under bun with a fake pi and a fake tuios
+scripts/e2e-focus.sh scripts/e2e-history.sh scripts/e2e-prompt-stash.sh scripts/e2e-reminders.sh
+python3 scripts/e2e-help.py; python3 scripts/e2e-turns.py; python3 scripts/e2e-review.py
 ```
+
+Which to run, and when. The suites isolate by `SCRATCH` and `PORT`, so
+`e2e-all.sh` takes as long as the longest one; a daemon starts in under
+100 ms and the build takes 3 s, so neither is ever the cost:
+
+- A change inside one feature: the suite that covers it, alone
+  (`e2e-web.sh` is 15 s; the small TUI suites are under a minute).
+- A change to the TUI's shared code (model, keys, view, forms): `e2e.sh`.
+- Before the commit that ends the turn: `scripts/e2e-all.sh`, once.
+
+Where the seconds go, so a new check does not bring them back. Almost all
+of a suite's time is waiting, not work: 866 daemon round trips cost 20 s of
+`e2e.sh`, while `settle` (a `wait-for window-idle` after a key) always runs
+its whole idle window even on a quiet pane, and at 700 ms it was 277 of the
+suite's 423 seconds. The window is 200 ms now: the deck redraws within
+milliseconds and a daemon round trip is ~20 ms. Poll loops sleep 200 ms,
+not a second. A program that never shows a prompt, started as an agent,
+waits out the daemon's two-minute ready timeout unless the deck is given
+`TUIOS_DECK_READY_TIMEOUT` (ms), which `e2e.sh` sets to 5000; that one
+check was 122 s.
 
 Rules the suites follow, and a new check should too:
 
