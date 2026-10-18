@@ -102,6 +102,14 @@ vim-like modes.  so keybindings can be based on mode
 should we move to an sqlite db?  where do we store context items
 - [x] context item screen should have 2 modes - one for the agent/term i'm on,
 and all
+- [ ] add add a page for history that will basically show a timeline or a log of like every every prompt i submitted every time a response from an agent was finished, same thing with submitting commands and the key actions and events that someone might want in a timeline for the things that we're managing here. 
+- [ ] the `?` binding should open a modal with all sorts of tables showing all
+the keybindings that are available and they should have either they should
+either have different tabs for the different modes or some type of picker or
+some way to change modes for which keybindings to show. and also there should be
+some way to also list like any actions that don't have key bindings and let's
+start there 
+- [ ] time the test suites and do everything possible to make them quicker
 
 ## Review Queue
 
