@@ -52,6 +52,12 @@ def event(window, kind, text, state):
          activity={"event": kind, "text": text})
 
 
+def subagent(window, kind, agent_id):
+    """A subagent start or stop, as Claude Code's hooks report them, without a state."""
+    call("A", "report-agent-activity", session="target", window=window, harness="omp",
+         activity={"event": kind, "agent_id": agent_id, "agent_type": "Explore", "text": "lookup"})
+
+
 def check(name, condition):
     if not condition:
         raise AssertionError(name)
@@ -59,22 +65,27 @@ def check(name, condition):
 
 
 def stored():
-    """The reviews the store file yields: history's prompt/turn-end pairs per window, plus review_marks.
-    Nothing else about a review is stored."""
+    """The turns the store file yields: per window, the person's prompt and every turn-end until the next
+    prompt (a <task-notification> prompt continues the turn), plus review_marks keyed by the prompt's id.
+    Nothing else about a review is stored. Every turn with a response is listed here, running or not."""
     data = json.loads(DATA.read_text())
     marks = data.get("review_marks", {})
     turns = sorted((e for e in data.get("history", []) if e["source"] == "agent-activity"
                     and e["kind"] in ("prompt-submitted", "response-completed", "session_start")), key=lambda e: e["at"])
-    pending, out = {}, []
+    cur, out = {}, []
     for e in turns:
+        w = e["window"]
         if e["kind"] == "session_start":
-            pending.pop(e["window"], None)
+            cur.pop(w, None)
         elif e["kind"] == "prompt-submitted":
-            pending[e["window"]] = e
-        elif e["window"] in pending:
-            prompt = pending.pop(e["window"])
-            out.append({"id": e["id"], "prompt": prompt["detail"], "response": e["detail"].split("\n\n", 1)[1],
-                        "completed_at": e["at"], "reviewed_at": marks.get(e["id"], 0)})
+            if e["detail"].startswith("<task-notification>"):
+                continue
+            cur[w] = {"id": e["id"], "prompt": e["detail"], "responses": [], "reviewed_at": marks.get(e["id"], 0)}
+            out.append(cur[w])
+        elif w in cur:
+            cur[w]["responses"].append(e["detail"].split("\n\n", 1)[1])
+            cur[w]["completed_at"] = e["at"]
+    out = [dict(r, response=r["responses"][-1]) for r in out if r["responses"]]
     return sorted(out, key=lambda r: (r["completed_at"], r["id"]))
 
 
@@ -191,10 +202,32 @@ try:
           [line.split("│", 1)[-1] for line in live.splitlines()[1:35]])
     check("background completion is persisted without opening it",
           [(r["response"], r["reviewed_at"]) for r in stored() if r["prompt"] == "still-running-prompt"] == [("finished-while-reviewing", 0)])
-    key("Tab")
-    screen("08-history", "Reviewed history (1)")
+    # A subagent wakes third's turn: the notification is not a new prompt, and
+    # the turn leaves the queue until its next response lands.
+    subagent("third", "subagent_start", "exp-1")
+    event("third", "prompt", "<task-notification>", "working")
+    screen("07b-awaiting", "Review queue (2) · 1 still running")
+    event("third", "turn_end", "third-followup", "done")
+    # The response came, but the subagent is still running, so the turn is
+    # still not finished; its stop finishes it.
+    screen("07c-subagent", "Review queue (2) · 1 still running")
+    subagent("third", "subagent_stop", "exp-1")
+    text = screen("07d-folded", "Review queue (3)", without="still running")
+    check("a notification continues the turn instead of opening one", "<task-notification>" not in text and "third-completed-prompt" in text)
+    check("the folded turn has both responses under the prompt's id",
+          [(r["id"].startswith("activity/"), r["responses"]) for r in stored() if r["prompt"] == "third-completed-prompt"] == [(True, ["third-response", "third-followup"])])
+    check("the row counts its responses", "third-completed-prompt" in next(line for line in text.splitlines() if "×2" in line))
+    key("j")
+    key("j")
     key("Enter")
-    check("reopening history does not reset reviewed timestamp", [r["reviewed_at"] for r in stored() if r["reviewed_at"]] == [stamp])
+    text = screen("07e-opened-folded", "2 of 2, last")
+    check("the detail lists the interim and the last response in order", text.index("1 of 2, interim") < text.index("third-response") < text.index("2 of 2, last") < text.index("third-followup"))
+    stamp3 = next(r["reviewed_at"] for r in stored() if r["prompt"] == "third-completed-prompt")
+    check("opening the folded turn marks its prompt", stamp3 > 0)
+    key("Tab")
+    screen("08-history", "Reviewed history (2)")
+    key("Enter")
+    check("reopening history does not reset reviewed timestamp", sorted(r["reviewed_at"] for r in stored() if r["reviewed_at"]) == sorted([stamp, stamp3]))
     key("q")
     key("y")  # q asks before quitting
     run("B", "wait-for", "window-output", "-s", "host", "-w", "deck", "--pattern", "REVIEW-TUI-EXITED", "--timeout", "10000")
@@ -202,8 +235,9 @@ try:
     (OUT / "09-web-reviews.json").write_text(json.dumps(result, indent=2))
     rows = result["reviews"]
     check("API orders completion oldest first", [r["prompt"] for r in rows] == [
-        "started-second-finished-first", "started-first-finished-second", "third-completed-prompt", "still-running-prompt"])
-    check("review survives frontend restart", [r["reviewed_at"] for r in rows if r["reviewed_at"]] == [stamp])
+        "started-second-finished-first", "started-first-finished-second", "still-running-prompt", "third-completed-prompt"])
+    check("review survives frontend restart", sorted(r["reviewed_at"] for r in rows if r["reviewed_at"]) == sorted([stamp, stamp3]))
+    check("the API carries every response of a folded turn", [x["text"] for x in rows[3]["responses"]] == ["third-response", "third-followup"] and result["running"] == 0)
     check("GET does not mark top item reviewed", rows[0]["reviewed_at"] == 0)
     result = api("/api/reviews/" + urllib.parse.quote(rows[1]["id"], safe="") + "/open", "POST")
     check("explicit API reopen returns prompt and response", result["review"]["prompt"] == rows[1]["prompt"] and result["review"]["response"].startswith("slow-response"))
