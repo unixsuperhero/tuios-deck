@@ -123,11 +123,11 @@ try:
     screen("small-restored", "tuios-deck", "small")
     print("PASS help scrolls and clips at 36x10", flush=True)
     # A separately configured help key must replace ?, not shadow text fields.
-    (config / "tuios-deck/config").write_text('{"keys":{"deck":{"help":"H"}}}')
+    (config / "tuios-deck/config").write_text('{"keys":{"deck":{"help":"alt+h"}}}')
     launch("remapped", 100, 25, config)
-    keys("H", "remapped")
+    keys("alt+h", "remapped")
     text = screen("remapped-help", "Keybindings and actions", "remapped")
-    assert "H" == next(line for line in text.splitlines() if "help:" in line).strip("│ ").split()[0]
+    assert "alt+h" == next(line for line in text.splitlines() if "help:" in line).strip("│ ").split()[0]
     print("PASS help itself follows configured binding", flush=True)
 finally:
     for side in ENVS:
