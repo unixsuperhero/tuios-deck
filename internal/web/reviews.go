@@ -10,9 +10,9 @@ import (
 // listReviews is history's turns, oldest completion first. Nothing is
 // collected: ?refresh=1 is accepted for older pages and ignored.
 func (s *Server) listReviews(w http.ResponseWriter, r *http.Request) {
-	rows := s.Store.Reviews()
+	rows, running := s.Store.Reviews()
 	warning := s.nameReviews(r, rows)
-	writeJSON(w, 200, map[string]any{"reviews": rows, "warning": warning})
+	writeJSON(w, 200, map[string]any{"reviews": rows, "running": running, "warning": warning})
 }
 
 // nameReviews fills pane names from a live listing; the warning is why it
@@ -37,5 +37,5 @@ func (s *Server) openReview(w http.ResponseWriter, r *http.Request) {
 	rows := []store.Review{item}
 	s.nameReviews(r, rows)
 	panes.ReviewOutput(s.CaptureDir, &rows[0])
-	writeJSON(w, 200, map[string]any{"review": rows[0]})
+	writeJSON(w, 200, map[string]any{"review": rows[0], "responses_text": store.ResponsesText(rows[0])})
 }

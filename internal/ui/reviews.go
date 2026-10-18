@@ -15,6 +15,7 @@ import (
 // rebuilds it while it is open, and only a mark is ever written.
 type reviewPage struct {
 	rows     []store.Review
+	running  int // turns with a response that are still running, not listed yet
 	selected string
 	opened   *store.Review
 	history  bool
@@ -29,9 +30,9 @@ func (m *Model) openReviews() tea.Cmd {
 
 func (m *Model) rebuildReviews() {
 	p := &m.reviews
-	rows := m.store.Reviews()
+	rows, running := m.store.Reviews()
 	panes.NameReviews(m.merged, rows)
-	p.rows = nil
+	p.rows, p.running = nil, running
 	for _, r := range rows {
 		if (r.ReviewedAt != 0) == p.history {
 			p.rows = append(p.rows, r)
@@ -122,6 +123,9 @@ func (m *Model) reviewListLines(width, height int) []string {
 		title = "Reviewed history"
 	}
 	lines[0] = cHeader.Render(fmt.Sprintf(" %s (%d)", title, len(p.rows)))
+	if p.running > 0 && !p.history {
+		lines[0] += cDim.Render(fmt.Sprintf(" · %d still running", p.running))
+	}
 	if len(p.rows) == 0 && height > 1 {
 		lines[1] = cDim.Render(" no completed prompts")
 	}
@@ -131,6 +135,9 @@ func (m *Model) reviewListLines(width, height int) []string {
 			break
 		}
 		line := " " + captureTime(time.Unix(0, row.CompletedAt)) + " " + panesReviewTitle(row)
+		if n := len(row.Responses); n > 1 {
+			line = ansi.Truncate(line, width-4, "…") + cDim.Render(fmt.Sprintf(" ×%d", n))
+		}
 		line = ansi.Truncate(line, width, "…")
 		if row.ID == p.selected {
 			line = cSel.Render(pad(line, width))
@@ -155,15 +162,11 @@ func (m *Model) reviewDetailLines(width, height int) []string {
 		return lines
 	}
 	r := p.opened
-	response := r.Response
-	if response == "" {
-		response = "No response text was reported by this harness."
-	}
 	who := r.Session + " › " + r.Pane
 	if r.Harness != "" {
 		who += " · " + r.Harness
 	}
-	text := fmt.Sprintf("%s\nCompleted %s\nReviewed %s\nSource: history of agent activity (may be truncated by the harness)\n\nPROMPT\n%s\n\nRESPONSE\n%s", who, time.Unix(0, r.CompletedAt).Format(time.RFC3339), time.UnixMilli(r.ReviewedAt).Format(time.RFC3339), r.Prompt, response)
+	text := fmt.Sprintf("%s\nCompleted %s\nReviewed %s\nSource: history of agent activity (may be truncated by the harness)\n\nPROMPT\n%s\n\n%s", who, time.Unix(0, r.CompletedAt).Format(time.RFC3339), time.UnixMilli(r.ReviewedAt).Format(time.RFC3339), r.Prompt, store.ResponsesText(*r))
 	if r.Output != "" {
 		text += "\n\nPANE OUTPUT (the turn's auto-capture; may include earlier turns)\n" + r.Output
 	} else {

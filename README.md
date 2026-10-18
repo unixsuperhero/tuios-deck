@@ -434,14 +434,23 @@ TUI `tab` switches between pending and reviewed history, `j/k` highlights,
 highlight, opened detail and scroll. Reopening history keeps the original
 reviewed timestamp.
 
-The queue is a view over [history](#history): each turn is a
-`prompt-submitted` entry the harness reported (the daemon's `prompt`
-activity, including OMP hook reports) paired with the next
-`response-completed` entry of the same window; a `session_start` or another
-prompt in between drops the pending prompt. Nothing polls the daemon for
-turns, and nothing about a turn is stored twice: the list is computed from
-history on every read, and the only review state is the mark, in `deck.json`
-under `review_marks` (history id → first reviewed time, ms). A prompt the
+The queue is a view over [history](#history): a turn opens with a
+`prompt-submitted` entry the harness reported for the person's prompt (the
+daemon's `prompt` activity, including OMP hook reports) and takes every
+`response-completed` entry of the same window until the person's next
+prompt or a `session_start`. A turn has more than one response when
+subagents woke it: Claude Code reports each wake-up as a prompt whose text
+is `<task-notification>`, and such a prompt continues the turn instead of
+opening one. The row shows `×3` for a turn with three responses, and the
+detail lists them in order, the first ones marked interim and the last one
+last. A turn is listed once it has a response, is not waiting for one, and
+no subagent the window started is still running (a `subagent_start` without
+its `subagent_stop`); until then the queue header counts it as still
+running. Nothing polls the daemon for turns, and nothing about a turn is
+stored twice: the list is computed from history on every read, and the only
+review state is the mark, in `deck.json` under `review_marks` (the prompt's
+history id → first reviewed time, ms; a mark an earlier deck keyed by a
+response's id moves onto its turn). A prompt the
 deck sent but the harness never reported, a queued-only prompt, a running
 prompt, a command, a state change and an orphan turn-end are not review
 items. Activity text can be truncated by the daemon or harness.

@@ -232,9 +232,16 @@ Rules the suites follow, and a new check should too:
   `Start`'s done channel before exiting: history flushes its last batch in
   `Close`.
 - **Reviews are a view over history; only the mark is stored.** `store.Reviews`
-  pairs history's `prompt-submitted` (source `agent-activity`) and
-  `response-completed` entries per window on every call, and `review_marks`
-  holds history id → reviewed time. Nothing polls the daemon for turns, and a
+  walks history's `prompt-submitted`, `response-completed`, `session_start`
+  and `subagent_start`/`stop` entries (source `agent-activity`) per window on
+  every call. The person's prompt opens a turn and takes every response until
+  the next one; a `<task-notification>` prompt (a subagent waking the turn) is
+  not a new turn, it keeps the turn open for its next response. A turn with a
+  response is listed only when it is not awaiting a response and the window's
+  running-subagent count (counted across turns, reset on `session_start`) is
+  zero; the rest are the header's "still running". `review_marks` holds the
+  prompt's history id → reviewed time (a mark keyed by a response id is
+  adopted onto the turn on read). Nothing polls the daemon for turns, and a
   review's output is the `-turn` capture auto-capture wrote, found on disk when
   the review is opened. A suite that wants output must run the deck with
   auto-capture on before the turn ends, and wait for the capture file.

@@ -1,6 +1,6 @@
 function createReviewPage(api, setStatus, isActive) {
   const $ = (id) => document.getElementById(id);
-  let items = [], selected = '', history = false, opened = null, busy = false;
+  let items = [], running = 0, selected = '', history = false, opened = null, busy = false;
   const visible = () => items.filter((r) => Boolean(r.reviewed_at) === history);
   const completed = (r) => new Date(r.completed_at / 1e6).toLocaleString();
 
@@ -19,7 +19,7 @@ function createReviewPage(api, setStatus, isActive) {
     const focused = list.contains(document.activeElement) ? document.activeElement.dataset.id : '';
     if (!rows.some((r) => r.id === selected)) selected = rows[0]?.id || '';
     list.replaceChildren();
-    $('review-count').textContent = `${history ? 'Reviewed history' : 'Review queue'} (${rows.length})`;
+    $('review-count').textContent = `${history ? 'Reviewed history' : 'Review queue'} (${rows.length})` + (running && !history ? ` · ${running} still running` : '');
     if (!rows.length) {
       const empty = document.createElement('div'); empty.className = 'empty';
       empty.textContent = history ? 'No reviewed prompts yet.' : 'No completed prompts awaiting review.';
@@ -29,7 +29,8 @@ function createReviewPage(api, setStatus, isActive) {
       const row = document.createElement('button'); row.className = 'caprow'; row.dataset.id = r.id;
       row.style.cssText = 'width:100%;text-align:left;border-radius:0';
       const title = document.createElement('span'); title.className = 'cname'; title.textContent = r.prompt.replace(/\s+/g, ' ');
-      const meta = document.createElement('span'); meta.className = 'cmeta'; meta.textContent = `${completed(r)} · ${r.session} › ${r.pane}`;
+      const meta = document.createElement('span'); meta.className = 'cmeta';
+      meta.textContent = `${completed(r)} · ${r.session} › ${r.pane}` + ((r.responses || []).length > 1 ? ` · ${r.responses.length} responses` : '');
       row.append(title, meta);
       row.onclick = () => highlight(r.id);
       row.onfocus = () => highlight(r.id);
@@ -46,7 +47,7 @@ function createReviewPage(api, setStatus, isActive) {
     try {
       const result = await api('/api/reviews' + (refresh ? '?refresh=1' : ''));
       const next = result.reviews || [];
-      if (JSON.stringify(next) !== JSON.stringify(items)) { items = next; render(); }
+      if (JSON.stringify(next) !== JSON.stringify(items) || (result.running || 0) !== running) { items = next; running = result.running || 0; render(); }
       if (result.warning) setStatus('review: ' + result.warning, true);
     } catch (e) { setStatus('review: ' + e.message, true); }
     finally { busy = false; }
@@ -57,12 +58,12 @@ function createReviewPage(api, setStatus, isActive) {
     if (!id) return;
     $('review-open').disabled = true;
     try {
-      const { review: r } = await api(`/api/reviews/${encodeURIComponent(id)}/open`, { method: 'POST' });
+      const { review: r, responses_text: responses } = await api(`/api/reviews/${encodeURIComponent(id)}/open`, { method: 'POST' });
       const changed = opened?.id !== r.id;
       opened = r;
       items = items.map((item) => item.id === r.id ? r : item);
       $('review-who').textContent = `${r.session} › ${r.pane}`;
-      const text = `${r.harness ? r.harness + ' · ' : ''}Completed ${completed(r)}\nReviewed ${new Date(r.reviewed_at).toLocaleString()}\nSource: history of agent activity (may be truncated by the harness)\n\nPROMPT\n${r.prompt}\n\nRESPONSE\n${r.response || 'No response text was reported by this harness.'}\n\nPANE OUTPUT${r.output ? ' (the turn\'s auto-capture; may include earlier turns)\n' + r.output : '\nNo turn capture was taken for this turn (auto-capture may be off).'}`;
+      const text = `${r.harness ? r.harness + ' · ' : ''}Completed ${completed(r)}\nReviewed ${new Date(r.reviewed_at).toLocaleString()}\nSource: history of agent activity (may be truncated by the harness)\n\nPROMPT\n${r.prompt}\n\n${responses || 'RESPONSE\n' + (r.response || 'No response text was reported by this harness.')}\n\nPANE OUTPUT${r.output ? ' (the turn\'s auto-capture; may include earlier turns)\n' + r.output : '\nNo turn capture was taken for this turn (auto-capture may be off).'}`;
       if ($('review-text').textContent !== text) $('review-text').textContent = text;
       if (changed) $('review-text').scrollTop = 0;
       render();
