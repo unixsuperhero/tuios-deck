@@ -772,9 +772,11 @@ func (m *Model) openGlyphForm() tea.Cmd {
 		return nil
 	}
 	row := *r
-	th := row.Task.Theme
+	var th store.Theme
 	if row.Project != nil {
 		th = row.Project.Theme
+	} else {
+		th = row.Task.Theme
 	}
 	m.mode = modeForm
 	m.form = &form{
