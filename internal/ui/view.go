@@ -53,7 +53,7 @@ func (m *Model) View() tea.View {
 		return v
 	}
 	if m.help != nil {
-		v.SetContent(m.helpView())
+		v.SetContent(m.focusScreen(m.helpView()))
 		return v
 	}
 	left := m.leftWidth()
