@@ -3,6 +3,8 @@
 ## Priority
 
 - [ ] migrate data store to an sqlite db
+- [ ] keybindings help has to be grouped better and searchable.  very hard to
+find things right now
 
 
 ## Standard Importance
