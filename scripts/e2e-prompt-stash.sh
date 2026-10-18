@@ -60,7 +60,7 @@ s=json.load(open(sys.argv[1]))['prompt_stashes']
 assert 'keep-first\n日本語 café\nrecover-last' in [p['text'] for p in s], s
 print('PASS full exact Unicode prompt persisted before line deletion')
 PY
-keys 'ctrl+z ctrl+u Escape p'
+keys 'ctrl+z ctrl+u'; cancel; keys p
 paste 'displaced draft'
 keys ctrl+r
 paste 'recover-last'; cap preview
@@ -117,15 +117,15 @@ check edit-queue 'recover-last▏'
 cancel; keys Escape
 keys 'g j p'
 long_prompt=$(python3 -c 'print("LONG-PREVIEW-START\n" + "\n".join("preview row %d" % n for n in range(80)) + "\nLONG-PREVIEW-END")')
-paste "$long_prompt"; keys ctrl+u; keys 'Escape p ctrl+r'; paste 'VIEW-END'; cap long-preview-start
+paste "$long_prompt"; keys ctrl+u; cancel; keys 'p ctrl+r'; paste 'VIEW-END'; cap long-preview-start
 check long-preview-start 'preview row 0'
 absent long-preview-start 'LONG-PREVIEW-END'
 b send-keys -s host -w deck PageDown --repeat 20 >/dev/null; settle; cap long-preview-end
 check long-preview-end 'LONG-PREVIEW-END'
-keys 'Escape Escape'
+keys Escape; cancel
 # An empty final line still permits stashing; identical and empty drafts do not multiply.
-keys 'g j p'; paste $'trailing-newline\n'; keys 'ctrl+u ctrl+u'; keys Escape
-keys p; paste 'single stash'; keys 'ctrl+u ctrl+u ctrl+u'; keys Escape
+keys 'g j p'; paste $'trailing-newline\n'; keys 'ctrl+u ctrl+u'; cancel
+keys p; paste 'single stash'; keys 'ctrl+u ctrl+u ctrl+u'; cancel
 python3 - "$DATA" <<'PY'
 import json,sys
 texts=[p['text'] for p in json.load(open(sys.argv[1]))['prompt_stashes']]
