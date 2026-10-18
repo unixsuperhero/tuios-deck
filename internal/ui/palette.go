@@ -341,6 +341,7 @@ func (m *Model) deckCommands() []palItem {
 		{"deck", "capture", "write the selected pane's screen to the captures folder (c)", needPane(func(*panes.Pane) tea.Cmd { return m.captureToFile() })},
 		{"deck", "close pane", "close the selected pane after a confirmation (x)", needPane(m.confirmClose)},
 		{"deck", "refresh", "list the sessions and agents again (r)", m.refreshAll},
+		{"deck", "settings…", "vim modes and key bindings, saved to the settings file", m.openSettingsForm},
 		{"deck", "go to deck", "the panes page", func() tea.Cmd { m.page = pageDeck; return m.loadDetail(true) }},
 		{"deck", "go to tasks", "the projects, tasks and subtasks page (T)", func() tea.Cmd { m.page = pageTasks; m.rebuildTasks(); return nil }},
 		{"deck", "go to captures", "the captures folder page (C)", func() tea.Cmd { m.openCaptures(); return nil }},

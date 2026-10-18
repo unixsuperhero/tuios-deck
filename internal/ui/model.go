@@ -76,6 +76,7 @@ type Model struct {
 
 	settings     *config.Config // nil until SetSettings: the defaults
 	settingsPath string
+	settingsKeys map[string]map[string]config.Target // the rebinding tables, by mode
 
 	width, height int
 
@@ -193,7 +194,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleKey(msg)
 
 	case tea.PasteMsg:
-		if m.mode == modeForm && m.form != nil {
+		if m.mode == modeForm && m.form != nil && !m.form.vimNormal {
 			m.form.paste(msg.String())
 		}
 		if m.mode == modePalette && m.pal != nil {

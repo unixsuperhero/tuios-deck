@@ -19,10 +19,14 @@ Commands:
   show                 Print the settings in effect (the defaults for a missing file)
   get <setting>        Print one setting
   set <setting> <val>  Change one setting and save the file
+  keys                 List every mode's actions with their default and current keys
+  bind <mode> <action> <key>   Rebind an action; the default key (or "") restores it
+  unbind <mode> <action>       Restore an action's default key
   init                 Write the file with the defaults when it does not exist
 
 Settings:
   vim_modes            true or false: forms start in insert mode, esc goes to normal mode, esc again cancels
+Modes for bind: deck, form_normal, form_insert (see "deck config keys")
 `
 
 func runConfig(args []string) error {
@@ -67,6 +71,30 @@ func runConfig(args []string) error {
 			c.VimModes = b
 		default:
 			return fmt.Errorf("unknown setting %q", args[1])
+		}
+		if err := c.Save(path); err != nil {
+			return err
+		}
+		fmt.Println("saved", path)
+	case "keys":
+		for _, mode := range config.Modes() {
+			fmt.Println(mode)
+			for _, a := range config.ActionsOf(mode) {
+				fmt.Printf("  %-13s default %-10s now %-10s %s\n", a.Name, a.Default, c.Binding(mode, a.Name), a.Desc)
+			}
+		}
+	case "bind", "unbind":
+		key := ""
+		if args[0] == "bind" {
+			if len(args) != 4 {
+				return fmt.Errorf("bind takes a mode, an action and a key")
+			}
+			key = args[3]
+		} else if len(args) != 3 {
+			return fmt.Errorf("unbind takes a mode and an action")
+		}
+		if err := c.Bind(args[1], args[2], key); err != nil {
+			return err
 		}
 		if err := c.Save(path); err != nil {
 			return err

@@ -144,7 +144,9 @@ func (m *Model) currentField(fl field, iw int) []string {
 }
 
 // formHelp names the keys the current field answers.
-func (m *Model) formHelp() string {
+func (m *Model) formHelp() string { return m.vimFormHelp(m.formHelpPlain()) }
+
+func (m *Model) formHelpPlain() string {
 	f := m.form
 	cur := f.Fields[f.Cur]
 	pos := fmt.Sprintf("%d/%d", f.Cur+1, len(f.Fields))

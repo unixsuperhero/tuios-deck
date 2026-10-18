@@ -95,7 +95,7 @@ versions
 - [ ] when on a modal and it autocompletes something like a task or
   terminal/agent.  it should preview the recent scrollback and provide more than
   just a name
-- [ ] add settings and configurable keybindings and at the same time introduce
+- [x] add settings and configurable keybindings and at the same time introduce
 vim-like modes.  so keybindings can be based on mode
 - [x] store settings in ~/.config/tuios-deck/config (yml or json)
 - [x] are we using @~/.local/share/tuios-deck/deck.json as our data store?

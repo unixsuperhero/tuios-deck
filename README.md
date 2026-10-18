@@ -103,12 +103,48 @@ written whole through a temp file and a rename.
 
 ```json
 {
-  "vim_modes": false
+  "vim_modes": true,
+  "keys": {
+    "deck":        { "quit": "Z", "close": "w" },
+    "form_normal": { "next_field": "n" },
+    "form_insert": { "leave_insert": "ctrl+g" }
+  }
 }
 ```
 
-`deck config path|show|get <setting>|set <setting> <value>|init` reads and
-changes it from the shell. `vim_modes` is the one setting so far.
+`deck config path|show|get|set|init` reads and changes it from the shell;
+`deck config keys` lists every action with its default and current key, and
+`deck config bind <mode> <action> <key>` / `unbind <mode> <action>` change one.
+In the TUI the palette's `settings…` form does the same (vim modes on or
+off, and one rebinding at a time; an action with an empty key goes back to its
+default) and saves the file; the change applies at once.
+
+### Key bindings
+
+`keys` maps a mode, then an action, to a key. An action not listed keeps its
+default, so the file only holds the differences. A key is one character, a
+name (`tab`, `shift+tab`, `enter`, `esc`, `up`…) or `ctrl+a` / `alt+a`. A
+file is refused, at startup and on save, for an unknown mode or action, a
+key that is not a key, a reserved key (`1`-`4`, arrows, `enter` and `ctrl+c`
+on the deck, for example), or two actions of one mode on the same key. A key
+whose action moved elsewhere does nothing; swapping two keys is allowed.
+
+| Mode | Where | Actions |
+| --- | --- | --- |
+| `deck` | the dashboard; `quit` `palette` `tasks` `captures` `add_many` `context` on every page, the rest on the deck page only | `quit palette tasks captures add_many context left right down up top bottom scroll_down scroll_up next_tab prev_tab refresh group_next group_prev new_agent new_terminal prompt assign capture extract close` |
+| `form_normal` | forms, vim modes on, normal mode | `insert append next_field prev_field clear submit cancel` |
+| `form_insert` | forms, vim modes on, insert mode | `leave_insert` (never a printable key, so no key that types can leave the mode) |
+
+### Vim modes
+
+With `vim_modes` off (the default) forms behave as described under Forms:
+every key types, `esc` cancels. With it on, a form opens in **insert** mode,
+where every key types exactly as before, and the box names the mode. `esc`
+first closes an open `@` path list, then goes to **normal** mode. In normal
+mode nothing types: `i`/`a` return to insert, `j`/`k` move between fields,
+`D` empties the field, `enter` submits, and `esc` cancels the form (or goes
+back to the parked form after `+ add new…`). Any other key is ignored, and a
+paste is ignored too.
 
 ## Projects, tasks and assignments
 
@@ -779,6 +815,7 @@ newest tag, or the newest commit on `main` while there are no tags.
   typed wrappers for the verbs the deck uses.
 - `internal/panes`: the merged view of sessions and agents, and the text
   rendering of activity and transcripts, shared by both front ends.
+- `internal/config`: the settings file and the key binding tables.
 - `internal/store`: projects, tasks, assignments and context items in
   `deck.json`, and the themes they are drawn in.
 - `internal/context`: finding context items in a pane, and copying and

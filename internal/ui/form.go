@@ -102,6 +102,8 @@ type form struct {
 	// reports handled goes no further.
 	OnKey func(key string) bool
 
+	vimNormal bool // normal mode of the vim modes setting; false is insert
+
 	adding int // the field whose addNew was taken, plus one; 0 is none
 
 	cwd  string              // the folder `@` completes under

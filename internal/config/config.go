@@ -96,7 +96,7 @@ func (c *Config) Save(path string) error {
 	return os.Rename(tmp.Name(), path)
 }
 
-// Validate checks the settings. Keybindings are checked in keys.go.
+// Validate checks the settings; keybindings are checked in keys.go.
 func (c *Config) Validate() error {
 	return c.validateKeys()
 }

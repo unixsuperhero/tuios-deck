@@ -3,6 +3,7 @@ package ui
 import (
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/unixsuperhero/tuios-deck/internal/config"
 	"github.com/unixsuperhero/tuios-deck/internal/panes"
 )
 
@@ -11,6 +12,12 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case modeForm:
 		if m.form.cwd == "" {
 			m.form.cwd = cwdDefault(m.selected())
+		}
+		if m.vimModes() {
+			var handled bool
+			if msg, handled = m.vimFormKey(msg); handled {
+				return m, nil
+			}
 		}
 		if msg.String() == "esc" && m.form.escape() {
 			return m, nil
@@ -57,6 +64,11 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	case modeProto:
 		return m.handleProtoKey(msg)
+	}
+
+	var keep bool
+	if msg, keep = m.remap(config.ModeDeck, msg, m.page == pageDeck); !keep {
+		return m, nil
 	}
 
 	// Keys every page answers.
