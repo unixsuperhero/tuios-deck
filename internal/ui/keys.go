@@ -1,7 +1,10 @@
 package ui
 
 import (
+	"context"
+	"fmt"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -347,6 +350,47 @@ func (m *Model) confirmClose(p *panes.Pane) tea.Cmd {
 	m.mode = modeConfirm
 	m.confirm.Text = "close " + p.Name + " in " + p.Session + "? (Y/n)"
 	m.confirm.Do = m.closeWindow(p.Session, p.ID, p.Name)
+	return nil
+}
+
+// confirmCloseStale lists every stale pane on the right and asks before
+// closing them all. The list is the one shown: a pane that turns stale
+// while the question is open is not closed with it.
+func (m *Model) confirmCloseStale() tea.Cmd {
+	stale := panes.Stale(m.merged)
+	if len(stale) == 0 {
+		if m.settings.StaleThreshold() == 0 {
+			m.setStatus("no stale panes: stale_after is 0, so none are marked")
+		} else {
+			m.setStatus("no stale panes: none idle for " + m.settings.StaleThreshold().String())
+		}
+		return nil
+	}
+	m.page = pageDeck
+	m.result = &verbResult{Verb: "close stale panes", Params: fmt.Sprintf("%d idle for %s or more", len(stale), m.settings.StaleThreshold())}
+	m.detail = nil
+	for _, p := range stale {
+		m.detail = append(m.detail, fmt.Sprintf("%-6s %s / %s", panes.Age(time.Duration(p.IdleMS)*time.Millisecond), p.Session, p.Name))
+	}
+	m.detailErr = ""
+	m.scroll, m.follow, m.revision = 0, false, 0
+	m.mode = modeConfirm
+	m.confirm.Text = fmt.Sprintf("close the %d stale panes listed? (y/n)", len(stale))
+	m.confirm.Then = m.clearResult
+	m.confirm.Do = func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
+		defer cancel()
+		var failed []string
+		for _, p := range stale {
+			if err := m.client.CloseWindow(ctx, p.Session, p.ID); err != nil {
+				failed = append(failed, p.Name+": "+err.Error())
+			}
+		}
+		if len(failed) > 0 {
+			return actionMsg{err: fmt.Errorf("closed %d of %d stale panes; %s", len(stale)-len(failed), len(stale), strings.Join(failed, "; "))}
+		}
+		return actionMsg{status: fmt.Sprintf("closed %d stale panes", len(stale))}
+	}
 	return nil
 }
 

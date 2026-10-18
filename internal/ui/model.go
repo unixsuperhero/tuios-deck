@@ -101,6 +101,7 @@ type Model struct {
 	focus *focusScope
 
 	merged     []panes.Session // the last listing, which o regroups without a daemon call
+	activity   panes.Activity  // first-seen times, for the stale mark
 	grouping   grouping
 	railSort   railSort
 	rows       []row
@@ -456,7 +457,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case tickMsg:
-		if m.railWake != 0 && time.Now().Unix() >= m.railWake {
+		if m.markStale() || m.railWake != 0 && time.Now().Unix() >= m.railWake {
 			m.rebuildRows()
 		}
 		if m.page == pageReviews {
@@ -489,6 +490,7 @@ func (m *Model) setStatus(s string) {
 // exists.
 func (m *Model) applyList(sessions []panes.Session) {
 	m.merged = sessions
+	m.markStale()
 	live := map[string]bool{}
 	for _, s := range m.merged {
 		for _, p := range s.Panes {
@@ -511,6 +513,28 @@ func (m *Model) revealPane(id string) bool {
 	for i, r := range m.rows {
 		if r.Pane != nil && r.Pane.ID == id {
 			m.sel = i
+			return true
+		}
+	}
+	return false
+}
+
+// markStale works out each listed pane's last activity and stale mark
+// against the settings' threshold, and says whether a mark changed, which
+// regroups the rail. The ages shown move on their own, since the rows point
+// into the listing.
+func (m *Model) markStale() bool {
+	before := map[string]bool{}
+	for _, p := range panes.Stale(m.merged) {
+		before[p.ID] = true
+	}
+	m.activity.Mark(m.merged, m.store.LastActivity(), m.settings.StaleThreshold(), time.Now())
+	after := panes.Stale(m.merged)
+	if len(after) != len(before) {
+		return true
+	}
+	for _, p := range after {
+		if !before[p.ID] {
 			return true
 		}
 	}

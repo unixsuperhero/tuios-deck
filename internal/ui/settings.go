@@ -165,7 +165,7 @@ func (m *Model) openSettingsForm() tea.Cmd {
 
 // candidateSettings is a copy of the settings with the form's change made.
 func (m *Model) candidateSettings(v []string) (*config.Config, error) {
-	c := &config.Config{VimModes: m.settings.VimModes, Keys: map[string]map[string]string{}}
+	c := &config.Config{VimModes: m.settings.VimModes, StaleAfter: m.settings.StaleAfter, Keys: map[string]map[string]string{}}
 	for mode, keys := range m.settings.Keys {
 		c.Keys[mode] = map[string]string{}
 		for a, k := range keys {

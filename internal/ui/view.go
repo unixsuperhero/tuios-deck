@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -294,6 +295,13 @@ func (m *Model) paneRow(p *panes.Pane, dot, state string, depth, width int, sel 
 		whole := name == p.Name && (task == "" || t == task+"  ")
 		return t, name, whole
 	}
+	// A stale pane shows a dim ⏾ (the power-sleep symbol: dozing, not
+	// dead) and how long it has been idle, before its state.
+	mark := ""
+	if p.Stale {
+		mark = "⏾ " + panes.Age(time.Duration(p.IdleMS)*time.Millisecond) + " "
+	}
+	state = mark + state
 	harness := ""
 	if p.IsAgent && p.Harness != "" {
 		harness = " " + p.Harness
@@ -315,7 +323,7 @@ func (m *Model) paneRow(p *panes.Pane, dot, state string, depth, width int, sel 
 	}
 	return r(plain, indent) + r(kindStyle, kind) + r(plain, " ") + r(stateStyle(p.State), dot) + r(plain, " ") +
 		r(chipStyle, chip) + r(plain, " ") + r(taskStyle, shownTask) + r(nameStyle, name) +
-		r(plain, strings.Repeat(" ", fill)) + r(stateStyle(p.State), state) + r(cDim, harness)
+		r(plain, strings.Repeat(" ", fill)) + r(cDim, mark) + r(stateStyle(p.State), state[len(mark):]) + r(cDim, harness)
 }
 
 func (m *Model) detailLines(width, height int) []string {
@@ -346,6 +354,9 @@ func (m *Model) detailLines(width, height int) []string {
 		info := p.Session + " › " + p.Name
 		if a, ok := m.assignmentOf(p.ID); ok {
 			info += "  " + a.style.Render(a.glyph) + " " + a.path
+		}
+		if p.Stale {
+			info += "  " + cDim.Render("stale · last activity "+panes.Age(time.Duration(p.IdleMS)*time.Millisecond)+" ago")
 		}
 		if p.IsAgent && p.Message != "" {
 			info += "  " + cDim.Render(panes.OneLine(p.Message))

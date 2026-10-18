@@ -343,6 +343,7 @@ func (m *Model) deckCommands() []palItem {
 		{"deck", "queued prompts…", "choose, edit, delete and start the queued prompts", m.openQueueModal},
 		{"deck", "capture", "write the selected pane's screen to the captures folder (c)", needPane(func(*panes.Pane) tea.Cmd { return m.captureToFile() })},
 		{"deck", "close pane", "close the selected pane after a confirmation (x)", needPane(m.confirmClose)},
+		{"deck", "close stale panes…", "list the panes idle past stale_after and close them after a confirmation", m.confirmCloseStale},
 		{"deck", "refresh", "list the sessions and agents again (r)", m.refreshAll},
 		{"deck", "settings…", "vim modes and key bindings, saved to the settings file", m.openSettingsForm},
 		{"deck", "keybindings and actions…", "browse keys by mode, including actions without shortcuts", m.openHelp},

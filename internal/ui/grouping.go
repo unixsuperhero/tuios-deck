@@ -24,6 +24,7 @@ const (
 	lvHarness
 	lvState
 	lvKind
+	lvStale
 	levels // the count
 
 	// lvTree is the task tree grouping, which stands alone: the project,
@@ -40,7 +41,7 @@ func (l level) String() string {
 	if l == lvTree {
 		return "task tree"
 	}
-	return [...]string{"session", "project", "task", "parent task", "top-level task", "cwd", "harness", "state", "kind"}[l]
+	return [...]string{"session", "project", "task", "parent task", "top-level task", "cwd", "harness", "state", "kind", "stale"}[l]
 }
 
 // levelNames is every level's name, for completion.
@@ -114,6 +115,7 @@ var presets = []grouping{
 	{lvHarness},
 	{lvState},
 	{lvKind},
+	{lvStale},
 	{lvNone},
 }
 
@@ -197,6 +199,11 @@ func (m *Model) groupKey(l level, p *panes.Pane, underProject bool) (key, label 
 			return noGroup, noGroup, nil
 		}
 		return p.State, p.State, nil
+	case lvStale:
+		if p.Stale {
+			return "stale", "stale", nil
+		}
+		return "active", "active", nil
 	case lvKind:
 		if p.IsAgent {
 			return "agents", "agents", nil
