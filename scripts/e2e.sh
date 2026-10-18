@@ -1388,6 +1388,45 @@ deckcap 09-final
 check "list refreshed without build" "$SCRATCH/out/09-final.txt" 'closed build'
 wait_store "\"$BUILD\": {" absent 10 && echo "PASS closed build's assignment pruned" || { echo "FAIL $BUILD still assigned in $DATA"; fails=$((fails+1)); }
 
+echo "== stale panes: a second deck with stale_after at 3s"
+# Its own settings folder and store, so the first deck's settings and store
+# stay as they were. Every pane of A is older than 3s by now, so all of them
+# turn stale; this section runs last for that reason, since y closes them all.
+a new-window -s target stalepane --cwd "$SCRATCH" --no-focus >/dev/null
+mkdir -p "$SCRATCH/stalecfg/tuios-deck"
+printf '{ "stale_after": "3s" }\n' > "$SCRATCH/stalecfg/tuios-deck/config"
+b new-window -s host stale --no-focus -- env XDG_CONFIG_HOME="$SCRATCH/stalecfg" TUIOS_DECK_DATA="$SCRATCH/stale.json" "$DECK" tui --socket "$ASOCK" --captures "$SCRATCH/captures" --auto-capture=false >/dev/null
+scap() { b capture-pane -s host -w stale > "$SCRATCH/out/$1.txt"; }
+swait() { # pattern, seconds
+	local i
+	for ((i=0; i<$2*5; i++)); do
+		if b capture-pane -s host -w stale 2>/dev/null | grep -q -- "$1"; then return 0; fi
+		sleep .2
+	done
+	return 1
+}
+ssettle() { b wait-for window-idle -s host -w stale --idle 200 --timeout 10000 >/dev/null; }
+swait 'stalepane .*⏾ [0-9]*s' 20; scap 31-stale-rail
+check "a stale pane's row shows ⏾ and its age" "$SCRATCH/out/31-stale-rail.txt" 'stalepane .*⏾ [0-9]*s'
+b send-keys -s host -w stale g >/dev/null; ssettle; scap 31b-stale-detail
+check "the detail header says stale and the last activity" "$SCRATCH/out/31b-stale-detail.txt" 'stale · last activity [0-9]*s ago'
+b send-text -s host -w stale ':'; ssettle; b send-text -s host -w stale 'group by stale'; ssettle
+b send-keys -s host -w stale Enter >/dev/null; ssettle; scap 31c-group-stale
+check "group by stale puts the stale panes under a stale header" "$SCRATCH/out/31c-group-stale.txt" '^stale'
+b send-text -s host -w stale ':'; ssettle; b send-text -s host -w stale 'close stale panes'; ssettle
+b send-keys -s host -w stale Enter >/dev/null; ssettle; scap 32-stale-confirm
+check "close stale panes asks first" "$SCRATCH/out/32-stale-confirm.txt" 'close the [0-9]* stale panes listed? (y/n)'
+check "the confirmation lists the stale pane with session and age" "$SCRATCH/out/32-stale-confirm.txt" '[0-9]*s  *target / stalepane'
+b send-keys -s host -w stale n >/dev/null; ssettle
+a call list-sessions '{}' > "$SCRATCH/out/a-stale-kept.json"
+check "n keeps the stale panes" "$SCRATCH/out/a-stale-kept.json" '"stalepane"'
+b send-text -s host -w stale ':'; ssettle; b send-text -s host -w stale 'close stale panes'; ssettle
+b send-keys -s host -w stale Enter >/dev/null; ssettle; b send-keys -s host -w stale y >/dev/null
+swait 'closed [0-9]* stale panes' 10; scap 33-stale-closed
+check "y closes the stale panes" "$SCRATCH/out/33-stale-closed.txt" 'closed [0-9]* stale panes'
+a call list-sessions '{}' > "$SCRATCH/out/a-stale-closed.json" 2>&1
+if grep -q '"stalepane"' "$SCRATCH/out/a-stale-closed.json"; then echo "FAIL stalepane still open"; fails=$((fails+1)); else echo "PASS stalepane closed"; fi
+
 echo "== quit"
 b send-keys -s host -w deck q >/dev/null; settle; deckcap 30-quit-ask
 check "q asks before quitting" "$SCRATCH/out/30-quit-ask.txt" 'quit the deck?'

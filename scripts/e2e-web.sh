@@ -49,12 +49,18 @@ echo "== deck-web, outside every pane of A"
 mkdir -p "$SCRATCH/bin"
 for t in open xdg-open; do printf '#!/bin/sh\necho "$@" >> "%s/opened.txt"\n' "$SCRATCH" > "$SCRATCH/bin/$t"; done
 chmod +x "$SCRATCH"/bin/*
-(unset TUIOS_ENV TUIOS_SESSION TUIOS_PANE_ID TUIOS_PANE_TOKEN TUIOS_SOCKET; export TUIOS_DECK_DATA="$SCRATCH/deck.json" PATH="$SCRATCH/bin:$PATH"; exec "$DECK" web --listen "127.0.0.1:$PORT" --socket "$ASOCK" --captures "$SCRATCH/captures" > "$SCRATCH/out/web.log" 2>&1) &
+# Its own settings folder, never the person's, with stale_after at 2s so the
+# stale mark can be seen within the run.
+mkdir -p "$SCRATCH/config/tuios-deck"
+printf '{ "stale_after": "2s" }\n' > "$SCRATCH/config/tuios-deck/config"
+(unset TUIOS_ENV TUIOS_SESSION TUIOS_PANE_ID TUIOS_PANE_TOKEN TUIOS_SOCKET; export TUIOS_DECK_DATA="$SCRATCH/deck.json" PATH="$SCRATCH/bin:$PATH" XDG_CONFIG_HOME="$SCRATCH/config"; exec "$DECK" web --listen "127.0.0.1:$PORT" --socket "$ASOCK" --captures "$SCRATCH/captures" > "$SCRATCH/out/web.log" 2>&1) &
 webpid=$!
 for i in $(seq 1 50); do curl -sf "$base/api/state" > "$SCRATCH/out/state.json" 2>/dev/null && break; sleep 0.2; done
 check "state lists the session" "$SCRATCH/out/state.json" '"name":"target"'
 check "state lists the fake agent as idle" "$SCRATCH/out/state.json" '"name":"fake","state":"idle"'
 check "presence held, transcripts on" "$SCRATCH/out/state.json" '"transcripts":true'
+check "state carries the stale threshold from the settings" "$SCRATCH/out/state.json" '"stale_after_ms":2000'
+check "a pane the deck has just seen is not stale" "$SCRATCH/out/state.json" '"name":"fake",.*"idle_ms":[0-9]*,"stale":false'
 curl -s "$base/" > "$SCRATCH/out/index.html"
 check "page served" "$SCRATCH/out/index.html" '<title>tuios deck</title>'
 check "pane rows carry an agent kind tag" "$SCRATCH/out/index.html" "'kind-agent'"
@@ -521,6 +527,14 @@ check "a queued prompt is deleted" "$SCRATCH/out/queued-del.json" 'deleted'
 curl -s -X POST "$base/api/prompt-presets/example" > "$SCRATCH/out/preset-example.json"
 check "the example preset is added only on request" "$SCRATCH/out/preset-example.json" '"name":"short answer"'
 curl -s -X DELETE "$base/api/projects/$QP" > /dev/null
+
+echo "== stale panes"
+# The API is polled: staleness is the clock passing, not a daemon event.
+for i in $(seq 1 50); do curl -s "$base/api/state" > "$SCRATCH/out/state-stale.json"; grep -q '"name":"fake",[^}]*"stale":true' "$SCRATCH/out/state-stale.json" && break; sleep 0.2; done
+check "an idle pane past stale_after is marked stale" "$SCRATCH/out/state-stale.json" '"name":"fake",[^}]*"stale":true'
+check "a stale pane carries its last activity" "$SCRATCH/out/state-stale.json" '"name":"fake",[^}]*"last_activity":"[0-9]'
+check "the page has the close stale button" "$SCRATCH/out/index.html" 'id="btn-close-stale"'
+check "the page asks before closing the stale panes" "$SCRATCH/out/index.html" 'confirmDialog(`Close ${stale.length} stale pane'
 
 echo "== websocket pane stream"
 EXTRA=$(a list-windows -s target --json | python3 -c 'import json,sys; print([w["window_id"] for w in json.load(sys.stdin)["windows"] if w["title"]=="extra"][0])')
