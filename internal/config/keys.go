@@ -57,6 +57,7 @@ var actions = map[string][]Action{
 		{"assign", "a", "assign the pane to a task or project", false},
 		{"capture", "c", "capture the pane's screen", false},
 		{"extract", "i", "extract context from the pane", false},
+		{"snooze", "z", "snooze the selected pane's task until midnight", false},
 		{"close", "x", "close the pane", false},
 	},
 	ModeFormNormal: {

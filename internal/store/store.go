@@ -31,15 +31,16 @@ type Project struct {
 // Task is a task or a subtask. ParentID is "" for a top-level task, and
 // ProjectID is set only then.
 type Task struct {
-	ID        string `json:"id"`
-	ParentID  string `json:"parent_id"`
-	ProjectID string `json:"project_id"`
-	Title     string `json:"title"`
-	Theme     Theme  `json:"theme"`
-	Status    string `json:"status"`
-	Easy      bool   `json:"easy,omitempty"`
-	Created   int64  `json:"created"`
-	Updated   int64  `json:"updated"`
+	ID           string `json:"id"`
+	ParentID     string `json:"parent_id"`
+	ProjectID    string `json:"project_id"`
+	Title        string `json:"title"`
+	Theme        Theme  `json:"theme"`
+	Status       string `json:"status"`
+	Easy         bool   `json:"easy,omitempty"`
+	SnoozedUntil int64  `json:"snoozed_until,omitempty"`
+	Created      int64  `json:"created"`
+	Updated      int64  `json:"updated"`
 }
 
 // Assignment ties a pane, keyed by window id, to a task or a project.
@@ -459,6 +460,24 @@ func (s *Store) SetTaskStatus(id, status string) error {
 		return err
 	}
 	s.tasks[i].Status = status
+	s.tasks[i].Updated = now()
+	return s.save()
+}
+
+// SetTaskSnoozed hides a task until the next local midnight, or clears its snooze.
+func (s *Store) SetTaskSnoozed(id string, snoozed bool) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	i := s.taskIndex(id)
+	if i < 0 {
+		return fmt.Errorf("no task %s", id)
+	}
+	until := int64(0)
+	if snoozed {
+		n := time.Now()
+		until = time.Date(n.Year(), n.Month(), n.Day()+1, 0, 0, 0, 0, n.Location()).Unix()
+	}
+	s.tasks[i].SnoozedUntil = until
 	s.tasks[i].Updated = now()
 	return s.save()
 }

@@ -262,6 +262,7 @@ body.focused { border: 1px solid var(--focus-color, var(--accent)); }
         <button id="tk-rename">Rename</button>
         <button id="tk-done">Toggle done</button>
         <button id="tk-easy">Mark easy</button>
+        <button id="tk-snooze">Snooze until midnight</button>
         <button id="tk-theme">Theme</button>
         <button id="tk-delete" class="danger">Delete</button>
       </div>
@@ -750,10 +751,23 @@ function setStatus(text, isErr = false) {
 const enc = encodeURIComponent;
 const when = (unix) => unix ? new Date(unix * 1000).toLocaleString() : '';
 
+$('tk-snooze').onclick = async () => {
+  const it = selItem(); if (!it || selKind() !== 'task') return;
+  try {
+    const snoozed = !(it.snoozed_until > Date.now() / 1000);
+    await api('/api/tasks/' + enc(it.id), {method: 'PATCH', body: JSON.stringify({snoozed})});
+    await refresh();
+    setStatus(snoozed ? 'Snoozed until midnight' : 'Unsnoozed');
+  } catch (e) { setStatus(e.message, true); }
+};
+let railWakeTimer;
+
 // ---------------------------------------------------------------- state
 async function refresh() {
   try {
     const st = await api('/api/state');
+    clearTimeout(railWakeTimer);
+    if (st.rail_wake) railWakeTimer = setTimeout(refresh, Math.max(0, st.rail_wake * 1000 - Date.now()) + 50);
     state.sessions = st.sessions || [];
     state.transcripts = !!st.transcripts;
     state.projects = st.projects || [];
@@ -839,14 +853,14 @@ function groupKey(level, p, underProject) {
 // { pane, depth } for a pane, each level nested under the one before.
 // Groups sort by label with "(none)" last; sessions keep the daemon's order.
 function groups() {
-  if (focusScope) return Object.values(state.panes).filter(focusPane).map(pane => ({pane, depth: 0}));
+  if (focusScope) return Object.values(state.panes).filter(p => focusPane(p) && !p.rail_hidden).map(pane => ({pane, depth: 0}));
   const levels = parseGroup(state.group) || ['session'];
-  if (levels[0] === 'none') return Object.values(state.panes).map(pane => ({pane, depth: 0}));
+  if (levels[0] === 'none') return Object.values(state.panes).filter(p => !p.rail_hidden).map(pane => ({pane, depth: 0}));
   const rows = [];
   if (levels.length === 1 && levels[0] === 'session') {
     for (const s of state.sessions) {
       rows.push({ header: s.name, note: s.attached ? 'attached' : '', depth: 0 });
-      for (const p of s.panes || []) rows.push({ pane: p, depth: 1 });
+      for (const p of s.panes || []) if (!p.rail_hidden) rows.push({ pane: p, depth: 1 });
     }
     return rows;
   }
@@ -870,7 +884,7 @@ function groups() {
     }
   };
   const all = [];
-  for (const s of state.sessions) for (const p of s.panes || []) all.push(p);
+  for (const s of state.sessions) for (const p of s.panes || []) if (!p.rail_hidden) all.push(p);
   nest(all, 0, false);
   return rows;
 }
@@ -887,6 +901,7 @@ function treeRows() {
   };
   const none = [];
   for (const s of state.sessions) for (const p of s.panes || []) {
+    if (p.rail_hidden) continue;
     const a = p.assignment;
     const pr = a && a.project_id && projectById(a.project_id);
     if (!pr) { none.push(p); continue; }
@@ -1282,7 +1297,7 @@ function note(t) { const el = $('livenote'); el.textContent = t; el.hidden = !t;
 function listen() {
   const es = new EventSource('/api/events');
   es.addEventListener('open', () => { $('events').textContent = 'events: live'; });
-  for (const t of ['agent-state', 'attention', 'window-created', 'window-closed', 'window-exit', 'window-retitled', 'session-created', 'session-closed']) {
+  for (const t of ['agent-state', 'attention', 'window-created', 'window-closed', 'window-exit', 'window-retitled', 'session-created', 'session-closed', 'command-started', 'command-finished']) {
     es.addEventListener(t, scheduleRefresh);
   }
   es.onerror = () => { $('events').textContent = 'events: reconnecting'; };
@@ -1796,6 +1811,8 @@ function renderTaskInfo() {
   $('tk-rename').disabled = !haveSel;
   $('tk-done').disabled = kind !== 'task';
   $('tk-easy').disabled = kind !== 'task'; $('tk-easy').textContent = it?.easy ? 'Remove easy flag' : 'Mark easy';
+  $('tk-snooze').disabled = kind !== 'task';
+  $('tk-snooze').textContent = it?.snoozed_until > Date.now() / 1000 ? 'Unsnooze' : 'Snooze until midnight';
   $('tk-theme').disabled = !haveSel;
   $('tk-delete').disabled = !haveSel;
   $('taskwho').textContent = it ? (kind === 'project' ? it.name : it.path) : '';
@@ -1809,6 +1826,7 @@ function renderTaskInfo() {
   const dl = document.createElement('dl');
   const add = (k, v) => { const dt = document.createElement('dt'); dt.textContent = k; const dd = document.createElement('dd'); dd.textContent = v; dl.append(dt, dd); };
   if (kind === 'task') { add('Path', it.path); add('Status', it.status); add('Project', projectById(it.project_id)?.name || '?'); }
+  if (kind === 'task' && it.snoozed_until > Date.now() / 1000) add('Snoozed until', when(it.snoozed_until));
   add('Theme', `${it.theme.color} ${it.theme.glyph}`);
   add('Created', when(it.created));
   if (kind === 'task') add('Updated', when(it.updated));
@@ -2615,7 +2633,7 @@ function renderHelp() {
       note += ' Search and kind filters use their input/select controls. Detail scrolling uses the browser, not TUI J/K bindings.';
     } else if (['tasks', 'captures', 'context', 'reminders'].includes(mode)) {
       note += ' No additional page-specific letter shortcuts. Use the page controls.';
-      if (mode === 'tasks') note += ' Mark easy and Saved easy tasks are controls, not E/Ctrl+f shortcuts.';
+      if (mode === 'tasks') note += ' Mark easy, Saved easy tasks and Snooze until midnight / Unsnooze are page controls. Snoozing hides the task and its subtasks from the deck rail, not this page.';
     }
   } else if (mode === 'focus') {
     note = 'Focus scopes pane and task lists to a task or project and its descendants, without disabling work tools or pages. New terminals, agents and queued prompts default to that scope; form choices remain editable. The thin border and label mark focus without changing your theme. After 15 active minutes the buffer takes priority over all other dialogs and shortcuts. No continuation within 30 seconds unlocks automatically; 3 minutes without activity also unlocks focus.';

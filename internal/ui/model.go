@@ -89,15 +89,17 @@ type Model struct {
 	page  page
 	focus *focusScope
 
-	merged   []panes.Session // the last listing, which o regroups without a daemon call
-	grouping grouping
-	railSort railSort
-	rows     []row
-	sel      int
-	railUp   int // the levels ( has stepped up from the innermost, for { and }
-	listErr  string
-	dirty    bool
-	listBusy bool
+	merged     []panes.Session // the last listing, which o regroups without a daemon call
+	grouping   grouping
+	railSort   railSort
+	rows       []row
+	sel        int
+	railWake   int64
+	railReveal string
+	railUp     int // the levels ( has stepped up from the innermost, for { and }
+	listErr    string
+	dirty      bool
+	listBusy   bool
 
 	trows    []trow // the tasks page
 	tsel     int
@@ -301,7 +303,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.listErr = msg.err.Error()
 		} else {
 			m.listErr = ""
-			m.applyList(msg.sessions, msg.agents)
+			m.applyList(msg.sessions)
 		}
 		var cmd tea.Cmd
 		if m.dirty {
@@ -408,6 +410,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case tickMsg:
+		if m.railWake != 0 && time.Now().Unix() >= m.railWake {
+			m.rebuildRows()
+		}
 		if m.page == pageReviews {
 			m.rebuildReviews()
 		}
@@ -432,8 +437,8 @@ func (m *Model) setStatus(s string) {
 // applyList keeps the two listings merged, rebuilds the rows under the
 // current grouping and keeps the selection on the same pane where it still
 // exists.
-func (m *Model) applyList(sessions []daemon.Session, agents []daemon.Agent) {
-	m.merged = panes.Merge(sessions, agents)
+func (m *Model) applyList(sessions []panes.Session) {
+	m.merged = sessions
 	live := map[string]bool{}
 	for _, s := range m.merged {
 		for _, p := range s.Panes {
@@ -443,6 +448,23 @@ func (m *Model) applyList(sessions []daemon.Session, agents []daemon.Agent) {
 	m.pruneAssignments(live)
 	m.rebuildRows()
 	m.rebuildTasks()
+}
+
+// revealPane keeps an explicitly opened pane accessible even when its task is hidden.
+func (m *Model) revealPane(id string) bool {
+	if !m.focusPane(id) {
+		return false
+	}
+	m.railReveal = id
+	m.rows = m.groupedRows()
+	m.sortRows()
+	for i, r := range m.rows {
+		if r.Pane != nil && r.Pane.ID == id {
+			m.sel = i
+			return true
+		}
+	}
+	return false
 }
 
 func (m *Model) selected() *panes.Pane {

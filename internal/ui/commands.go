@@ -20,8 +20,7 @@ type (
 		err  error
 	}
 	listMsg struct {
-		sessions []daemon.Session
-		agents   []daemon.Agent
+		sessions []panes.Session
 		err      error
 	}
 	detailMsg struct {
@@ -78,15 +77,8 @@ func (m *Model) refreshList() tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
 		defer cancel()
-		sessions, err := m.client.ListSessions(ctx)
-		if err != nil {
-			return listMsg{err: err}
-		}
-		agents, err := m.client.ListAgents(ctx)
-		if err != nil {
-			return listMsg{err: err}
-		}
-		return listMsg{sessions: sessions, agents: agents}
+		sessions, err := panes.List(ctx, m.client)
+		return listMsg{sessions: sessions, err: err}
 	}
 }
 
@@ -167,7 +159,7 @@ func (m *Model) subscribe() tea.Cmd {
 	return func() tea.Msg {
 		ch, err := m.client.Subscribe(ctx, "", []string{
 			"agent-state", "attention", "window-created", "window-closed", "window-exit",
-			"window-retitled", "session-created", "session-closed",
+			"window-retitled", "session-created", "session-closed", "command-started", "command-finished",
 		})
 		return subscribedMsg{ch: ch, err: err}
 	}

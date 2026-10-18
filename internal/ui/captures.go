@@ -155,14 +155,16 @@ func (m *Model) confirmDeleteCapture() {
 // came from selected, when a pane of that session and name is still
 // listed.
 func (m *Model) jumpToCapturedPane(e capture.Entry) tea.Cmd {
-	for i, r := range m.rows {
-		if r.Pane != nil && e.Matches(r.Pane.Session, r.Pane.Name) {
-			m.sel = i
-			m.page = pageDeck
-			m.detail, m.detailErr, m.revision = nil, "", 0
-			m.follow = true
-			m.setStatus(r.Pane.Session + " › " + r.Pane.Name)
-			return m.loadDetail(true)
+	for _, s := range m.merged {
+		for _, p := range s.Panes {
+			if e.Matches(p.Session, p.Name) && m.revealPane(p.ID) {
+				m.page = pageDeck
+				m.clearResult()
+				m.detail, m.detailErr, m.revision = nil, "", 0
+				m.follow = true
+				m.setStatus(p.Session + " › " + p.Name)
+				return m.loadDetail(true)
+			}
 		}
 	}
 	m.setStatus("no pane " + e.Pane + " in " + e.Session + " is open now")

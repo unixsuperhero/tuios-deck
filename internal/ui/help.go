@@ -128,6 +128,7 @@ func (m *Model) helpRows(mode string) []helpRow {
 			{"{/}, (/)", "jump group/level", "tasks"}, {"N", "new project", "tasks"}, {"n", "new task/subtask", "tasks"},
 			{"e", "edit", "tasks"}, {"s", "cycle task status", "tasks"}, {"m/M", "colour/glyph", "tasks"}, {"a", "assign selected pane", "tasks"},
 			{"E", "toggle saved easy-task mark", "tasks; task selected"},
+			{"z", "snooze until midnight / unsnooze", "tasks; task selected"},
 			{"enter", "go to assigned pane", "tasks/captures"}, {"x", "delete selected item", "tasks/captures/context"},
 			{"J/K", "scroll capture", "captures"}, {"G", "follow capture end", "captures"},
 			{"{/}", "jump group", "context"}, {"t", "current pane/all scope", "context"}, {"s", "cycle sort", "context"},

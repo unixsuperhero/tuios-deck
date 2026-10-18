@@ -187,8 +187,9 @@ func (s *Server) state(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	transcripts := s.nonce != ""
 	s.mu.Unlock()
+	hidden, wake := panes.HiddenTasks(sessions, s.Store, time.Now().Unix())
 	writeJSON(w, 200, map[string]any{
-		"daemon": info, "socket": s.Client.Socket, "sessions": s.decorate(sessions),
+		"daemon": info, "socket": s.Client.Socket, "sessions": s.decorate(sessions, hidden), "rail_wake": wake,
 		"transcripts": transcripts, "capture_dir": s.CaptureDir,
 		"projects": s.projectsJSON(), "tasks": s.tasksJSON(""),
 	})
@@ -199,6 +200,7 @@ func (s *Server) state(w http.ResponseWriter, r *http.Request) {
 type paneView struct {
 	panes.Pane
 	Assignment map[string]any `json:"assignment"`
+	RailHidden bool           `json:"rail_hidden"`
 }
 
 type sessionView struct {
@@ -207,12 +209,13 @@ type sessionView struct {
 }
 
 // decorate adds each pane's assignment to the listing.
-func (s *Server) decorate(sessions []panes.Session) []sessionView {
+func (s *Server) decorate(sessions []panes.Session, hidden map[string]bool) []sessionView {
 	out := make([]sessionView, 0, len(sessions))
 	for _, se := range sessions {
 		v := sessionView{Session: se, Panes: make([]paneView, 0, len(se.Panes))}
 		for _, p := range se.Panes {
-			v.Panes = append(v.Panes, paneView{Pane: p, Assignment: s.assignmentJSON(p.ID)})
+			a, _ := s.Store.Assignment(p.ID)
+			v.Panes = append(v.Panes, paneView{Pane: p, Assignment: s.assignmentJSON(p.ID), RailHidden: hidden[a.TaskID]})
 		}
 		out = append(out, v)
 	}
@@ -228,7 +231,7 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 	}
 	ch, err := s.Client.Subscribe(r.Context(), "", []string{
 		"agent-state", "attention", "window-created", "window-closed", "window-exit",
-		"window-retitled", "session-created", "session-closed",
+		"window-retitled", "session-created", "session-closed", "command-started", "command-finished",
 	})
 	if err != nil {
 		writeErr(w, err)

@@ -136,18 +136,17 @@ func (m *Model) projectCounts(projectID string) (total, open int) {
 // task or, with no task id, resolves to the project.
 func (m *Model) assignedPanes(projectID, taskID string) []*panes.Pane {
 	var out []*panes.Pane
-	for _, r := range m.rows {
-		if r.Pane == nil {
-			continue
-		}
-		project, task, _ := m.store.Resolve(r.Pane.ID)
-		switch {
-		case taskID != "":
-			if task != nil && task.ID == taskID {
-				out = append(out, r.Pane)
+	for i := range m.merged {
+		for j := range m.merged[i].Panes {
+			p := &m.merged[i].Panes[j]
+			project, task, _ := m.store.Resolve(p.ID)
+			if taskID != "" {
+				if task != nil && task.ID == taskID {
+					out = append(out, p)
+				}
+			} else if project != nil && project.ID == projectID {
+				out = append(out, p)
 			}
-		case project != nil && project.ID == projectID:
-			out = append(out, r.Pane)
 		}
 	}
 	return out
@@ -244,6 +243,10 @@ func (m *Model) handleTasksKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.easyOnly = false
 		m.rebuildTasks()
 		m.setStatus("task view reset; saved easy marks and focus unchanged")
+	case "z":
+		if r != nil && r.Task != nil {
+			return m, m.toggleTaskSnooze(r.Task.ID)
+		}
 	case "E":
 		if r != nil && r.Task != nil {
 			return m, m.storeChange(m.store.SetTaskEasy(r.Task.ID, !r.Task.Easy), "updated saved easy list")
@@ -332,6 +335,20 @@ func (m *Model) handleTasksKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m *Model) toggleTaskSnooze(id string) tea.Cmd {
+	t := m.store.Task(id)
+	if t == nil {
+		return nil
+	}
+	snooze := t.SnoozedUntil <= time.Now().Unix()
+	status := "unsnoozed " + t.Title
+	if snooze {
+		status = "snoozed " + t.Title + " until midnight"
+	}
+	m.railReveal = ""
+	return m.storeChange(m.store.SetTaskSnoozed(id, snooze), status)
+}
+
 // storeChange reports a store call made on the spot: the status on
 // success, the error otherwise, and the refresh either way.
 func (m *Model) storeChange(err error, status string) tea.Cmd {
@@ -340,6 +357,7 @@ func (m *Model) storeChange(err error, status string) tea.Cmd {
 	} else {
 		m.setStatus(status)
 	}
+	m.rebuildRows()
 	m.rebuildTasks()
 	return m.refreshList()
 }
@@ -357,11 +375,10 @@ func (m *Model) jumpToPane(r trow) tea.Cmd {
 		m.setStatus("no pane is assigned to " + r.name())
 		return nil
 	}
-	for i, row := range m.rows {
-		if row.Pane == found[0] {
-			m.sel = i
-		}
+	if !m.revealPane(found[0].ID) {
+		return nil
 	}
+	m.clearResult()
 	m.page = pageDeck
 	m.detail, m.detailErr, m.revision = nil, "", 0
 	m.follow = true
@@ -905,6 +922,9 @@ func (m *Model) taskDetailLines(width, height int) []string {
 		}
 		field("path", path)
 		field("status", t.Status)
+		if t.SnoozedUntil > time.Now().Unix() {
+			field("snoozed", "until "+time.Unix(t.SnoozedUntil, 0).Format("2006-01-02 15:04"))
+		}
 		field("theme", t.Theme.Color+" "+t.Theme.Glyph)
 		field("created", time.Unix(t.Created, 0).Format("2006-01-02 15:04"))
 		field("updated", time.Unix(t.Updated, 0).Format("2006-01-02 15:04"))

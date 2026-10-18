@@ -4,6 +4,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/unixsuperhero/tuios-deck/internal/panes"
 	"github.com/unixsuperhero/tuios-deck/internal/store"
@@ -227,6 +228,10 @@ func shortenHome(path string) string {
 // with "(none)" last (sessions keep the daemon's order), and the panes
 // inside a group keep their session and window order.
 func (m *Model) groupedRows() []row {
+	hidden, wake := panes.HiddenTasks(m.merged, m.store, time.Now().Unix())
+	m.railWake = wake
+	assignments := m.store.Assignments()
+	visible := func(p *panes.Pane) bool { return p.ID == m.railReveal || !hidden[assignments[p.ID].TaskID] }
 	var rows []row
 	if m.focus != nil {
 		name, theme := m.focusTarget()
@@ -238,7 +243,7 @@ func (m *Model) groupedRows() []row {
 		for i := range m.merged {
 			for j := range m.merged[i].Panes {
 				p := &m.merged[i].Panes[j]
-				if m.focusPane(p.ID) {
+				if m.focusPane(p.ID) && visible(p) {
 					rows = append(rows, row{Pane: p, Depth: depth})
 				}
 			}
@@ -250,7 +255,9 @@ func (m *Model) groupedRows() []row {
 			s := &m.merged[i]
 			rows = append(rows, row{Header: s.Name, Session: s})
 			for j := range s.Panes {
-				rows = append(rows, row{Pane: &s.Panes[j], Depth: 1})
+				if visible(&s.Panes[j]) {
+					rows = append(rows, row{Pane: &s.Panes[j], Depth: 1})
+				}
 			}
 		}
 		return rows
@@ -258,7 +265,9 @@ func (m *Model) groupedRows() []row {
 	var all []*panes.Pane
 	for i := range m.merged {
 		for j := range m.merged[i].Panes {
-			all = append(all, &m.merged[i].Panes[j])
+			if visible(&m.merged[i].Panes[j]) {
+				all = append(all, &m.merged[i].Panes[j])
+			}
 		}
 	}
 	if m.grouping.tree() {
@@ -415,6 +424,9 @@ func (m *Model) sessionNamed(name string) *panes.Session {
 // current grouping, keeping the selection on the same pane.
 func (m *Model) rebuildRows() {
 	selected := m.selectedID()
+	if selected != m.railReveal {
+		m.railReveal = ""
+	}
 	m.rows = m.groupedRows()
 	m.sortRows()
 	newSel := -1

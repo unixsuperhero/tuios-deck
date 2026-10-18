@@ -73,12 +73,10 @@ func (m *Model) handleHistoryKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			break
 		}
 		e := h.entries[h.index]
-		for i, r := range m.rows {
-			if r.Pane != nil && r.Pane.ID == e.Window && r.Pane.Session == e.Session {
-				m.sel, m.page = i, pageDeck
-				m.clearResult()
-				return m, m.loadDetail(true)
-			}
+		if m.revealPane(e.Window) {
+			m.page = pageDeck
+			m.clearResult()
+			return m, m.loadDetail(true)
 		}
 		m.setStatus("the history source pane is not open now")
 	}

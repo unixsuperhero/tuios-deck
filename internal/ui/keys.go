@@ -252,6 +252,13 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, m.captureToFile()
 	case "i":
 		return m, m.extractContext()
+	case "z":
+		if p := m.selected(); p != nil {
+			if a, ok := m.store.Assignment(p.ID); ok && a.TaskID != "" {
+				return m, m.toggleTaskSnooze(a.TaskID)
+			}
+		}
+		m.setStatus("select a pane assigned to a task to snooze it")
 	case "x":
 		p := m.selected()
 		if p == nil {

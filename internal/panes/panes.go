@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/unixsuperhero/tuios-deck/internal/daemon"
+	"github.com/unixsuperhero/tuios-deck/internal/store"
 )
 
 // Pane is one window of one session.
@@ -29,6 +30,7 @@ type Pane struct {
 	NeedsYou  bool   `json:"needs_you"`
 	Queued    int    `json:"queued"`
 	Unread    int    `json:"unread"`
+	Working   bool   `json:"working"`
 }
 
 // Session is one session with its panes in window order.
@@ -50,7 +52,32 @@ func List(ctx context.Context, c *daemon.Client) ([]Session, error) {
 	if err != nil {
 		return nil, err
 	}
-	return Merge(sessions, agents), nil
+	out := Merge(sessions, agents)
+	for i := range out {
+		var windows struct {
+			Windows []struct {
+				ID            string `json:"window_id"`
+				AtPrompt      *bool  `json:"at_prompt"`
+				MarksCommands bool   `json:"marks_commands"`
+			} `json:"windows"`
+		}
+		if err := c.Call(ctx, "list-windows", map[string]any{"session": out[i].Name}, &windows); err != nil {
+			return nil, err
+		}
+		for j := range out[i].Panes {
+			p := &out[i].Panes[j]
+			if p.IsAgent {
+				continue
+			}
+			for _, w := range windows.Windows {
+				if w.ID == p.ID {
+					p.Working = w.MarksCommands && w.AtPrompt != nil && !*w.AtPrompt
+					break
+				}
+			}
+		}
+	}
+	return out, nil
 }
 
 // Merge joins list-sessions with list-agents by window id.
@@ -76,6 +103,7 @@ func Merge(sessions []daemon.Session, agents []daemon.Agent) []Session {
 				p.State, p.Harness, p.Fg, p.Cwd = a.State, a.HarnessID, a.Foreground, a.Cwd
 				p.Message, p.BlockedBy = a.Message, a.BlockedBy
 				p.Ready, p.NeedsYou, p.Queued, p.Unread = a.Ready, a.NeedsYou, a.Queued, a.Unread
+				p.Working = p.State == "working" && !p.NeedsYou
 			}
 			if p.Name == "" {
 				p.Name = ShortID(w.ID)
@@ -85,6 +113,37 @@ func Merge(sessions []daemon.Session, agents []daemon.Agent) []Session {
 		out = append(out, sess)
 	}
 	return out
+}
+
+// HiddenTasks returns rail-only exclusions and the next snooze expiry.
+// An unknown or idle pane keeps its task visible; a task with no panes does too.
+func HiddenTasks(sessions []Session, s *store.Store, now int64) (map[string]bool, int64) {
+	assignments := s.Assignments()
+	busy := map[string]bool{}
+	for _, session := range sessions {
+		for _, p := range session.Panes {
+			id := assignments[p.ID].TaskID
+			if id == "" {
+				continue
+			}
+			all, seen := busy[id]
+			busy[id] = p.Working && (!seen || all)
+		}
+	}
+	hidden := map[string]bool{}
+	var wake int64
+	for _, t := range s.Tasks() {
+		hidden[t.ID] = busy[t.ID]
+		for _, ancestor := range s.Path(t.ID) {
+			if ancestor.SnoozedUntil > now {
+				hidden[t.ID] = true
+				if wake == 0 || ancestor.SnoozedUntil < wake {
+					wake = ancestor.SnoozedUntil
+				}
+			}
+		}
+	}
+	return hidden, wake
 }
 
 // ShortID is the first eight characters of a window id.

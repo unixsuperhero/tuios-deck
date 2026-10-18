@@ -123,7 +123,7 @@ func (s *Server) taskJSON(t store.Task, panes int) map[string]any {
 	return map[string]any{
 		"id": t.ID, "parent_id": t.ParentID, "project_id": s.Store.ProjectOf(t.ID), "own_project_id": t.ProjectID,
 		"title": t.Title, "theme": themeJSON(t.Theme), "status": t.Status,
-		"easy":    t.Easy,
+		"easy": t.Easy, "snoozed_until": t.SnoozedUntil,
 		"created": t.Created, "updated": t.Updated,
 		"path": s.taskPath(t), "depth": len(s.Store.Path(t.ID)) - 1, "panes": panes,
 	}
@@ -404,6 +404,7 @@ func (s *Server) patchTask(w http.ResponseWriter, r *http.Request) {
 		Title     *string  `json:"title"`
 		Status    *string  `json:"status"`
 		Easy      *bool    `json:"easy"`
+		Snoozed   *bool    `json:"snoozed"`
 		Theme     *themeIn `json:"theme"`
 		ParentID  *string  `json:"parent_id"`
 		Parent    *string  `json:"parent"`
@@ -450,6 +451,12 @@ func (s *Server) patchTask(w http.ResponseWriter, r *http.Request) {
 	}
 	if in.Easy != nil {
 		if err := s.Store.SetTaskEasy(id, *in.Easy); err != nil {
+			storeErr(w, err)
+			return
+		}
+	}
+	if in.Snoozed != nil {
+		if err := s.Store.SetTaskSnoozed(id, *in.Snoozed); err != nil {
 			storeErr(w, err)
 			return
 		}

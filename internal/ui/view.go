@@ -144,11 +144,13 @@ func (m *Model) titleLine() string {
 		return pad(s, m.width)
 	}
 	agents, attention := 0, 0
-	for _, r := range m.rows {
-		if r.Pane != nil && r.Pane.IsAgent {
-			agents++
-			if r.Pane.NeedsYou {
-				attention++
+	for _, s := range m.merged {
+		for _, p := range s.Panes {
+			if p.IsAgent {
+				agents++
+				if p.NeedsYou {
+					attention++
+				}
 			}
 		}
 	}
