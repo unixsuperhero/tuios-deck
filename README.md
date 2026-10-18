@@ -426,25 +426,31 @@ to display its prompt, reported response and available pane output, and
 persist its first reviewed timestamp. The opened detail stays visible when
 the item leaves the pending list; nothing opens the next item automatically.
 TUI `tab` switches between pending and reviewed history, `j/k` highlights,
-`J/K` scrolls the opened detail, and `r` refreshes. The web uses the
-**Awaiting review / Reviewed history** selector. Refresh preserves the
+`J/K` scrolls the opened detail, and `r` re-reads the list. The web uses the
+**Awaiting review / Reviewed history** selector. A re-read preserves the
 highlight, opened detail and scroll. Reopening history keeps the original
 reviewed timestamp.
 
-The source is the daemon’s actual `prompt` followed by `turn_end` activity,
-including OMP hook reports. Queued-only prompts, unfinished prompts, commands,
-state changes and orphan turn-end events are not review items. Activity text
-can be truncated by the daemon or harness. When collecting the latest finished
-turn of an idle/done agent, the deck also retains up to 2,000 recent pane lines,
-clearly labeled as pane output that may include earlier turns. It never
-attaches a currently running prompt’s output to an earlier turn.
+The queue is a view over [history](#history): each turn is a
+`prompt-submitted` entry the harness reported (the daemon's `prompt`
+activity, including OMP hook reports) paired with the next
+`response-completed` entry of the same window; a `session_start` or another
+prompt in between drops the pending prompt. Nothing polls the daemon for
+turns, and nothing about a turn is stored twice: the list is computed from
+history on every read, and the only review state is the mark, in `deck.json`
+under `review_marks` (history id → first reviewed time, ms). A prompt the
+deck sent but the harness never reported, a queued-only prompt, a running
+prompt, a command, a state change and an orphan turn-end are not review
+items. Activity text can be truncated by the daemon or harness.
 
-Snapshots and reviewed timestamps live in `deck.json` under `reviews` and
-survive pane closure and frontend restart. Collection runs beside either
-frontend, independently of auto-capture, without changing the current view.
-Only prompt/end pairs still present in the daemon’s bounded activity ring can
-be recovered; a harness that reports neither cannot populate this queue.
-Markdown/HTML documents and MCP are not review sources.
+Opening a turn attaches the capture [auto-capture](#captures) took when it
+ended: the newest `-turn` capture of that session and pane taken at or after
+the completion and before the window's next prompt. With auto-capture off,
+or for a turn that ended while no deck ran, the detail says no capture was
+taken. A turn outlives its pane and a frontend restart as long as history
+holds it (history keeps the newest 10,000 entries; a mark whose turn has
+left history is dropped). Markdown/HTML documents and MCP are not review
+sources.
 
 ## Context items
 
@@ -1293,8 +1299,8 @@ DELETE /api/panes/{session}/{id}/assignment    drop it
 GET    /api/captures                           the folder, newest first: {name, path, size, modified, session, pane, kind}; kind is "turn", "cmd" or ""
 GET    /api/captures/{name}                    {"name", "content", "lines"}
 DELETE /api/captures/{name}                    remove the file
-GET    /api/reviews                            {reviews, warning}; completion order, no review side effects; ?refresh=1 collects current daemon activity
-POST   /api/reviews/{id}/open                  {review}; marks this completed prompt reviewed, once
+GET    /api/reviews                            {reviews, warning}; history's turns in completion order, no side effects; ?refresh=1 is accepted and ignored
+POST   /api/reviews/{id}/open                  {review}; marks this turn reviewed, once, and attaches its auto-capture as output; the id is a history id, so URL-encode it
 GET    /api/prompt-presets                     {"presets": [{id, name, prefix, cwd}]}
 POST   /api/prompt-presets                     {name, prefix, cwd}; PATCH /api/prompt-presets/{id} changes any of them; DELETE removes it
 GET    /api/queued-prompts                     {"queued": [{id, text, preset, task_id, project_id, project, task, cwd, session, agent, window}]}
@@ -1348,8 +1354,9 @@ The deadline is 60 seconds including cleanup, with each subprocess capped at
 10 seconds. Every check keeps what it saw under `$SCRATCH/out` and prints PASS or FAIL.
 
 `scripts/e2e-review.py` checks completed-turn ordering, explicit opening,
-unreviewed navigation, stable detail scroll, reviewed history and persistence
-across the TUI, HTTP API and pane closure, against isolated real daemons.
+unreviewed navigation, stable detail scroll, reviewed history, the attached
+turn capture and persistence across the TUI, HTTP API and pane closure,
+against isolated real daemons.
 It uses `SCRATCH` and `PORT` (default 18963).
 
 ```sh

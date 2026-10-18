@@ -24,9 +24,11 @@ deck version    the module version Go stamped in
 ```
 cmd/deck/            main.go (subcommands, the shared -socket -captures -data -auto-capture flags), update.go
 internal/daemon/     the JSON client: Call, Subscribe, Presence, StreamPane; typed verb wrappers in verbs.go
-internal/panes/      sessions+agents merged into one shape; activity and transcript text rendering. Both front ends read this
+internal/panes/      sessions+agents merged into one shape; activity and transcript text rendering. Both front ends read this;
+                     reviews.go names a review's pane from the listing and attaches its turn capture
 internal/store/      store.go projects, tasks (status, MoveTask) and assignments in one JSON file (deck.json);
-                     theme.go the 16-colour themes and the free-colour pool; context.go the context_items table
+                     theme.go the 16-colour themes and the free-colour pool; context.go the context_items table;
+                     history.go the history table; reviews.go the turns computed from it and the review_marks table
 internal/context/    context.go Extract, Unwrap and Gather: context items from scrollback, activity, transcript, command-history;
                      actions.go clipboard Copy, Target, Opener, Start (detached), Programs, Terminal
 internal/events/     events.go the process's one daemon subscription: Handler, Runner (New, Include, Tap, Start), resume, fan-out
@@ -214,6 +216,17 @@ Rules the suites follow, and a new check should too:
   logger; `deck web` logs. Keep the handlers out of `ui.Model`, and wait on
   `Start`'s done channel before exiting: history flushes its last batch in
   `Close`.
+- **Reviews are a view over history; only the mark is stored.** `store.Reviews`
+  pairs history's `prompt-submitted` (source `agent-activity`) and
+  `response-completed` entries per window on every call, and `review_marks`
+  holds history id → reviewed time. Nothing polls the daemon for turns, and a
+  review's output is the `-turn` capture auto-capture wrote, found on disk when
+  the review is opened. A suite that wants output must run the deck with
+  auto-capture on before the turn ends, and wait for the capture file.
+- **A suite's "deck started" check must not match the typed command.** A
+  clone's path can hold `tuios-deck`, so the command line echoed in the pane
+  matches before the deck runs; wait for the alternate screen to replace it
+  (e2e-review.py waits until `REVIEW-TUI-EXITED` leaves the screen).
 - **Context items hold window ids too.** Each item in `deck.json` keeps the
   `window` it came from, so a check that a pane's assignment was pruned
   must match the assignment key (`"<window id>": {`), never the bare id,
