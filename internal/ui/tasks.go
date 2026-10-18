@@ -794,7 +794,11 @@ func edited(name string, did []string) string {
 func (m *Model) taskListLines(width, height int) []string {
 	lines := make([]string, 0, height)
 	if len(m.trows) == 0 {
-		lines = append(lines, cDim.Render("no projects: press N"))
+		text := "no projects: press N"
+		if m.easyOnly {
+			text = "no saved easy tasks: ctrl+f all, E mark easy"
+		}
+		lines = append(lines, cDim.Render(text))
 	}
 	start := 0
 	if m.tsel >= height {
@@ -823,7 +827,7 @@ func (m *Model) taskListLines(width, height int) []string {
 				title += " [easy]"
 			}
 			if store.IsFinal(t.Status) {
-				mark, title = cDim.Render(statusMark(t.Status)), cDim.Render(t.Title)
+				mark, title = cDim.Render(statusMark(t.Status)), cDim.Render(title)
 			}
 			count := ""
 			if n := len(m.assignedPanes("", t.ID)); n > 0 {

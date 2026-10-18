@@ -1184,9 +1184,9 @@ GET    /api/projects                           {"projects": [{id, name, theme: {
 POST   /api/projects                           {"name", "theme"?: {"color", "glyph"}}
 PATCH  /api/projects/{id}                      {"name"}, {"status": "open"|"done"|"skipped"}, {"theme": {"color", "glyph"}}, either half of the theme alone
 DELETE /api/projects/{id}                      with its tasks and their assignments; the answer counts them
-GET    /api/tasks?project=                     {"tasks": [{id, parent_id, project_id, title, path, depth, theme, status, panes, …}]}
+GET    /api/tasks?project=                     {"tasks": [{id, parent_id, project_id, title, path, depth, theme, status, easy, panes, …}]}
 POST   /api/tasks                              {"project_id", "title"} for a top-level task; {"parent_id", "title"} for a subtask; "theme"?
-PATCH  /api/tasks/{id}                         {"title"}, {"status": "open"|"done"|"skipped"}, {"theme": {…}}; a move: {"parent_id"} or {"parent": path} under a task, {"project_id"} or {"project": name} to a project's top level
+PATCH  /api/tasks/{id}                         {"title"}, {"status": "open"|"done"|"skipped"}, {"easy": true|false}, {"theme": {…}}; a move: {"parent_id"} or {"parent": path} under a task, {"project_id"} or {"project": name} to a project’s top level
 DELETE /api/tasks/{id}                         with its subtasks and their assignments
 GET    /api/notes?task=ID | ?project=ID        {"notes": [{id, text, relation: own|ancestor|descendant, owner, task_id, project_id, created, updated}]}: every note that task or project sees
 POST   /api/notes                              {"task_id" | "project_id", "text"}
@@ -1239,6 +1239,9 @@ with a fake pi and a fake tuios.
 `scripts/e2e-history.sh` exercises retained and live history, repeated commands,
 queue acknowledgement, filtering, restart deduplication, pane closure and TUI
 navigation with selection preservation against isolated daemons.
+`scripts/e2e-focus.sh` exercises task, descendant, project and empty scopes,
+manual unlocking, saved easy flags and the full three-minute idle deadline
+against real isolated daemons. It also checks the easy-flag API and disk state.
 
 Run `scripts/e2e-turns.py` alone for the focused shell → command-history →
 Turns row/expansion check. It needs an already-built `.dev/deck` (or `DECK`),
@@ -1256,6 +1259,7 @@ go build -o .dev/deck ./cmd/deck
 scripts/e2e.sh && scripts/e2e-web.sh && scripts/e2e-setup.sh
 SCRATCH=/tmp/deck-e2e-mine PORT=18799 scripts/e2e-web.sh   # a second run beside the first
 SCRATCH=/tmp/deck-history-check PORT=18849 scripts/e2e-history.sh
+SCRATCH=/tmp/deck-e2e-focus PORT=18748 scripts/e2e-focus.sh
 ```
 
 `SCRATCH` names the scratch folder and `PORT` the web suite's port. On

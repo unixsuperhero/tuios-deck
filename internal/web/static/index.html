@@ -885,6 +885,7 @@ function renderList() {
   const scroll = list.scrollTop;
   list.replaceChildren();
   state.order = [];
+  if (focusScope && !Object.values(state.panes).some(focusPane)) { list.innerHTML = '<div class="empty">No panes assigned to this focus scope.</div>'; return; }
   if (!state.sessions.length) { list.innerHTML = '<div class="empty">no sessions yet: start an agent or open a terminal</div>'; return; }
   for (const r of groups()) {
     if (r.header !== undefined) {

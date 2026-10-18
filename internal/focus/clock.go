@@ -13,6 +13,7 @@ func New(now time.Time) Clock { return Clock{lastUser: now, minuteStart: now} }
 
 func (c *Clock) Activity(now time.Time) { c.lastUser = now }
 
+// Expired advances completed minute intervals; call it before recording input.
 func (c *Clock) Expired(now time.Time) bool {
 	if now.Sub(c.lastUser) >= 3*time.Minute {
 		return true

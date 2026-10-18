@@ -66,6 +66,8 @@ func (m *Model) startFocus(taskID, projectID string) tea.Cmd {
 	m.easyOnly = false
 	m.clearResult()
 	m.detailFor, m.detailErr, m.status = "", "", ""
+	m.detail, m.scroll, m.revision = nil, 0, 0
+	m.turns, m.expanded = nil, map[string]bool{}
 	m.rebuildRows()
 	m.rebuildTasks()
 	return m.loadDetail(true)
