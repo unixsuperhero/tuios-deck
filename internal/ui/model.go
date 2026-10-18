@@ -99,6 +99,7 @@ type Model struct {
 	railUp     int // the levels ( has stepped up from the innermost, for { and }
 	listErr    string
 	dirty      bool
+	stale      bool // a noisy event asked for a listing; the next tick runs one
 	listBusy   bool
 
 	trows    []trow // the tasks page
@@ -341,13 +342,22 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case eventMsg:
 		ev := daemon.Event(msg)
-		if ev.Type == "agent-state" || ev.Type == "attention" {
-			// A state change is what the person watches for; refresh at once.
-			return m, tea.Batch(m.refreshList(), m.waitEvent())
+		switch ev.Type {
+		case "command-started", "command-finished", "window-retitled":
+			// A busy shell or a spinner in a pane title fires these many
+			// times a second; one listing on the next tick covers them all.
+			// Listing per event kept the daemon and the deck busy without end.
+			m.stale = true
+			return m, m.waitEvent()
 		}
+		// A state change or a window coming and going is what the person
+		// watches for; refresh at once.
 		return m, tea.Batch(m.refreshList(), m.waitEvent())
 
 	case eventsClosedMsg:
+		if msg.ch != m.events {
+			return m, nil // an older stream closed; the current one is live
+		}
 		m.events = nil
 		m.eventsErr = "event stream closed; reconnecting"
 		return m, tea.Tick(2*time.Second, func(time.Time) tea.Msg { return resubscribeMsg{} })
@@ -424,6 +434,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.rebuildReviews()
 		}
 		var cmds []tea.Cmd
+		if m.stale && !m.listBusy {
+			m.stale = false
+			cmds = append(cmds, m.refreshList())
+		}
 		if m.page == pageHistory {
 			m.loadHistory()
 		}

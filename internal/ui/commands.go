@@ -33,7 +33,7 @@ type (
 		empty    string // what the Turns tab says when it has no rows
 	}
 	eventMsg        daemon.Event
-	eventsClosedMsg struct{}
+	eventsClosedMsg struct{ ch <-chan daemon.Event }
 	resubscribeMsg  struct{}
 	subscribedMsg   struct {
 		ch  <-chan daemon.Event
@@ -177,7 +177,7 @@ func (m *Model) waitEvent() tea.Cmd {
 	return func() tea.Msg {
 		ev, ok := <-ch
 		if !ok {
-			return eventsClosedMsg{}
+			return eventsClosedMsg{ch}
 		}
 		return eventMsg(ev)
 	}

@@ -71,8 +71,10 @@ func (m *Model) View() tea.View {
 	b.WriteString(m.titleLine())
 	b.WriteByte('\n')
 
-	leftLines, rightLines := m.listLines(left, bodyH), m.detailLines(right, bodyH)
+	var leftLines, rightLines []string
 	switch m.page {
+	default:
+		leftLines, rightLines = m.listLines(left, bodyH), m.detailLines(right, bodyH)
 	case pageReviews:
 		leftLines, rightLines = m.reviewListLines(left, bodyH), m.reviewDetailLines(right, bodyH)
 	case pageTasks:
