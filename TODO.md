@@ -97,7 +97,7 @@ versions
   just a name
 - [ ] add settings and configurable keybindings and at the same time introduce
 vim-like modes.  so keybindings can be based on mode
-- [ ] store settings in ~/.config/tuios-deck/config (yml or json)
+- [x] store settings in ~/.config/tuios-deck/config (yml or json)
 - [x] are we using @~/.local/share/tuios-deck/deck.json as our data store?
 should we move to an sqlite db?  where do we store context items
 - [ ] context item screen should have 2 modes - one for the agent/term i'm on,

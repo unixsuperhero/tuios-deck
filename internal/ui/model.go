@@ -11,6 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/unixsuperhero/tuios-deck/internal/capture"
+	"github.com/unixsuperhero/tuios-deck/internal/config"
 	"github.com/unixsuperhero/tuios-deck/internal/daemon"
 	"github.com/unixsuperhero/tuios-deck/internal/panes"
 	"github.com/unixsuperhero/tuios-deck/internal/store"
@@ -72,6 +73,9 @@ type Model struct {
 	client  *daemon.Client
 	store   *store.Store
 	version string
+
+	settings     *config.Config // nil until SetSettings: the defaults
+	settingsPath string
 
 	width, height int
 

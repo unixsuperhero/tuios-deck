@@ -92,6 +92,24 @@ pane. Transcripts for omp are a different matter: the daemon serves
 `agent-transcript` only for formats it has a reader for, and today that is
 Claude Code's. No file outside tuios adds a reader.
 
+## Settings
+
+Settings live in one JSON file, `$XDG_CONFIG_HOME/tuios-deck/config`
+(`~/.config/tuios-deck/config` when `XDG_CONFIG_HOME` is unset), apart from
+the data store. A missing file means the defaults. A file that does not
+parse, or names a setting that does not exist, stops `deck tui` at startup
+with the file's name and the reason; nothing is silently ignored. The file is
+written whole through a temp file and a rename.
+
+```json
+{
+  "vim_modes": false
+}
+```
+
+`deck config path|show|get <setting>|set <setting> <value>|init` reads and
+changes it from the shell. `vim_modes` is the one setting so far.
+
 ## Projects, tasks and assignments
 
 A project holds top-level tasks; a task holds subtasks, to any depth, in

@@ -18,6 +18,7 @@ import (
 
 	"github.com/unixsuperhero/tuios-deck/internal/autocapture"
 	"github.com/unixsuperhero/tuios-deck/internal/capture"
+	"github.com/unixsuperhero/tuios-deck/internal/config"
 	"github.com/unixsuperhero/tuios-deck/internal/daemon"
 	"github.com/unixsuperhero/tuios-deck/internal/store"
 	"github.com/unixsuperhero/tuios-deck/internal/ui"
@@ -35,6 +36,7 @@ Usage:
 Commands:
   tui       The dashboard in this terminal
   web       The dashboard as a web page (default http://127.0.0.1:8787)
+  config    Show and change the settings file
   setup     Install, check or remove the files the deck needs on this machine
   update    Install the latest published deck with go install (or a given version)
   version   Print the version
@@ -69,6 +71,8 @@ func main() {
 		err = runTUI(args)
 	case "web":
 		err = runWeb(args)
+	case "config":
+		err = runConfig(args)
 	case "setup":
 		err = runSetup(args)
 	case "update":
@@ -137,10 +141,15 @@ func runTUI(args []string) error {
 	if err != nil {
 		return err
 	}
+	cfg, err := config.Load(config.DefaultPath())
+	if err != nil {
+		return err
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	c.startAutoCapture(ctx, client, dir, nil)
 	m := ui.New(client, st, version, dir)
+	m.SetSettings(cfg, config.DefaultPath())
 	defer m.Close()
 	_, err = tea.NewProgram(m).Run()
 	return err
