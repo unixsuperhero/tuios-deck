@@ -394,9 +394,9 @@ func (m *Model) deleteSelectedCapture() tea.Cmd {
 // field; the other half of the a form is left out.
 func (m *Model) openTargetForm(p *panes.Pane, task bool) tea.Cmd {
 	windowID, session, name := p.ID, p.Session, p.Name
-	f := field{Label: "project", Keep: true, Options: m.projectOptions, New: "project"}
+	f := field{Label: "project", Keep: true, Options: m.projectOptions, Preview: m.projectPreview, New: "project"}
 	if task {
-		f = field{Label: "task", Keep: true, Options: m.taskOptions, New: "task"}
+		f = field{Label: "task", Keep: true, Options: m.taskOptions, Preview: m.taskPreview, New: "task"}
 	}
 	resolve := func(v string) (string, string, int, string) {
 		if task {
@@ -539,6 +539,13 @@ func (m *Model) openVerbForm(v verb) tea.Cmd {
 		case p.Name == "session":
 			fl.Options = m.sessionOptions
 		case p.Name == "window":
+			fl.Preview = func(opt string) previewSpec {
+				session := ""
+				if sessionIdx >= 0 {
+					session = strings.TrimSpace(f.Fields[sessionIdx].Value)
+				}
+				return m.windowPreview(session)(opt)
+			}
 			fl.Options = func() []string {
 				session := ""
 				if sessionIdx >= 0 {

@@ -36,6 +36,9 @@ type field struct {
 	New     string
 	HintFn  func() string // the hint worked out afresh on every draw, in place of Hint
 	Outline bool
+	// Preview, when set, works out a preview of the highlighted option: metadata
+	// and a pane's recent output, drawn under the list. Options is unchanged.
+	Preview func(option string) previewSpec
 
 	hl int // the highlighted list entry plus one; 0 is none
 	at int // the offset of the '@' being completed plus one; 0 is none

@@ -140,7 +140,7 @@ func (m *Model) currentField(fl field, iw int) []string {
 	if len(list) > listRows {
 		out = append(out, cDim.Render(fmt.Sprintf("      %d of %d", end-start, len(list))))
 	}
-	return out
+	return append(out, m.previewBox(iw)...)
 }
 
 // formHelp names the keys the current field answers.

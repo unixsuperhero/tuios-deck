@@ -436,8 +436,8 @@ func (m *Model) openContextAssign() tea.Cmd {
 	m.form = &form{
 		Title: "assign " + text,
 		Fields: []field{
-			{Label: "task", Value: task, Keep: true, Options: m.taskOptions},
-			{Label: "project", Value: project, Keep: true, Options: m.projectOptions},
+			{Label: "task", Value: task, Keep: true, Options: m.taskOptions, Preview: m.taskPreview},
+			{Label: "project", Value: project, Keep: true, Options: m.projectOptions, Preview: m.projectPreview},
 		},
 		Validate: func(v []string) (int, string) {
 			_, _, f, msg := m.resolveTarget(v[0], v[1], 0, 1, true)

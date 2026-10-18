@@ -159,6 +159,8 @@ type Model struct {
 	daemonInfo string
 
 	missing map[string]bool // assigned windows the last listing did not hold
+
+	previews previewState // the capture a form field's preview is showing
 }
 
 // New builds a deck for one daemon socket, with the store that holds the
@@ -191,7 +193,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.loadDetail(true)
 
 	case tea.KeyPressMsg:
-		return m.handleKey(msg)
+		mm, cmd := m.handleKey(msg)
+		return mm, tea.Batch(cmd, m.previewCmd(false))
+
+	case previewMsg:
+		m.applyPreview(msg)
+		return m, nil
 
 	case tea.PasteMsg:
 		if m.mode == modeForm && m.form != nil && !m.form.vimNormal {
@@ -335,7 +342,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.mode != modeConfirm && m.page == pageDeck {
 			cmds = append(cmds, m.loadDetail(false))
 		}
-		cmds = append(cmds, tick())
+		cmds = append(cmds, m.previewCmd(true), tick())
 		return m, tea.Batch(cmds...)
 	}
 	return m, nil
