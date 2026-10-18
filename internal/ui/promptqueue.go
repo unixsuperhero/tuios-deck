@@ -122,6 +122,10 @@ func (m *Model) openQueueForm(edit *store.QueuedPrompt) tea.Cmd {
 		}
 	} else {
 		task, project := m.queueTargetValues()
+		if task == "" && project == "" && m.focus != nil {
+			target := m.targetFields(true)
+			task, project = target[0].Value, target[1].Value
+		}
 		fields[idx["task"]].Value, fields[idx["project"]].Value = task, project
 	}
 	sel := m.selected()

@@ -12,8 +12,8 @@ isolate() {
  mkdir -p "$dir"/{run,config/tuios,state,cache,data,tmp}; chmod 700 "$dir/run"
  export XDG_RUNTIME_DIR="$dir/run" XDG_CONFIG_HOME="$dir/config" XDG_CONFIG_DIRS="$dir/config" XDG_STATE_HOME="$dir/state" XDG_CACHE_HOME="$dir/cache" XDG_DATA_HOME="$dir/data" TMPDIR="$dir/tmp"
 }
-a() { (isolate "$SCRATCH/A"; tuios "$@"); }
-b() { (isolate "$SCRATCH/B"; tuios "$@"); }
+a() { (isolate "$SCRATCH/A"; /Users/unixsuperhero/go/bin/tuios "$@"); }
+b() { (isolate "$SCRATCH/B"; /Users/unixsuperhero/go/bin/tuios "$@"); }
 webpid=
 cleanup() { [ -z "$webpid" ] || kill "$webpid" 2>/dev/null || :; a kill-server >/dev/null 2>&1 || :; b kill-server >/dev/null 2>&1 || :; }
 trap cleanup EXIT
@@ -45,6 +45,47 @@ b new boot --detach --cwd "$SCRATCH" >/dev/null
 b call new-session "{\"name\":\"host\",\"width\":160,\"height\":45,\"cwd\":\"$SCRATCH\"}" >/dev/null
 b new-window -s host focus --no-focus -- env -u NO_COLOR TERM=xterm-256color "$DECK" tui -socket "$SCRATCH/A/run/tuios/tuios.sock" -data "$SCRATCH/deck.json" -captures "$SCRATCH/captures" >/dev/null
 wait_deck tuios-deck 15
+if [ "${FOCUS_WORK_SMOKE:-0}" = 1 ]; then
+ keys 'F l j j'; shot work-picker
+ check "$SCRATCH/out/work-picker.txt" 'Empty sibling' 'hierarchical focus picker reaches empty task'
+ keys Enter; shot work-empty
+ check "$SCRATCH/out/work-empty.txt" 'FOCUS · Empty sibling' 'empty task is focused'
+ absent "$SCRATCH/out/work-empty.txt" 'parent-pane\|child-pane\|unrelated-pane' 'empty focus excludes other panes'
+ keys t; shot work-terminal-form
+ check "$SCRATCH/out/work-terminal-form.txt" 'Focus project / Empty sibling' 'terminal form prefills focused task without a selected pane'
+ b send-text -s host -w focus target >/dev/null
+ keys Enter
+ b send-text -s host -w focus focus-work-terminal >/dev/null
+ keys ctrl+s
+ wait_deck 'opened focus-work-terminal' 15
+ keys g; shot work-created
+ check "$SCRATCH/out/work-created.txt" 'focus-work-terminal' 'new terminal remains visible in focus'
+ a list-windows -s target --json > "$SCRATCH/out/work-windows.json"
+ bun -e 'const fs=require("fs"), assert=require("assert/strict"); const d=JSON.parse(fs.readFileSync(process.argv[1])); const a=Object.values(d.assignments).find(a=>a.task_id==="t_sibling"); assert.ok(a,"new terminal assigned to empty focused task"); assert.equal(a.session,"target"); console.log("PASS persisted focused task assignment")' "$SCRATCH/deck.json"
+ keys p
+ b send-text -s host -w focus "printf '\\033[31mFOCUS_WORK_%s\\033[0m\\n' OK" >/dev/null
+ shot work-command-form
+ keys ctrl+s
+ a wait-for window-output -s target -w focus-work-terminal --pattern FOCUS_WORK_OK --timeout 10000 >/dev/null
+ a capture-pane -s target -w focus-work-terminal --ansi > "$SCRATCH/out/work-terminal.ansi"
+ wait_deck FOCUS_WORK_OK 15
+ shot work-output
+ b capture-pane -s host -w focus --ansi > "$SCRATCH/out/work-output.ansi"
+ check "$SCRATCH/out/work-output.txt" 'FOCUS · Empty sibling' 'sending a command keeps focus active'
+ absent "$SCRATCH/out/work-output.txt" 'unrelated-pane\|parent-pane\|child-pane' 'command output excludes unrelated panes'
+ keys n; shot work-agent-form
+ check "$SCRATCH/out/work-agent-form.txt" 'new agent' 'existing agent launch form opens in focus'
+ check "$SCRATCH/out/work-agent-form.txt" 'Focus project / Empty sibling' 'agent launch form prefills focused task'
+ keys 'ctrl+c :'; shot work-palette
+ check "$SCRATCH/out/work-palette.txt" '─ command palette' 'palette remains usable during focus'
+ keys Escape
+ b call resize '{"session":"host","window":"focus","width":120,"height":32}' > "$SCRATCH/out/work-resize.json"
+ keys r; shot work-resized
+ bun -e 'const fs=require("fs"), assert=require("assert/strict"); for(const [file,w,h] of [["work-output.txt",158,43],["work-resized.txt",120,32]]){const lines=fs.readFileSync(process.argv[1]+"/"+file,"utf8").trimEnd().split("\n"); assert.equal(lines.length,h,file); assert.equal(lines[0],"┌"+"─".repeat(w-2)+"┐",file); assert.equal(lines.at(-1),"└"+"─".repeat(w-2)+"┘",file); for(const l of lines.slice(1,-1)){assert.ok(l.startsWith("│")&&l.endsWith("│"),file); assert.equal([...l].length,w,file)} assert.match(lines.at(-2),/help/,"footer remains inside border");} const ansi=fs.readFileSync(process.argv[1]+"/work-output.ansi","utf8"); assert.match(ansi,/\x1b\[[0-9;]*31[;m]/,"terminal red ANSI survives focus"); console.log("PASS one-cell borders, footer, resize and terminal ANSI")' "$SCRATCH/out"
+ cp "$SCRATCH/deck.json" "$SCRATCH/out/work-store.json"
+ echo "PASS focused work smoke; artifacts: $SCRATCH/out"
+ exit 0
+fi
 keys 'T j E ctrl+f'; shot easy
 check "$SCRATCH/out/easy.txt" 'Parent task \[easy\]' 'saved easy list contains marked task'
 absent "$SCRATCH/out/easy.txt" 'Unrelated' 'saved easy list hides unrelated tasks'
@@ -54,9 +95,10 @@ check "$SCRATCH/out/parent.txt" 'FOCUS · Parent task' 'focus starts from saved 
 check "$SCRATCH/out/parent.txt" 'parent-pane' 'task scope includes its own pane'
 check "$SCRATCH/out/parent.txt" 'child-pane' 'task scope includes descendant pane'
 absent "$SCRATCH/out/parent.txt" 'unrelated-pane' 'task scope excludes unrelated pane'
-keys 'C I :'; shot guarded
-check "$SCRATCH/out/guarded.txt" 'FOCUS · Parent task' 'global pages and palette cannot escape focus'
-keys T; shot subtree
+keys 'C I :'; shot palette
+check "$SCRATCH/out/palette.txt" '─ command palette' 'palette is available during focus'
+check "$SCRATCH/out/palette.txt" 'FOCUS · Parent task' 'opening other pages keeps focus active'
+keys 'Escape T'; shot subtree
 absent "$SCRATCH/out/subtree.txt" 'Empty sibling\|Unrelated' 'focused task tree excludes siblings'
 keys 'j F'; shot unlocked
 check "$SCRATCH/out/unlocked.txt" 'Unrelated project' 'manual unlock restores all tasks'

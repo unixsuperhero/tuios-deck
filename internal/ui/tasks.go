@@ -892,9 +892,7 @@ func (m *Model) taskDetailLines(width, height int) []string {
 		field("tasks", fmt.Sprintf("%d (%d open)", total, open))
 		field("created", time.Unix(p.Created, 0).Format("2006-01-02 15:04"))
 		paneLines(m.assignedPanes(p.ID, ""))
-		if m.focus == nil {
-			lines = append(lines, m.noteLines(r)...)
-		}
+		lines = append(lines, m.noteLines(r)...)
 	default:
 		t := r.Task
 		lines = append(lines, themeStyle(t.Theme).Render(t.Theme.Glyph)+" "+cTitle.Render(t.Title))
@@ -917,9 +915,7 @@ func (m *Model) taskDetailLines(width, height int) []string {
 			lines = append(lines, "  "+themeStyle(c.Theme).Render(c.Theme.Glyph)+" "+mark+" "+c.Title)
 		}
 		paneLines(m.assignedPanes("", t.ID))
-		if m.focus == nil {
-			lines = append(lines, m.noteLines(r)...)
-		}
+		lines = append(lines, m.noteLines(r)...)
 	}
 	for i := range lines {
 		lines[i] = ansi.Truncate(lines[i], width, "…")

@@ -83,7 +83,8 @@ type Model struct {
 	settingsPath string
 	settingsKeys map[string]map[string]config.Target // the rebinding tables, by mode
 
-	width, height int
+	width, height             int
+	screenWidth, screenHeight int
 
 	page  page
 	focus *focusScope
@@ -221,7 +222,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.rebuildReviews()
 		return m, nil
 	case tea.WindowSizeMsg:
-		m.width, m.height = msg.Width, msg.Height
+		m.screenWidth, m.screenHeight = msg.Width, msg.Height
+		m.layoutSize()
 		if m.tab == tabTurns && m.turns != nil {
 			m.renderTurns()
 		}

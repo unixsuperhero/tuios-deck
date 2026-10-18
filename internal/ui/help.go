@@ -105,9 +105,6 @@ func (m *Model) helpRows(mode string) []helpRow {
 		if mode != config.ModeDeck {
 			scope = "forms, vim modes on"
 		}
-		if mode == config.ModeDeck && !m.focusKeyAllowed(a.Default) {
-			scope += "; unavailable in current focus"
-		}
 		rows = append(rows, helpRow{c.Binding(mode, a.Name), a.Name + ": " + a.Desc, scope})
 	}
 	switch mode {
@@ -129,7 +126,7 @@ func (m *Model) helpRows(mode string) []helpRow {
 			{"g/G, home/end", "first/last row", "tasks/context/history"},
 			{"{/}, (/)", "jump group/level", "tasks"}, {"N", "new project", "tasks"}, {"n", "new task/subtask", "tasks"},
 			{"e", "edit", "tasks"}, {"s", "cycle task status", "tasks"}, {"m/M", "colour/glyph", "tasks"}, {"a", "assign selected pane", "tasks"},
-			{"E", "toggle saved easy-task mark", "tasks; task selected; outside focus"},
+			{"E", "toggle saved easy-task mark", "tasks; task selected"},
 			{"enter", "go to assigned pane", "tasks/captures"}, {"x", "delete selected item", "tasks/captures/context"},
 			{"J/K", "scroll capture", "captures"}, {"G", "follow capture end", "captures"},
 			{"{/}", "jump group", "context"}, {"t", "current pane/all scope", "context"}, {"s", "cycle sort", "context"},
@@ -138,10 +135,10 @@ func (m *Model) helpRows(mode string) []helpRow {
 			{"r", "refresh", "tasks/captures/context"}, {"enter", "try selected picker", "prototypes"},
 			{"enter", "go to source pane", "history"}, {"r", "refresh", "history"},
 			{"J/K, pgdown/pgup, ctrl+d/u", "scroll entry detail half a page", "history"},
-			{"enter", "open selected prompt and mark reviewed", "review; outside focus"},
-			{"tab/shift+tab", "switch awaiting review / reviewed history", "review; outside focus"},
-			{"J/K, pgdown/pgup, ctrl+d/u", "scroll opened prompt half a page", "review; outside focus"},
-			{"r", "refresh completed prompts", "review; outside focus"},
+			{"enter", "open selected prompt and mark reviewed", "review"},
+			{"tab/shift+tab", "switch awaiting review / reviewed history", "review"},
+			{"J/K, pgdown/pgup, ctrl+d/u", "scroll opened prompt half a page", "review"},
+			{"r", "refresh completed prompts", "review"},
 		}
 	case "forms":
 		rows = []helpRow{
@@ -186,30 +183,21 @@ func (m *Model) helpRows(mode string) []helpRow {
 			"prototypes": {"U", "", "all pages"}, "go to deck": {"esc", "", "other pages"}, "new project": {"N", "", "tasks"}, "filter context…": {"f", "", "context"}, "context scope: current pane / all": {"t", "", "context"}, "delete capture": {"x", "", "captures"},
 		}
 		for _, cmd := range m.deckCommands() {
-			r := helpRow{"", cmd.Name, "palette only; unavailable during focus"}
+			r := helpRow{"", cmd.Name, "palette only"}
 			if action := bound[cmd.Name]; action != "" {
 				r.key, r.scope = c.Binding(config.ModeDeck, action), "deck page; also palette"
 				for _, a := range config.ActionsOf(config.ModeDeck) {
 					if a.Name == action && a.Global {
 						r.scope = "all pages; also palette"
 					}
-					if a.Name == action && !m.focusKeyAllowed(a.Default) {
-						r.scope += "; unavailable in current focus"
-					}
 				}
 			} else if f, ok := fixed[cmd.Name]; ok {
 				r.key, r.scope = f.key, f.scope+"; also palette"
-				if !m.focusKeyAllowed(f.key) {
-					r.scope += "; unavailable in current focus"
-				}
-			}
-			if m.focus != nil && r.key != "" {
-				r.scope += "; palette unavailable during focus"
 			}
 			rows = append(rows, r)
 		}
 		for _, v := range m.verbs {
-			rows = append(rows, helpRow{"", v.Verb, "daemon command via palette; unavailable during focus"})
+			rows = append(rows, helpRow{"", v.Verb, "daemon command via palette"})
 		}
 	}
 	if m.help.unbound {
@@ -247,7 +235,7 @@ func (m *Model) helpView() string {
 	note := ""
 	switch mode {
 	case config.ModeDeck, "pages", "actions":
-		note = "Focus permits only scoped deck/tasks navigation, prompt/capture and task status. Unlock for other pages, palette, editing or the easy-task plan."
+		note = "Focus scopes the pane and task lists to a project or task and its descendants. All work tools remain available. New panes default to the focused scope; form targets remain editable. F unlocks."
 	case "modals":
 		note = "After 15 active minutes, the focus buffer takes every key before help, forms or configured bindings. Enter continues; F/Esc unlocks; no continuation within 30 seconds unlocks automatically."
 	}

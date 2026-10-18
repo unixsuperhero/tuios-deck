@@ -113,6 +113,9 @@ func (m *Model) openWithForm(c store.ContextItem) tea.Cmd {
 // program on the target in it, so the pane stays a shell after it quits.
 // The pane is assigned to the item's task or project when it has one.
 func (m *Model) openInTerminal(prog, target, taskID, projectID string) tea.Cmd {
+	if m.focus != nil {
+		taskID, projectID = m.focus.taskID, m.focus.projectID
+	}
 	session, cwd := m.selectedSession(), cwdDefault(m.selected())
 	if session == "" {
 		session = "deck"

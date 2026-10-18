@@ -2,8 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
@@ -62,6 +60,7 @@ func (m *Model) focusTarget() (string, store.Theme) {
 
 func (m *Model) startFocus(taskID, projectID string) tea.Cmd {
 	m.focus = &focusScope{taskID: taskID, projectID: projectID, clock: focus.New(time.Now())}
+	m.layoutSize()
 	m.page = pageDeck
 	m.easyOnly = false
 	m.clearResult()
@@ -75,6 +74,7 @@ func (m *Model) startFocus(taskID, projectID string) tea.Cmd {
 
 func (m *Model) unlockFocus() tea.Cmd {
 	m.focus = nil
+	m.layoutSize()
 	m.rebuildRows()
 	m.rebuildTasks()
 	m.setStatus("focus unlocked")
@@ -101,47 +101,26 @@ func (m *Model) openFocus() tea.Cmd {
 	return nil
 }
 
-func (m *Model) focusKeyAllowed(key string) bool {
-	if m.focus == nil {
-		return true
+func (m *Model) layoutSize() {
+	m.width, m.height = m.screenWidth, m.screenHeight
+	if m.focus != nil {
+		m.width, m.height = max(0, m.width-2), max(0, m.height-2)
 	}
-	// Only scoped navigation and actions are available; global pickers expose unrelated data.
-	return strings.Contains("|?|F|q|ctrl+c|T|esc|j|k|up|down|h|l|left|right|g|G|home|end|J|K|ctrl+d|ctrl+u|pgdown|pgup|tab|shift+tab|[|]|1|2|3|4|r|R|enter|space|y|{|}|(|)|p|c|s|", "|"+key+"|")
 }
-
-var focusSGR = regexp.MustCompile("\x1b\\[[0-9;]*m")
 
 func (m *Model) focusScreen(text string) string {
 	if m.focus == nil {
 		return text
 	}
-	_, theme := m.focusTarget()
-	fg := "0"
-	if theme.Color == "black" || theme.Color == "blue" || theme.Color == "red" || theme.Color == "magenta" {
-		fg = "15"
+	lines := strings.Split(text, "\n")
+	lines = lines[:min(len(lines), m.height)]
+	for i := range lines {
+		lines[i] = pad(lines[i], m.width)
 	}
-	// Keep bold, reverse selection and underlines, but remove embedded colours.
-	text = focusSGR.ReplaceAllStringFunc(text, func(s string) string {
-		parts := strings.Split(s[2:len(s)-1], ";")
-		kept := parts[:0]
-		for i := 0; i < len(parts); i++ {
-			n, _ := strconv.Atoi(parts[i])
-			if n == 38 || n == 48 || n == 58 {
-				if i+1 < len(parts) && parts[i+1] == "2" {
-					i += 4
-				} else {
-					i += 2
-				}
-			} else if n < 30 || n > 49 && n < 90 {
-				kept = append(kept, parts[i])
-			}
-		}
-		if len(kept) == 0 {
-			return ""
-		}
-		return "\x1b[" + strings.Join(kept, ";") + "m"
-	})
-	return lipgloss.NewStyle().Foreground(lipgloss.Color(fg)).Background(lipgloss.Color(theme.ANSI())).Render(text)
+	for len(lines) < m.height {
+		lines = append(lines, strings.Repeat(" ", m.width))
+	}
+	return lipgloss.NewStyle().Border(lipgloss.NormalBorder()).Render(strings.Join(lines, "\n"))
 }
 
 func (m *Model) focusActivity(now time.Time, user bool) {

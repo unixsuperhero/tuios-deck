@@ -48,6 +48,10 @@ func (m *Model) View() tea.View {
 		v.SetContent("loading…")
 		return v
 	}
+	if m.width < 4 || m.height < 3 {
+		v.SetContent(m.focusScreen(pad("resize terminal", m.width)))
+		return v
+	}
 	if m.focus != nil && !m.focus.clock.BufferUntil.IsZero() {
 		v.SetContent(m.focusBufferView())
 		return v
@@ -56,7 +60,7 @@ func (m *Model) View() tea.View {
 		v.SetContent(m.focusScreen(m.helpView()))
 		return v
 	}
-	left := m.leftWidth()
+	left := min(m.leftWidth(), m.width-2)
 	if m.page == pageProtos {
 		left = m.width / 2
 	}
@@ -374,9 +378,6 @@ func (m *Model) statusLine() string {
 }
 
 func (m *Model) helpLine() string {
-	if m.focus != nil && m.mode == modeNormal {
-		return " F unlock · T tasks · esc deck · j/k select · h/l rail/detail · 1-4 tabs · J/K scroll · p prompt · c capture · q quit"
-	}
 	if m.mode == modeNormal {
 		key := "?"
 		if m.settings != nil {

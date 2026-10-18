@@ -96,9 +96,6 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 
 	// Keys every page answers.
-	if !m.focusKeyAllowed(msg.String()) {
-		return m, nil
-	}
 	switch msg.String() {
 	case "?":
 		return m, m.openHelp()

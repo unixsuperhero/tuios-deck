@@ -94,8 +94,8 @@ func (m *Model) resolveTarget(task, project string, taskField, projectField int,
 }
 
 // targetFields are the task and project fields a form takes after cwd. The
-// project defaults to the selected pane's project, kept as a hint only
-// when keep is set so an empty field stays empty.
+// project defaults to the selected pane's project. Focus prefills editable
+// values so creation works with an empty scope and explicit choices still win.
 func (m *Model) targetFields(keep bool) []field {
 	project := ""
 	if p := m.selected(); p != nil {
@@ -103,10 +103,19 @@ func (m *Model) targetFields(keep bool) []field {
 			project = pr.Name
 		}
 	}
-	return []field{
+	fields := []field{
 		{Label: "task", Keep: true, Options: m.taskOptions, Preview: m.taskPreview, New: "task"},
 		{Label: "project", Default: project, Keep: keep, Options: m.projectOptions, Preview: m.projectPreview, New: "project"},
 	}
+	if m.focus != nil {
+		fields[1].Default = ""
+		if t := m.store.Task(m.focus.taskID); t != nil {
+			fields[0].Value = m.taskPath(*t)
+		} else if p := m.store.Project(m.focus.projectID); p != nil {
+			fields[1].Value = p.Name
+		}
+	}
+	return fields
 }
 
 // assignment is the theme and the text a pane's assignment is drawn with:
