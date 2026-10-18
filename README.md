@@ -1009,7 +1009,8 @@ on the status line.
 | `shift+tab` `↑` | The previous field |
 | `tab` | Take the field's default when it is empty |
 | `ctrl+s` | Submit from any field |
-| `ctrl+u` | Clear the current line only; earlier prompt lines stay intact |
+| `ctrl+u` | Stash the full draft in prompt fields, then clear the current line only; earlier lines stay intact |
+| `ctrl+r` | In a prompt field, browse and search stashed prompts, newest first |
 | `ctrl+w` | Delete the last word |
 | `ctrl+z` | Undo the current field's last edit, including clearing, typing, completion or a paste; repeat to undo further |
 | `esc` | Cancel |
@@ -1049,7 +1050,24 @@ see [Adding many at once](#adding-many-at-once); the others type at the end), `c
 terminal reports it) submits, and a paste keeps its newlines.
 Undo history belongs to each field and lasts while the form is open; cancelling
 or submitting the form discards it. A repeated `ctrl+u` on an empty line does
-nothing and does not replace the edit you can undo.
+nothing to the text and does not replace the edit you can undo.
+
+Prompt stashes are separate from undo: they live in `deck.json` under
+`prompt_stashes` and survive cancelling a form or restarting deck. `ctrl+u`
+stashes the entire draft, including newlines, before clearing a line. Identical
+drafts share one entry; empty drafts are not saved. If saving fails, the draft
+is left untouched.
+
+In a prompt field, `ctrl+r` opens **stashed prompts**. Type to search the full
+text, use arrows or `ctrl+n`/`ctrl+p` to select, and `PgUp`/`PgDn` to scroll
+the preview. `enter` restores the selected text without submitting it; `esc`
+or `ctrl+c` returns to the unchanged draft. Restoring also saves any draft it
+replaces, and `ctrl+z` can undo the replacement while the form stays open.
+Recovery is available in pane prompts (including terminals), new-agent first
+prompts, new/edit queued prompts, and the palette's `queue-prompt`/`start-agent`
+prompt parameters. `ctrl+r` also works in a prompt field in vim normal mode.
+Stashes are local plaintext, protected by the store file's 0600 permissions;
+they are retained until removed from the store, not automatically expired.
 
 In a multiline field other than the outline `@` at the start of a word lists what is in the
 selected pane's cwd (the deck's own when no pane is selected): folders with
@@ -1307,6 +1325,9 @@ POST   /api/call                               {"verb", "params"}: one daemon ve
 folder: one holds the panes it manages, the other runs the deck in a pane and
 drives it with `send-keys`. It seeds a `deck.json` by hand and points the
 deck at it through `TUIOS_DECK_DATA`, so your own is never touched.
+`scripts/e2e-prompt-stash.sh` drives prompt stashing and recovery through the
+real TUI: exact text, preview/search, restart persistence, all composer forms,
+undo, deduplication, vim mode and failed-save protection.
 `scripts/e2e-web.sh` runs `deck web` against a throwaway daemon the same
 way and checks the API with curl, the event stream, and the WebSocket pane
 stream with `scripts/wscheck`. `scripts/e2e-reminders.sh` drives the reminder palette
@@ -1336,6 +1357,7 @@ It uses `SCRATCH` and `PORT` (default 18963).
 ```sh
 go build -o .dev/deck ./cmd/deck
 scripts/e2e.sh && scripts/e2e-web.sh && scripts/e2e-setup.sh
+scripts/e2e-prompt-stash.sh
 SCRATCH=/tmp/deck-e2e-mine PORT=18799 scripts/e2e-web.sh   # a second run beside the first
 SCRATCH=/tmp/deck-history-check PORT=18849 scripts/e2e-history.sh
 SCRATCH=/tmp/deck-e2e-focus PORT=18748 scripts/e2e-focus.sh

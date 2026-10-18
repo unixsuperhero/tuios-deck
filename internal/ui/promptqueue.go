@@ -89,7 +89,7 @@ func (m *Model) openQueueForm(edit *store.QueuedPrompt) tea.Cmd {
 		field{Label: "session", Default: session},
 		field{Label: "cwd", Keep: true, Hint: "where the agent starts; empty takes the preset's, else the selected pane's · ctrl+o chooses a folder"},
 		field{Label: "pane", Keep: true, Options: m.paneOptions, Preview: m.paneLabelPreview, Hint: "send to this running agent instead of starting one; empty starts the agent"},
-		field{Label: "prompt", Keep: true, Multi: true},
+		field{Label: "prompt", Keep: true, Multi: true, Prompt: true},
 	)
 	idx := map[string]int{}
 	for i, f := range fields {

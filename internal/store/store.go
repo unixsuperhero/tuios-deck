@@ -66,6 +66,7 @@ type Store struct {
 	historyIDs   map[string]bool
 	historyError string
 	reviews      []Review
+	stashes      []StashedPrompt
 }
 
 // file is the JSON shape on disk.
@@ -81,6 +82,7 @@ type file struct {
 	Queue       []QueuedPrompt        `json:"queued_prompts"`
 	Reviews     []Review              `json:"reviews"`
 	History     []HistoryEntry        `json:"history"`
+	Stashes     []StashedPrompt       `json:"prompt_stashes,omitempty"`
 }
 
 const version = 1
@@ -144,6 +146,7 @@ func Open(path string) (*Store, error) {
 	s.queue = f.Queue
 	s.reviews = f.Reviews
 	s.history = f.History
+	s.stashes = f.Stashes
 	return s, nil
 }
 
@@ -159,7 +162,7 @@ func (s *Store) Save() error {
 }
 
 func (s *Store) save() error {
-	f := file{Version: version, Projects: s.projects, Tasks: s.tasks, Assignments: s.assignments, Contexts: s.contexts, Reminders: s.reminders, Notes: s.notes, Presets: s.presets, Queue: s.queue, Reviews: s.reviews, History: s.history}
+	f := file{Version: version, Projects: s.projects, Tasks: s.tasks, Assignments: s.assignments, Contexts: s.contexts, Reminders: s.reminders, Notes: s.notes, Presets: s.presets, Queue: s.queue, Reviews: s.reviews, History: s.history, Stashes: s.stashes}
 	if f.Projects == nil {
 		f.Projects = []Project{}
 	}

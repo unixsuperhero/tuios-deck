@@ -31,6 +31,9 @@ func formWidth(w int) int {
 // and the keys at the bottom.
 func (m *Model) formBox(width, maxH int) []string {
 	f := m.form
+	if f.recovery != nil {
+		return m.promptRecoveryBox(width, maxH)
+	}
 	iw := width - 4
 	if iw < 8 {
 		iw = 8
@@ -112,6 +115,9 @@ func (m *Model) currentField(fl field, iw, room int) []string {
 			value = tail(value+"▏", iw-ansi.StringWidth(label))
 		}
 		out = append(out, ansi.Truncate(cStatus.Render(label)+value, iw, "…"))
+	}
+	if fl.Prompt {
+		out = append(out, cDim.Render(ansi.Truncate("    ctrl+u stash · ctrl+r saved prompts · ctrl+z undo", iw, "…")))
 	}
 	// A multiline field keeps its hint's lines, so the hint can show an
 	// example of what to type.

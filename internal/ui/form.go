@@ -36,6 +36,7 @@ type field struct {
 	Options func() []string
 	Multi   bool
 	New     string
+	Prompt  bool          // prompt text supports durable stashing and recovery
 	HintFn  func() string // the hint worked out afresh on every draw, in place of Hint
 	Outline bool
 	// Preview, when set, works out a preview of the highlighted option: metadata
@@ -139,6 +140,7 @@ type form struct {
 	pending tea.Cmd
 
 	vimNormal bool // normal mode of the vim modes setting; false is insert
+	recovery  *promptRecovery
 
 	adding     int    // the field whose addNew was taken, plus one; 0 is none
 	targetTask string // last task value seen by project autofill; project edits stay editable

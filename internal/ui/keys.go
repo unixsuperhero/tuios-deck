@@ -18,6 +18,14 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 	switch m.mode {
 	case modeForm:
+		if m.form.recovery != nil {
+			m.promptRecoveryKey(msg)
+			return m, nil
+		}
+		if msg.String() == "ctrl+r" && m.form.Fields[m.form.Cur].Prompt {
+			m.openPromptRecovery()
+			return m, nil
+		}
 		helpKey := (&config.Config{}).Binding(config.ModeDeck, "help")
 		if m.settings != nil {
 			helpKey = m.settings.Binding(config.ModeDeck, "help")
@@ -51,6 +59,15 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		if msg.String() == "ctrl+o" && m.form.Fields[m.form.Cur].Attach {
 			return m, m.pickAttachments()
+		}
+		cur := &m.form.Fields[m.form.Cur]
+		if msg.String() == "ctrl+u" && cur.Prompt {
+			if !m.stashCurrentPrompt() {
+				return m, nil
+			}
+			if strings.TrimSpace(cur.Value) != "" {
+				m.setStatus("prompt stashed; ctrl+r recovers")
+			}
 		}
 		done, cmd := m.form.handleKey(msg)
 		switch {
@@ -305,7 +322,7 @@ func (m *Model) openAgentForm() tea.Cmd {
 	}
 	fields = append(fields, m.targetFields(false)...)
 	fields = append(fields, m.presetField("its prefix goes in front of the first prompt, its cwd is used when cwd is empty"))
-	fields = append(fields, field{Label: "first prompt", Keep: true, Multi: true})
+	fields = append(fields, field{Label: "first prompt", Keep: true, Multi: true, Prompt: true})
 	m.mode = modeForm
 	m.form = &form{
 		Title:  "new agent",
@@ -387,7 +404,7 @@ func (m *Model) openPromptForm() tea.Cmd {
 	m.form = &form{
 		Title:  "prompt",
 		Cur:    1, // the text, not the preset: shift+tab reaches the preset
-		Fields: []field{m.presetField("its prefix goes in front of the text"), {Label: label, Keep: true, Multi: true}},
+		Fields: []field{m.presetField("its prefix goes in front of the text"), {Label: label, Keep: true, Multi: true, Prompt: true}},
 		Validate: func(v []string) (int, string) {
 			if _, msg := m.resolvePreset(v[0]); msg != "" {
 				return 0, msg

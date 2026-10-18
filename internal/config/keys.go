@@ -76,8 +76,8 @@ var actions = map[string][]Action{
 // reserved are keys a mode answers itself and a binding may not take.
 var reserved = map[string][]string{
 	ModeDeck:       {"1", "2", "3", "4", "[", "]", "enter", "esc", "up", "down", "left", "right", "home", "end", "pgup", "pgdown", "ctrl+d", "ctrl+u", "ctrl+c", "ctrl+p"},
-	ModeFormNormal: {"ctrl+c", "ctrl+s", "up", "down", "tab", "shift+tab"},
-	ModeFormInsert: {"enter", "backspace", "tab", "shift+tab", "up", "down", "ctrl+c", "ctrl+s", "ctrl+n", "ctrl+p", "ctrl+u", "ctrl+w", "ctrl+enter"},
+	ModeFormNormal: {"ctrl+c", "ctrl+s", "ctrl+r", "up", "down", "tab", "shift+tab"},
+	ModeFormInsert: {"enter", "backspace", "tab", "shift+tab", "up", "down", "ctrl+c", "ctrl+s", "ctrl+n", "ctrl+p", "ctrl+u", "ctrl+w", "ctrl+r", "ctrl+enter"},
 }
 
 var namedKeys = map[string]bool{"tab": true, "shift+tab": true, "enter": true, "esc": true, "up": true, "down": true,

@@ -242,8 +242,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.focus != nil && !m.focus.clock.BufferUntil.IsZero() {
 			return m, nil
 		}
-		if m.mode == modeForm && m.form != nil && !m.form.vimNormal {
-			m.form.paste(msg.String())
+		if m.mode == modeForm && m.form != nil {
+			if p := m.form.recovery; p != nil {
+				p.search(p.query + panes.OneLine(msg.String()))
+			} else if !m.form.vimNormal {
+				m.form.paste(msg.String())
+			}
 		}
 		if m.mode == modePalette && m.pal != nil {
 			m.pal.setQuery(m.pal.Query + panes.OneLine(msg.String()))

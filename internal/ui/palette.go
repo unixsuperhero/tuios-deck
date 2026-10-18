@@ -525,6 +525,7 @@ func (m *Model) openVerbForm(v verb) tea.Cmd {
 	var cmds []tea.Cmd
 	for _, p := range params {
 		fl := field{Label: p.Name, Keep: true, Hint: paramHint(p)}
+		fl.Prompt = v.Verb == "queue-prompt" && p.Name == "text" || v.Verb == "start-agent" && p.Name == "prompt"
 		if p.Required {
 			fl.Label += "*"
 		}
