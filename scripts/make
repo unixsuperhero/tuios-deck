@@ -1,0 +1,4 @@
+#!/usr/bin/env zsh
+
+go build -o deck ./cmd/deck/
+
