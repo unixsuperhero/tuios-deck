@@ -17,6 +17,12 @@ will let me review all items in it's task tree...project, task, subtask etc. and
 manage each of those
 
 
+## MUST DO SOON
+
+- [ ] redesign forms and input modal UX
+- [ ] reorganize the deck ui. okay. so we should have a project system where we only have one project active at a time and the switch project modal that we're gonna make has an option for making a new project. a project should have certain settings. like, first of all, a project should be based on a git repo. if we're making a new project and we don't select a git repo, then we should take a folder and make one but most of the time we're gonna be using an existing git repo so we know our base directory we should grab all of the work trees so that if they want to work out of a different work tree they can specify that so then anytime we make a new agent or terminal it's less work for the user creating that stuff 
+- [ ] add vim-sessions to type of item that is listed in deck pages.  when opening neovim, we want to select a project/git repo as the base dir
+
 ## Standard Importance
 
 - [ ] write documentation listing and detailing all structs, pages, concepts,
