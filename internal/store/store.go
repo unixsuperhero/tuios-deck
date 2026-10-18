@@ -66,7 +66,7 @@ type Store struct {
 	history      []HistoryEntry
 	historyIDs   map[string]bool
 	historyError string
-	reviews      []Review
+	marks        map[string]int64 // review marks: history id → reviewed_at ms
 	stashes      []StashedPrompt
 }
 
@@ -81,7 +81,8 @@ type file struct {
 	Notes       []Note                `json:"notes"`
 	Presets     []Preset              `json:"prompt_presets"`
 	Queue       []QueuedPrompt        `json:"queued_prompts"`
-	Reviews     []Review              `json:"reviews"`
+	Reviews     []Review              `json:"reviews,omitempty"` // an earlier deck's table, read for migration, never written
+	Marks       map[string]int64      `json:"review_marks"`
 	History     []HistoryEntry        `json:"history"`
 	Stashes     []StashedPrompt       `json:"prompt_stashes,omitempty"`
 }
@@ -109,7 +110,7 @@ func DefaultPath() string {
 
 // Open reads the store at path. A missing file is an empty store.
 func Open(path string) (*Store, error) {
-	s := &Store{path: path, assignments: map[string]Assignment{}}
+	s := &Store{path: path, assignments: map[string]Assignment{}, marks: map[string]int64{}}
 	data, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return s, nil
@@ -145,11 +146,13 @@ func Open(path string) (*Store, error) {
 	s.notes = f.Notes
 	s.presets = f.Presets
 	s.queue = f.Queue
-	s.reviews = f.Reviews
-	if n := len(s.reviews) - maxReviews; n > 0 {
-		s.reviews = s.reviews[n:]
-	}
 	s.history = pruneHistory(f.History)
+	s.marks = f.Marks
+	if s.marks == nil {
+		s.marks = map[string]int64{}
+	}
+	s.migrateReviews(f.Reviews)
+	s.pruneMarks()
 	s.stashes = f.Stashes
 	return s, nil
 }
@@ -166,7 +169,7 @@ func (s *Store) Save() error {
 }
 
 func (s *Store) save() error {
-	f := file{Version: version, Projects: s.projects, Tasks: s.tasks, Assignments: s.assignments, Contexts: s.contexts, Reminders: s.reminders, Notes: s.notes, Presets: s.presets, Queue: s.queue, Reviews: s.reviews, History: s.history, Stashes: s.stashes}
+	f := file{Version: version, Projects: s.projects, Tasks: s.tasks, Assignments: s.assignments, Contexts: s.contexts, Reminders: s.reminders, Notes: s.notes, Presets: s.presets, Queue: s.queue, Marks: s.marks, History: s.history, Stashes: s.stashes}
 	if f.Projects == nil {
 		f.Projects = []Project{}
 	}
@@ -187,6 +190,9 @@ func (s *Store) save() error {
 	}
 	if f.Queue == nil {
 		f.Queue = []QueuedPrompt{}
+	}
+	if f.Marks == nil {
+		f.Marks = map[string]int64{}
 	}
 	data, err := json.MarshalIndent(f, "", "  ")
 	if err != nil {

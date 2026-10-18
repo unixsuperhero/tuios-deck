@@ -62,7 +62,7 @@ function createReviewPage(api, setStatus, isActive) {
       opened = r;
       items = items.map((item) => item.id === r.id ? r : item);
       $('review-who').textContent = `${r.session} › ${r.pane}`;
-      const text = `${r.harness} · Completed ${completed(r)}\nReviewed ${new Date(r.reviewed_at).toLocaleString()}\nSource: agent activity (may be truncated by the harness)\n\nPROMPT\n${r.prompt}\n\nRESPONSE\n${r.response || 'No response text was reported by this harness.'}${r.output ? '\n\nPANE OUTPUT AT COLLECTION (may include earlier turns)\n' + r.output : ''}`;
+      const text = `${r.harness ? r.harness + ' · ' : ''}Completed ${completed(r)}\nReviewed ${new Date(r.reviewed_at).toLocaleString()}\nSource: history of agent activity (may be truncated by the harness)\n\nPROMPT\n${r.prompt}\n\nRESPONSE\n${r.response || 'No response text was reported by this harness.'}\n\nPANE OUTPUT${r.output ? ' (the turn\'s auto-capture; may include earlier turns)\n' + r.output : '\nNo turn capture was taken for this turn (auto-capture may be off).'}`;
       if ($('review-text').textContent !== text) $('review-text').textContent = text;
       if (changed) $('review-text').scrollTop = 0;
       render();

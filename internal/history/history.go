@@ -200,9 +200,9 @@ func activity(boot, session, window string, e daemon.ActivityEntry) (store.Histo
 	sourceID := fmt.Sprintf("%s/%s/%d/%d", boot, window, e.Seq, e.At)
 	detail := e.Text
 	if e.Kind == "turn_end" {
-		detail = "Turn-end hook report (may be a summary, not the full response):\n\n" + detail
+		detail = store.TurnEndPrefix + detail
 		if e.Text == "" {
-			detail += "The harness reported completion without response text."
+			detail += store.TurnEndEmpty
 		}
 	}
 	return store.HistoryEntry{ID: "activity/" + sourceID, Source: "agent-activity", SourceID: sourceID,

@@ -225,15 +225,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 	switch msg := msg.(type) {
-	case reviewsMsg:
-		m.reviews.busy = false
-		m.reviews.err = ""
-		if msg.err != nil {
-			m.reviews.err = msg.err.Error()
-			m.setStatus("review: " + msg.err.Error())
-		}
-		m.rebuildReviews()
-		return m, nil
 	case tea.WindowSizeMsg:
 		m.screenWidth, m.screenHeight = msg.Width, msg.Height
 		m.layoutSize()

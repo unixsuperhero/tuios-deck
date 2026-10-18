@@ -108,3 +108,24 @@ func Remove(dir, name string) error {
 	}
 	return os.Remove(filepath.Join(dir, name))
 }
+
+// Turn is the newest turn capture of the pane called name in session taken
+// at or after from (to the second the file name holds) and, when until is
+// not zero, before it. ok is false when the folder has none.
+func Turn(dir, session, name string, from, until time.Time) (e Entry, ok bool) {
+	entries, err := List(dir)
+	if err != nil {
+		return Entry{}, false
+	}
+	from = from.Truncate(time.Second)
+	for _, e := range entries {
+		if e.Kind != "turn" || !e.Matches(session, name) || e.Modified.Before(from) {
+			continue
+		}
+		if !until.IsZero() && !e.Modified.Before(until) {
+			continue
+		}
+		return e, true
+	}
+	return Entry{}, false
+}

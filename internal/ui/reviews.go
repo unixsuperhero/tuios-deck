@@ -1,50 +1,36 @@
 package ui
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/unixsuperhero/tuios-deck/internal/review"
+	"github.com/unixsuperhero/tuios-deck/internal/panes"
 	"github.com/unixsuperhero/tuios-deck/internal/store"
 )
 
+// reviewPage is a view over history's turns (store.Reviews); the tick
+// rebuilds it while it is open, and only a mark is ever written.
 type reviewPage struct {
 	rows     []store.Review
 	selected string
 	opened   *store.Review
 	history  bool
 	scroll   int
-	busy     bool
-	err      string
 }
-
-type reviewsMsg struct{ err error }
 
 func (m *Model) openReviews() tea.Cmd {
 	m.page = pageReviews
 	m.rebuildReviews()
-	return m.refreshReviews()
-}
-
-func (m *Model) refreshReviews() tea.Cmd {
-	if m.reviews.busy {
-		return nil
-	}
-	m.reviews.busy = true
-	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
-		defer cancel()
-		return reviewsMsg{review.Collect(ctx, m.client, m.store)}
-	}
+	return nil
 }
 
 func (m *Model) rebuildReviews() {
 	p := &m.reviews
 	rows := m.store.Reviews()
+	panes.NameReviews(m.merged, rows)
 	p.rows = nil
 	for _, r := range rows {
 		if (r.ReviewedAt != 0) == p.history {
@@ -83,7 +69,8 @@ func (m *Model) handleReviewsKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.page = pageDeck
 		return m, m.loadDetail(true)
 	case "r":
-		return m, m.refreshReviews()
+		m.rebuildReviews()
+		m.setStatus("review queue re-read from history")
 	case "tab", "shift+tab":
 		p.history = !p.history
 		p.selected = ""
@@ -107,6 +94,10 @@ func (m *Model) handleReviewsKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.setStatus("error: " + err.Error())
 			return m, nil
 		}
+		named := []store.Review{r}
+		panes.NameReviews(m.merged, named)
+		r = named[0]
+		panes.ReviewOutput(m.captureDir, &r)
 		if p.opened == nil || p.opened.ID != r.ID {
 			p.scroll = 0
 		}
@@ -161,9 +152,6 @@ func (m *Model) reviewDetailLines(width, height int) []string {
 	}
 	if p.opened == nil {
 		lines[0] = cDim.Render(" Enter opens a prompt and marks it reviewed.")
-		if p.err != "" && height > 1 {
-			lines[1] = cErr.Render(ansi.Truncate(p.err, width, "…"))
-		}
 		return lines
 	}
 	r := p.opened
@@ -171,9 +159,15 @@ func (m *Model) reviewDetailLines(width, height int) []string {
 	if response == "" {
 		response = "No response text was reported by this harness."
 	}
-	text := fmt.Sprintf("%s › %s · %s\nCompleted %s\nReviewed %s\nSource: agent activity (may be truncated by the harness)\n\nPROMPT\n%s\n\nRESPONSE\n%s", r.Session, r.Pane, r.Harness, time.Unix(0, r.CompletedAt).Format(time.RFC3339), time.UnixMilli(r.ReviewedAt).Format(time.RFC3339), r.Prompt, response)
+	who := r.Session + " › " + r.Pane
+	if r.Harness != "" {
+		who += " · " + r.Harness
+	}
+	text := fmt.Sprintf("%s\nCompleted %s\nReviewed %s\nSource: history of agent activity (may be truncated by the harness)\n\nPROMPT\n%s\n\nRESPONSE\n%s", who, time.Unix(0, r.CompletedAt).Format(time.RFC3339), time.UnixMilli(r.ReviewedAt).Format(time.RFC3339), r.Prompt, response)
 	if r.Output != "" {
-		text += "\n\nPANE OUTPUT AT COLLECTION (may include earlier turns)\n" + r.Output
+		text += "\n\nPANE OUTPUT (the turn's auto-capture; may include earlier turns)\n" + r.Output
+	} else {
+		text += "\n\nPANE OUTPUT\nNo turn capture was taken for this turn (auto-capture may be off)."
 	}
 	body := strings.Split(ansi.Hardwrap(ansi.Strip(text), max(1, width), false), "\n")
 	p.scroll = min(max(0, p.scroll), max(0, len(body)-height))
