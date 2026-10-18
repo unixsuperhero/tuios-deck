@@ -21,7 +21,9 @@ type keyHelp struct {
 type helpRow struct{ key, action, scope string }
 
 func helpModes() []string {
-	modes := append(config.Modes(), "pages", "forms", "modals", "actions")
+	// The live mode's tab comes after the fixed ones, so the order of the
+	// first tabs stays what it was.
+	modes := []string{config.ModeDeck, config.ModeFormNormal, config.ModeFormInsert, "pages", "forms", "modals", "actions", config.ModeLive}
 	for p := pageTasks; p <= pageHistory; p++ {
 		modes = append(modes, p.String())
 	}
@@ -101,12 +103,24 @@ func (m *Model) helpRows(mode string) []helpRow {
 		if a.Global {
 			scope = "all pages, not dialogs"
 		}
-		if mode != config.ModeDeck {
+		switch {
+		case mode == config.ModeLive && a.Name == "leader":
+			scope = "live"
+		case mode == config.ModeLive:
+			scope = "live, after the prefix"
+		case mode != config.ModeDeck:
 			scope = "forms, vim modes on"
 		}
 		rows = append(rows, helpRow{c.Binding(mode, a.Name), a.Name + ": " + a.Desc, scope})
 	}
 	switch mode {
+	case config.ModeLive:
+		leader := c.Binding(config.ModeLive, "leader")
+		rows = append(rows, helpRow{leader + " " + leader, "type the prefix key itself into the pane", "live"},
+			helpRow{"esc", "cancel the prefix", "live, after the prefix"},
+			helpRow{"any other key", "typed into the pane, encoded for its modes by the daemon", "live"},
+			helpRow{"paste", "pasted into the pane, bracketed when its program asked", "live"},
+			helpRow{"F1", "goes to the pane too; " + leader + " " + c.Binding(config.ModeLive, "help") + " opens this", "live"})
 	case config.ModeDeck:
 		rows = append(rows, helpRow{"ctrl+c", "quit, after a confirmation", "all pages, not dialogs"}, helpRow{"ctrl+p", "command palette", "all pages, not dialogs"},
 			helpRow{"up/down", "previous/next pane or detail row", "deck page"}, helpRow{"left/right", "focus rail/detail", "deck page"},
@@ -185,7 +199,7 @@ func (m *Model) helpRows(mode string) []helpRow {
 		bound := map[string]string{
 			"go to review queue":       "review",
 			"go to history":            "history",
-			"keybindings and actions…": "help", "assign to task…": "assign", "assign to project…": "assign", "new agent": "new_agent", "new terminal": "new_terminal", "prompt": "prompt", "capture": "capture", "close pane": "close", "refresh": "refresh", "go to tasks": "tasks", "go to captures": "captures", "go to context": "context", "extract context from pane": "extract", "add many…": "add_many",
+			"keybindings and actions…": "help", "live": "live", "assign to task…": "assign", "assign to project…": "assign", "new agent": "new_agent", "new terminal": "new_terminal", "prompt": "prompt", "capture": "capture", "close pane": "close", "refresh": "refresh", "go to tasks": "tasks", "go to captures": "captures", "go to context": "context", "extract context from pane": "extract", "add many…": "add_many",
 		}
 		fixed := map[string]helpRow{
 			"prototypes": {"U", "", "all pages"}, "go to deck": {"esc", "", "other pages"}, "new project": {"N", "", "tasks"}, "filter context…": {"f", "", "context"}, "context scope: current pane / all": {"t", "", "context"}, "delete capture": {"x", "", "captures"},

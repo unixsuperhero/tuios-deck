@@ -40,6 +40,8 @@ internal/ui/         model.go state, keys.go dispatch, commands.go daemon calls 
                      tasks.go, captures.go and contextpage.go the other pages, contextactions.go copy/insert/open,
                      turns.go the Turns tab, grouping.go the left rail's groupings, palette.go the command palette and the verb forms,
                      jump.go the { } ( ) group and level jumps for the rail, tasks, context and Turns,
+                     live.go the live mode (enter): keys to the pane through send-keys/send-text, the screen back through capture-pane,
+                     a stream-pane held for its size lease and as the output signal; ctrl+a is the prefix, ctrl+a d detaches,
                      pickers.go the prototypes page (U), the picker interface and finish; picker_fuzzy/tree/hotkey/miller/chips.go
                      one prototype each (fuzzy also draws the two-pane one), picker_preview.go the shared ? preview and its screen reads
 internal/web/        server.go routes (Handler), stream.go the WebSocket bridge to stream-pane, static/index.html the page
@@ -76,7 +78,7 @@ scripts/e2e-all.sh     # every suite below at once, one line per suite; ONLY="we
 scripts/e2e.sh         # the TUI: daemon A holds panes, daemon B runs deck tui in a pane driven by send-keys
 scripts/e2e-web.sh     # deck web: the API with curl, the event stream, the WebSocket stream with scripts/wscheck
 scripts/e2e-setup.sh   # deck setup against a scratch HOME; release.sh bump maths; the omp extension under bun with a fake pi and a fake tuios
-scripts/e2e-focus.sh scripts/e2e-history.sh scripts/e2e-prompt-stash.sh scripts/e2e-reminders.sh
+scripts/e2e-focus.sh scripts/e2e-history.sh scripts/e2e-prompt-stash.sh scripts/e2e-reminders.sh scripts/e2e-live.sh
 python3 scripts/e2e-help.py; python3 scripts/e2e-turns.py; python3 scripts/e2e-review.py
 ```
 
@@ -129,6 +131,19 @@ Rules the suites follow, and a new check should too:
 
 ## Things that are easy to get wrong
 
+- **Live mode embeds no emulator, and its input is one goroutine.** While
+  `m.live` is set every key goes to `handleLiveKey`, before the modes and the
+  pages; `loadDetail` returns nil and `detailMsg` is dropped, since the live
+  goroutines feed the screen. The daemon does the terminal work: `capture-pane`
+  (visible, styled) is the screen, `get-window` the cursor (only while a tuios
+  client is attached to the session; the suites' detached daemons give none),
+  `send-keys` encodes each key for the pane's modes and `send-text` types
+  runs of text and pastes. Input calls run from one goroutine in order: a
+  tea.Cmd per key would let a later key land first. `stream-pane` is opened
+  for its size lease and its frames only; the lease must be renewed every ten
+  seconds or the daemon drops it, and it changes the pane's own size (what
+  `tput cols` prints), not the `width` `list-windows` reports, which is the
+  window's rectangle. `liveSize` and `View` must agree on the live area.
 - **Presence.** `agent-transcript` is served only to a connection holding
   the person's nonce from `attach-presence`, and the daemon refuses that
   call from any process inside one of its own panes, by TTY, ancestry and

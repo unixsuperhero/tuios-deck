@@ -13,6 +13,9 @@ func (m *Model) helpContext() string {
 	if m.focus != nil && !m.focus.clock.BufferUntil.IsZero() {
 		return "focus buffer"
 	}
+	if m.live != nil {
+		return config.ModeLive
+	}
 	switch m.mode {
 	case modeForm:
 		if m.form.recovery != nil {

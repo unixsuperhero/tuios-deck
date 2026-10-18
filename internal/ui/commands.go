@@ -88,6 +88,9 @@ func (m *Model) loadDetail(force bool) tea.Cmd {
 	if m.result != nil {
 		return nil // a verb's result holds the pane until the selection or the tab moves
 	}
+	if m.live != nil {
+		return nil // the live session reads the pane itself
+	}
 	p := m.selected()
 	if p == nil {
 		m.detailFor = ""

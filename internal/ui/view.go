@@ -66,6 +66,11 @@ func (m *Model) View() tea.View {
 	}
 	right := m.width - left - 1
 	bodyH := m.height - 3
+	// Zoomed live, the pane takes the whole body and the rail is not drawn.
+	zoom := m.live != nil && m.live.zoom
+	if zoom {
+		right = m.width
+	}
 
 	var b strings.Builder
 	b.WriteString(m.titleLine())
@@ -123,6 +128,9 @@ func (m *Model) View() tea.View {
 			continue
 		}
 		line := pad(leftLines[i], left) + cBorder.Render("│") + pad(rightLines[i], right)
+		if zoom {
+			line = pad(rightLines[i], m.width)
+		}
 		if j := i - boxY; j >= 0 && j < len(box) {
 			line = overlay(line, box[j], boxX, boxW)
 		}
@@ -157,6 +165,9 @@ func (m *Model) titleLine() string {
 		}
 	}
 	s := cTitle.Render(" tuios-deck ") + cTabOn.Render(" "+m.page.String()+" ")
+	if m.live != nil {
+		s += " " + cLive.Render(" LIVE "+m.live.name+" ")
+	}
 	if m.page == pageTasks && m.easyOnly {
 		s += " · focus plan: saved easy tasks"
 	}
@@ -303,6 +314,9 @@ func (m *Model) paneRow(p *panes.Pane, dot, state string, depth, width int, sel 
 }
 
 func (m *Model) detailLines(width, height int) []string {
+	if m.live != nil {
+		return m.liveLines(width, height)
+	}
 	if m.result != nil {
 		return m.resultLines(width, height)
 	}
@@ -379,6 +393,9 @@ func (m *Model) statusLine() string {
 }
 
 func (m *Model) helpLine() string {
+	if m.live != nil {
+		return m.liveHelpLine()
+	}
 	return cDim.Render(" " + keyHelpHint)
 }
 

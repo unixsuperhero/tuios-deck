@@ -308,3 +308,43 @@ func (c *Client) Hello(ctx context.Context, version string) (Hello, error) {
 	err := c.Call(ctx, "hello", map[string]any{"client": "tuios-deck", "version": version, "protocol": 1}, &out)
 	return out, err
 }
+
+// SendKeys types named keys into a pane through send-keys, which encodes
+// each key for the pane's modes (application cursor keys and the rest), so
+// a client that already decoded its own keys need not re-encode them.
+func (c *Client) SendKeys(ctx context.Context, session, window, keys string) error {
+	return c.Call(ctx, "send-keys", map[string]any{"session": session, "window": window, "keys": keys}, nil)
+}
+
+// Paste writes text to a pane as a paste: bracketed when the pane's program
+// asked for bracketed paste, with control characters other than tab and
+// newlines removed.
+func (c *Client) Paste(ctx context.Context, session, window, text string) error {
+	return c.Call(ctx, "send-text", map[string]any{"session": session, "window": window, "text": text, "paste": true}, nil)
+}
+
+// CaptureScreen reads a pane's visible screen with its styling: every row
+// of the viewport, ending in the blank rows below the cursor.
+func (c *Client) CaptureScreen(ctx context.Context, session, window string) (Capture, error) {
+	var out Capture
+	err := c.Call(ctx, "capture-pane", map[string]any{"session": session, "window": window, "source": "visible", "styled": true}, &out)
+	return out, err
+}
+
+// Window is get-window's answer. The cursor fields come only while a tuios
+// client is attached to the pane's session; nil otherwise.
+type Window struct {
+	ID            string `json:"id"`
+	Width         int    `json:"width"`
+	Height        int    `json:"height"`
+	CursorX       *int   `json:"cursor_x"`
+	CursorY       *int   `json:"cursor_y"`
+	CursorVisible bool   `json:"cursor_visible"`
+}
+
+// GetWindow describes one window, with its cursor when the daemon knows it.
+func (c *Client) GetWindow(ctx context.Context, session, window string) (Window, error) {
+	var out Window
+	err := c.Call(ctx, "get-window", map[string]any{"session": session, "window": window}, &out)
+	return out, err
+}

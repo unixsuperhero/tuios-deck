@@ -192,13 +192,14 @@ and keeps screen captures under the printed scratch directory.
 default, so the file only holds the differences. A key is one character, a
 name (`tab`, `shift+tab`, `enter`, `esc`, `up`…) or `ctrl+a` / `alt+a`. A
 file is refused, at startup and on save, for an unknown mode or action, a
-key that is not a key, a reserved key (`1`-`4`, arrows, `enter` and `ctrl+c`
+key that is not a key, a reserved key (`1`-`4`, arrows, `esc` and `ctrl+c`
 on the deck, for example), or two actions of one mode on the same key. A key
 whose action moved elsewhere does nothing; swapping two keys is allowed.
 
 | Mode | Where | Actions |
 | --- | --- | --- |
-| `deck` | the dashboard; `help` `quit` `palette` `tasks` `captures` `add_many` `context` `review` `history` on every page, the rest on the deck page only | `help quit palette tasks captures add_many context review history left right down up top bottom scroll_down scroll_up next_tab prev_tab refresh group_next group_prev new_agent new_terminal prompt assign capture extract close` |
+| `deck` | the dashboard; `help` `quit` `palette` `tasks` `captures` `add_many` `context` `review` `history` on every page, the rest on the deck page only | `help quit palette tasks captures add_many context review history left right down up top bottom scroll_down scroll_up next_tab prev_tab refresh group_next group_prev new_agent new_terminal prompt assign capture extract close live` |
+| `live` | the deck live on a pane; `leader` is the prefix (`ctrl+a`), the rest are the keys after it | `leader detach zoom next_pane prev_pane help` |
 | `form_normal` | forms, vim modes on, normal mode | `insert append next_field prev_field clear submit cancel` |
 | `form_insert` | forms, vim modes on, insert mode | `leave_insert` (never a printable key, so no key that types can leave the mode) |
 
@@ -709,7 +710,8 @@ With the rail focused:
 | `c` | Save the pane's screen and scrollback to a file |
 | `i` | Extract context items from the pane (above) |
 | `x` | Close the pane, after a confirmation |
-| `r`, `enter` | Refresh |
+| `enter` | Go live on the pane: type into it until `ctrl+a d` (below) |
+| `r` | Refresh |
 | `T` `C` `I` `U` `A` | The tasks page, the captures page, the context page, the prototypes page, the mass-add screen |
 | `V` | The completed prompt review queue (Enter opens and marks reviewed) |
 | `:` `ctrl+p` | The command palette |
@@ -725,7 +727,7 @@ focused:
 | `j` `k` | Scroll the detail a line |
 | `g` | Go to the top of the detail |
 | `J` `K`, `G` | Scroll half a page; `G` follows the newest output again |
-| `enter` | Nothing, outside the Turns tab |
+| `enter` | Go live on the pane, outside the Turns tab |
 
 The Turns tab (`4`) is an accordion: one row per prompt the person gave an
 agent, and one per command a pane's shell ran, oldest first, the two kinds
@@ -756,6 +758,40 @@ position unless you are following the bottom.
 
 A pane the deck cannot talk to (one on `needs_input`) is refused a prompt;
 answer it in tuios.
+
+### Live: typing into a pane
+
+`enter` on a pane goes live on it. The detail pane becomes the pane's
+screen, redrawn as it prints, with its cursor, and every key you type goes
+to the pane: letters, arrows, `ctrl+c`, `esc`, `q`, `:`, `F1`, all of them.
+The daemon encodes each key for the pane's modes, so an editor's arrows and
+a shell's history work as they would in tuios. A paste is pasted, bracketed
+when the program asked for that.
+
+The one key the pane does not get is the prefix, `ctrl+a`. The key after it
+is a live command:
+
+| After `ctrl+a` | Does |
+| --- | --- |
+| `d` | Detach: focus comes back to the deck, the pane keeps running |
+| `z` | Zoom: the pane across the whole deck, or beside the rail again |
+| `j` `k` | Go live on the next or the previous pane of the rail |
+| `?` | The live keys |
+| `ctrl+a` | Type `ctrl+a` itself into the pane |
+| `esc` | Cancel the prefix |
+
+While the deck is live the pane is fitted to the live area through the
+stream's size lease, so what you see is the whole screen; the live bar shows
+the size, and the pane goes back to its own size on detach. An attached
+tuios client shows the smaller pane meanwhile. The session ends on its own
+when the pane closes. The prefix and the commands are the `live` mode of the
+settings file (below), so `ctrl+a` can be another key.
+
+The deck embeds no terminal emulator for this: the daemon renders the
+screen (`capture-pane`), reports the cursor (`get-window`, while a tuios
+client is attached to the session) and types the keys (`send-keys`,
+`send-text`); `stream-pane` is held open only for its lease and as the
+signal that the pane printed.
 
 ### Grouping and sorting the list
 

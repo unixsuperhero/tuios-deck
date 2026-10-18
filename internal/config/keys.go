@@ -13,6 +13,7 @@ const (
 	ModeDeck       = "deck"
 	ModeFormNormal = "form_normal"
 	ModeFormInsert = "form_insert"
+	ModeLive       = "live"
 )
 
 // Action is something a key does: its name in the file, the key it has by
@@ -59,6 +60,18 @@ var actions = map[string][]Action{
 		{"extract", "i", "extract context from the pane", false},
 		{"snooze", "z", "snooze the selected pane's task until midnight", false},
 		{"close", "x", "close the pane", false},
+		{"live", "enter", "go live: type into the selected pane until the live prefix and detach", false},
+	},
+	// Live mode: every key goes to the pane except the prefix, and the key
+	// after the prefix is one of the commands below; the prefix twice types
+	// the prefix itself, and esc after it cancels it.
+	ModeLive: {
+		{"leader", "ctrl+a", "the prefix: the next key is a live command, or the prefix again to type it", false},
+		{"detach", "d", "back to the deck; the pane keeps running", false},
+		{"zoom", "z", "show the pane across the whole deck, or beside the rail again", false},
+		{"next_pane", "j", "go live on the next pane of the rail", false},
+		{"prev_pane", "k", "go live on the previous pane of the rail", false},
+		{"help", "?", "show the live keys", false},
 	},
 	ModeFormNormal: {
 		{"insert", "i", "type in the current field", false},
@@ -76,16 +89,17 @@ var actions = map[string][]Action{
 
 // reserved are keys a mode answers itself and a binding may not take.
 var reserved = map[string][]string{
-	ModeDeck:       {"1", "2", "3", "4", "[", "]", "enter", "esc", "up", "down", "left", "right", "home", "end", "pgup", "pgdown", "ctrl+d", "ctrl+u", "ctrl+c", "ctrl+p"},
+	ModeDeck:       {"1", "2", "3", "4", "[", "]", "esc", "up", "down", "left", "right", "home", "end", "pgup", "pgdown", "ctrl+d", "ctrl+u", "ctrl+c", "ctrl+p"},
 	ModeFormNormal: {"ctrl+c", "ctrl+s", "ctrl+r", "up", "down", "tab", "shift+tab"},
 	ModeFormInsert: {"enter", "backspace", "tab", "shift+tab", "up", "down", "ctrl+c", "ctrl+s", "ctrl+n", "ctrl+p", "ctrl+u", "ctrl+w", "ctrl+r", "ctrl+enter"},
+	ModeLive:       {"esc"},
 }
 
 var namedKeys = map[string]bool{"tab": true, "shift+tab": true, "enter": true, "esc": true, "up": true, "down": true,
 	"left": true, "right": true, "home": true, "end": true, "pgup": true, "pgdown": true, "backspace": true}
 
 // Modes lists the mode names.
-func Modes() []string { return []string{ModeDeck, ModeFormNormal, ModeFormInsert} }
+func Modes() []string { return []string{ModeDeck, ModeFormNormal, ModeFormInsert, ModeLive} }
 
 // ActionsOf lists a mode's actions in their documented order.
 func ActionsOf(mode string) []Action { return actions[mode] }

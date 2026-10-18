@@ -135,6 +135,8 @@ type Model struct {
 	protoRun   protoRun         // what the prototype that is up drives
 	protoShots map[string]*shot // the screens its preview read, by window id
 
+	live *live // the pane the deck is live on, while it is
+
 	focusMain  bool // h and l move it: the rail, or the main area to the right
 	tab        tab
 	detail     []string
@@ -235,6 +237,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.screenWidth, m.screenHeight = msg.Width, msg.Height
 		m.layoutSize()
+		if m.live != nil {
+			m.live.lease(m.liveSize(m.live.zoom))
+		}
 		if m.tab == tabTurns && m.turns != nil {
 			m.renderTurns()
 		}
@@ -250,6 +255,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.PasteMsg:
 		if m.help != nil || m.focus != nil && !m.focus.clock.BufferUntil.IsZero() {
+			return m, nil
+		}
+		if m.live != nil {
+			m.live.send(liveInput{text: msg.String(), paste: true})
 			return m, nil
 		}
 		if m.mode == modeForm && m.form != nil {
@@ -321,9 +330,36 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, tea.Batch(cmd, m.loadDetail(false))
 
+	case liveScreenMsg:
+		if msg.l != m.live {
+			return m, nil // a session that was closed
+		}
+		m.live.screen, m.live.curX, m.live.curY, m.live.cursor = msg.lines, msg.curX, msg.curY, msg.cursor
+		return m, m.waitLive()
+
+	case liveSizeMsg:
+		if msg.l != m.live {
+			return m, nil
+		}
+		m.live.cols, m.live.rows = msg.cols, msg.rows
+		return m, m.waitLive()
+
+	case liveEndMsg:
+		if msg.l != m.live {
+			return m, nil
+		}
+		return m, m.closeLive("live ended: " + msg.reason)
+
+	case liveErrMsg:
+		if msg.l != m.live {
+			return m, nil
+		}
+		m.setStatus("error: " + msg.err.Error())
+		return m, m.waitLive()
+
 	case detailMsg:
 		m.detailBusy = false
-		if msg.key != m.detailFor || m.result != nil {
+		if msg.key != m.detailFor || m.result != nil || m.live != nil {
 			return m, nil // the selection moved while this one was in flight
 		}
 		if msg.err != nil {

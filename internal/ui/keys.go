@@ -19,6 +19,9 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if handled, cmd := m.focusBufferKey(msg.String()); handled {
 		return m, cmd
 	}
+	if m.live != nil {
+		return m.handleLiveKey(msg)
+	}
 	switch m.mode {
 	case modeForm:
 		if !m.saveFormPrompts(m.form) {
@@ -231,11 +234,13 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.follow = true
 		m.clampScroll()
 		return m, nil
-	case "r", "enter":
+	case "r":
 		// Keep the lines and the scroll until the fresh read replaces them;
 		// revision 0 makes sure it does.
 		m.revision = 0
 		return m, tea.Batch(m.refreshList(), m.loadDetail(true))
+	case "enter":
+		return m, m.openLive()
 	case "o":
 		m.cycleGrouping(1)
 		return m, nil
@@ -297,8 +302,6 @@ func (m *Model) handleMainKey(msg tea.KeyPressMsg) (bool, tea.Cmd) {
 		m.follow = false
 		m.scroll = 0
 		m.clampScroll()
-	case "enter":
-		// Only the Turns tab has rows to act on; it answered above.
 	default:
 		return false, nil
 	}
