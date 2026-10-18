@@ -7,6 +7,7 @@ import shlex
 import subprocess
 import tempfile
 import time
+import urllib.parse
 import urllib.request
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -17,6 +18,7 @@ OUT.mkdir(parents=True, exist_ok=True)
 PORT = int(os.environ.get("PORT", "18963"))
 BASE = f"http://127.0.0.1:{PORT}"
 DATA = SCRATCH / "deck.json"
+CAPTURES = SCRATCH / "captures"
 ENVS = {}
 web = None
 
@@ -57,23 +59,54 @@ def check(name, condition):
 
 
 def stored():
-    return json.loads(DATA.read_text()).get("reviews", [])
+    """The reviews the store file yields: history's prompt/turn-end pairs per window, plus review_marks.
+    Nothing else about a review is stored."""
+    data = json.loads(DATA.read_text())
+    marks = data.get("review_marks", {})
+    turns = sorted((e for e in data.get("history", []) if e["source"] == "agent-activity"
+                    and e["kind"] in ("prompt-submitted", "response-completed", "session_start")), key=lambda e: e["at"])
+    pending, out = {}, []
+    for e in turns:
+        if e["kind"] == "session_start":
+            pending.pop(e["window"], None)
+        elif e["kind"] == "prompt-submitted":
+            pending[e["window"]] = e
+        elif e["window"] in pending:
+            prompt = pending.pop(e["window"])
+            out.append({"id": e["id"], "prompt": prompt["detail"], "response": e["detail"].split("\n\n", 1)[1],
+                        "completed_at": e["at"], "reviewed_at": marks.get(e["id"], 0)})
+    return sorted(out, key=lambda r: (r["completed_at"], r["id"]))
 
 
-def screen(tag, contains):
+def stable(review):
+    """A review without the fields filled from the live listing, which a closed pane no longer has."""
+    return {k: v for k, v in review.items() if k not in ("pane", "harness")}
+
+
+def screen(tag, contains, without=None):
     deadline = time.monotonic() + 15
     while time.monotonic() < deadline:
         text = run("B", "capture-pane", "-s", "host", "-w", "deck")
         (OUT / (tag + ".txt")).write_text(text)
-        if contains in text:
+        if contains in text and (without is None or without not in text):
             return text
         time.sleep(.2)  # alternate screens are not visible to wait-for window-output
-    raise AssertionError(f"{tag}: screen never contained {contains!r}")
+    raise AssertionError(f"{tag}: screen never contained {contains!r}" + (f" without {without!r}" if without else ""))
 
 
 def key(keys):
     run("B", "send-keys", "-s", "host", "-w", "deck", keys)
     run("B", "wait-for", "window-idle", "-s", "host", "-w", "deck", "--idle", "300", "--timeout", "8000")
+
+
+def wait_file(pattern):
+    """Auto-capture writes a turn capture on its own after a turn end; wait for the file, not a fixed time."""
+    deadline = time.monotonic() + 15
+    while time.monotonic() < deadline:
+        if list(CAPTURES.glob(pattern)):
+            return
+        time.sleep(.2)
+    raise AssertionError(f"no capture matched {pattern} under {CAPTURES}")
 
 
 def api(path, method="GET"):
@@ -88,7 +121,7 @@ def start_web():
         check("web port is unused", sock.connect_ex(("127.0.0.1", PORT)) != 0)
     log = open(OUT / "web.log", "a")
     web = subprocess.Popen([DECK, "web", "--listen", f"127.0.0.1:{PORT}", "--socket", SOCK,
-                            "--data", str(DATA), "--auto-capture=false", "--reminders=false"],
+                            "--data", str(DATA), "--captures", str(CAPTURES), "--auto-capture=false", "--reminders=false"],
                            env=ENVS["A"], stdout=log, stderr=log, start_new_session=True)
     log.close()
     deadline = time.monotonic() + 15
@@ -112,20 +145,23 @@ try:
         output = "\n".join(f"response line {i}" for i in range(90)) if name == "slow" else name + " output"
         run("A", "new-window", "-s", "target", name, "--no-focus", "--", "sh", "-c", "printf '%s\\n' " + shlex.quote(output) + "; exec sleep 600")
         run("A", "wait-for", "window-output", "-s", "target", "-w", name, "--pattern", "response line 89" if name == "slow" else name + " output", "--timeout", "10000")
-    event("slow", "prompt", "started-first-finished-second", "working")
-    event("fast", "prompt", "started-second-finished-first", "working")
-    event("fast", "turn_end", "fast-response", "done")
-    event("slow", "turn_end", "slow-response\n" + "\n".join(f"response line {i}" for i in range(90)), "done")
-    event("third", "prompt", "third-completed-prompt", "working")
-    event("third", "turn_end", "third-response", "done")
-    event("running", "prompt", "still-running-prompt", "working")
     run("B", "new", "boot", "--detach", "--cwd", str(SCRATCH))
     call("B", "new-session", name="host", width=160, height=40, cwd=str(SCRATCH))
     # An interactive shell remains after deck exits, allowing a deterministic exit check.
     run("B", "new-window", "-s", "host", "deck", "--no-focus")
-    cmd = shlex.join([DECK, "tui", "--socket", SOCK, "--data", str(DATA), "--auto-capture=false", "--reminders=false"])
+    # Auto-capture stays on: the review's pane output is the turn capture it writes when a turn ends.
+    cmd = shlex.join([DECK, "tui", "--socket", SOCK, "--data", str(DATA), "--captures", str(CAPTURES), "--reminders=false"])
     run("B", "send-text", "-s", "host", "-w", "deck", cmd + "; echo REVIEW-TUI-EXITED\n")
-    screen("01-deck", "tuios-deck")
+    # The typed command line also holds "tuios-deck"; the deck has started once its alternate screen replaces it.
+    screen("01-deck", "tuios-deck", without="REVIEW-TUI-EXITED")
+    # The turns end while the deck runs, so history observes them live and auto-capture sees each turn end.
+    event("slow", "prompt", "started-first-finished-second", "working")
+    event("fast", "prompt", "started-second-finished-first", "working")
+    event("fast", "turn_end", "fast-response", "done")
+    event("slow", "turn_end", "slow-response", "done")
+    event("third", "prompt", "third-completed-prompt", "working")
+    event("third", "turn_end", "third-response", "done")
+    event("running", "prompt", "still-running-prompt", "working")
     key("V")
     screen("02-unopened", "Review queue (3)")
     rows = stored()
@@ -137,6 +173,7 @@ try:
     key("j")
     screen("04-highlight", "Review queue (3)")
     check("highlight alone does not mark anything", all(r["reviewed_at"] == 0 for r in stored()))
+    wait_file("target-slow-*-turn.txt")
     key("Enter")
     screen("05-opened", "slow-response")
     reviewed = [r for r in stored() if r["reviewed_at"]]
@@ -167,10 +204,10 @@ try:
         "started-second-finished-first", "started-first-finished-second", "third-completed-prompt", "still-running-prompt"])
     check("review survives frontend restart", [r["reviewed_at"] for r in rows if r["reviewed_at"]] == [stamp])
     check("GET does not mark top item reviewed", rows[0]["reviewed_at"] == 0)
-    result = api("/api/reviews/" + rows[1]["id"] + "/open", "POST")
+    result = api("/api/reviews/" + urllib.parse.quote(rows[1]["id"], safe="") + "/open", "POST")
     check("explicit API reopen returns prompt and response", result["review"]["prompt"] == rows[1]["prompt"] and result["review"]["response"].startswith("slow-response"))
     call("A", "close-window", session="target", window="slow")
-    check("reviewed history survives its pane closing", api("/api/reviews?refresh=1")["reviews"][1] == rows[1])
+    check("reviewed history survives its pane closing", stable(api("/api/reviews?refresh=1")["reviews"][1]) == stable(rows[1]))
     print("artifacts:", OUT, flush=True)
     if os.environ.get("KEEP") == "1":
         (SCRATCH / "live.json").write_text(json.dumps({"web_pid": web.pid, "base": BASE, "envs": ENVS}, indent=2))
