@@ -358,7 +358,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.form.Err = msg.err.Error()
 		default:
 			if bad := m.form.attach(msg.paths); len(bad) > 0 {
-				m.form.Err = "not attached, whitespace in the path: " + strings.Join(bad, ", ")
+				m.form.Err = "not attached, a double quote or newline in the path: " + strings.Join(bad, ", ")
 			}
 		}
 		return m, nil

@@ -177,9 +177,49 @@ check "the queued text is the command and the @ reference, as typed" "$SCRATCH/o
 a call cancel-queued '{"session":"target","window":"fake","all":true}' >/dev/null
 a set-agent-state idle -s target -w fake --harness claude-code >/dev/null
 
+echo "== a path with spaces is written @\"path\" (Claude Code and OMP read the quoted form), never skipped"
+mkdir -p "$SCRATCH/my dir"
+printf 'x\n' > "$SCRATCH/my dir/inner file.txt"; printf 'x\n' > "$SCRATCH/spaced name.txt"
+b send-keys -s host -w deck p >/dev/null; settle
+b send-text -s host -w deck '@spaced'; settle; deckcap 05e-spaced-list
+check "a file with a space is offered" "$SCRATCH/out/05e-spaced-list.txt" '▸ spaced name.txt'
+b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 05f-spaced
+check "its reference is quoted" "$SCRATCH/out/05f-spaced.txt" '@"spaced name.txt" ▏'
+b send-text -s host -w deck '@my'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 05g-spaced-dir
+check "a folder with a space opens inside an open quote" "$SCRATCH/out/05g-spaced-dir.txt" '@"my dir/▏'
+check "the list goes on inside the quoted folder" "$SCRATCH/out/05g-spaced-dir.txt" '▸ inner file.txt'
+b send-keys -s host -w deck Enter >/dev/null; settle
+b send-keys -s host -w deck ctrl+s >/dev/null; settle
+a call list-queued '{"session":"target","window":"fake"}' > "$SCRATCH/out/05h-queued.json"
+check "the queued text holds the quoted references with their real paths" "$SCRATCH/out/05h-queued.json" '@\\"spaced name.txt\\" @\\"my dir/inner file.txt\\"'
+a call cancel-queued '{"session":"target","window":"fake","all":true}' >/dev/null
+
+echo "== OMP: /skill:<name> and /<command> from its own folders"
+mkdir -p "$SCRATCH/.omp/commands" "$SCRATCH/.omp/skills/omp-skill" "$SCRATCH/.omp/skills/omp-nodesc" "$SCRATCH/.omp/skills/omp-off"
+printf 'run\n' > "$SCRATCH/.omp/commands/omp-cmd.md"
+printf -- '---\nname: omp-skill\ndescription: does a thing\n---\n' > "$SCRATCH/.omp/skills/omp-skill/SKILL.md"
+printf -- '---\nname: omp-nodesc\n---\n' > "$SCRATCH/.omp/skills/omp-nodesc/SKILL.md"
+printf -- '---\nname: omp-off\ndescription: x\nenabled: false\n---\n' > "$SCRATCH/.omp/skills/omp-off/SKILL.md"
+# The harness is fixed by the agent's first report, so OMP is a second fake
+# agent, the last row of the session, closed again at the end.
+a new-window -s target ompfake --cwd "$SCRATCH" --no-focus -- sh -c 'tuios set-agent-state idle -s "$TUIOS_SESSION" -w "$TUIOS_PANE_ID" --harness omp -m "fake omp"; exec sleep 600' >/dev/null
+a wait-for agent-state -s target -w ompfake --until idle --timeout 10000 >/dev/null
+a list-agents -s target --json > "$SCRATCH/out/05i-agents.json"
+check "the second fake agent reports the omp harness" "$SCRATCH/out/05i-agents.json" '"harness_id": *"omp"'
+select_pane 3
+b send-keys -s host -w deck p >/dev/null; settle
+b send-text -s host -w deck '/omp-'; settle; deckcap 05i-omp-cmd
+check "OMP lists a project command as /name" "$SCRATCH/out/05i-omp-cmd.txt" '▸ omp-cmd'
+b send-keys -s host -w deck ctrl+u >/dev/null; b send-text -s host -w deck '/skill:omp'; settle; deckcap 05j-omp-skill
+check "OMP lists a skill as /skill:name" "$SCRATCH/out/05j-omp-skill.txt" '▸ skill:omp-skill'
+if grep -q 'omp-nodesc\|omp-off' "$SCRATCH/out/05j-omp-skill.txt"; then echo "FAIL OMP listed a skill it would not load"; fails=$((fails+1)); else echo "PASS OMP skips a skill with no description or enabled: false"; fi
+b send-keys -s host -w deck Escape >/dev/null; settle; b send-keys -s host -w deck Escape >/dev/null; settle
+a close-window -s target ompfake >/dev/null
+
 echo "== ctrl+o picks files with the OS dialog (a stand-in osascript/zenity prints two paths)"
 printf '#!/bin/sh\nprintf "%%s\\n%%s\\n" "%s/deck.json" "/etc/hosts"\n' "$SCRATCH" > "$SCRATCH/bin/osascript"
 cp "$SCRATCH/bin/osascript" "$SCRATCH/bin/zenity"; chmod +x "$SCRATCH/bin/osascript" "$SCRATCH/bin/zenity"
+select_pane 2
 b send-keys -s host -w deck p >/dev/null; settle
 b send-text -s host -w deck 'read'; b send-keys -s host -w deck ctrl+o >/dev/null; wait_deck '@/etc/hosts' 10; deckcap 05d-pick
 check "the dialog's files become @ references, relative inside the cwd" "$SCRATCH/out/05d-pick.txt" 'read @deck.json @/etc/hosts'

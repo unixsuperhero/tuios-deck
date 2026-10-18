@@ -10,12 +10,15 @@ import (
 )
 
 // Slash is the slash commands and skills the harness can run for a prompt
-// typed in cwd, as names without the leading slash, sorted. Only Claude Code
-// has a convention the deck reads (harness "claude" or "claude-code"): ~/.claude and every .claude folder from
-// cwd up to the home folder or the filesystem root hold commands/<name>.md
-// (a subfolder becomes `folder:name`) and skills/<name>/SKILL.md. Any other
-// harness yields nothing rather than a guess.
+// typed in cwd, as names without the leading slash, sorted. Claude Code
+// (harness "claude" or "claude-code") reads ~/.claude and every .claude folder
+// from cwd up to the home folder or the filesystem root: commands/<name>.md (a
+// subfolder becomes `folder:name`) and skills/<name>/SKILL.md. OMP is in
+// omp.go. Any other harness yields nothing rather than a guess.
 func Slash(harness, cwd string) []string {
+	if harness == "omp" {
+		return slashOMP(cwd)
+	}
 	if harness != "claude" && harness != "claude-code" {
 		return nil
 	}

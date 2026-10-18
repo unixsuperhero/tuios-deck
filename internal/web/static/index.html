@@ -1025,18 +1025,24 @@ function initCompose(ta) {
     const ctx = composeCtx(ta);
     const caret = ta.selectionStart, v = ta.value;
     const ws = Math.max(v.lastIndexOf(' ', caret - 1), v.lastIndexOf('\n', caret - 1), v.lastIndexOf('\t', caret - 1)) + 1;
-    const word = v.slice(ws, caret);
+    let start = ws, word = v.slice(ws, caret);
+    // An open @"… quote may hold spaces, so the word starts at its @.
+    const oq = v.lastIndexOf('@"', caret - 1);
+    if (oq >= 0 && oq < ws && (oq === 0 || /\s/.test(v[oq - 1])) && !/["\n]/.test(v.slice(oq + 2, caret))) { start = oq; word = v.slice(oq, caret); }
+    const quoted = word.startsWith('@"');
     let kind = '';
     if (word.startsWith('@')) kind = 'at'; else if (word.startsWith('/') && ws === 0) kind = 'slash';
     if (!ctx.on || !kind) return close();
     const mine = ++seq;
     let d;
-    try { d = await api('/api/complete?kind=' + kind + '&cwd=' + enc(ctx.cwd) + '&harness=' + enc(ctx.harness) + '&word=' + enc(word.slice(1))); }
+    try { d = await api('/api/complete?kind=' + kind + '&cwd=' + enc(ctx.cwd) + '&harness=' + enc(ctx.harness) + '&word=' + enc(word.slice(quoted ? 2 : 1))); }
     catch (e) { return close(); }
     if (mine !== seq) return;
     const mark = kind === 'at' ? '@' : '/';
-    items = d.items.map((n) => ({ label: mark + n, text: mark + n }));
-    hl = items.length ? 0 : -1; span = { start: ws, end: caret };
+    // A path with whitespace is written @"path"; a folder leaves the quote open.
+    const ref = (n) => (quoted || /\s/.test(n)) ? '@"' + n + (n.endsWith('/') ? '' : '"') : mark + n;
+    items = d.items.map((n) => { const t = kind === 'at' ? ref(n) : mark + n; return { label: t, text: t }; });
+    hl = items.length ? 0 : -1; span = { start, end: caret };
     paint();
   }
   ta.addEventListener('input', update);
@@ -1057,8 +1063,12 @@ function initCompose(ta) {
     if (!ctx.on) { setStatus('attachments go to agents; this pane is a terminal', true); return; }
     const picked = await browseFiles(ctx.cwd);
     if (!picked || !picked.length) return;
+    const bad = picked.filter((p) => /["\n]/.test(p));
+    if (bad.length) setStatus('not attached, a double quote or newline in the path: ' + bad.join(', '), true);
+    picked.splice(0, picked.length, ...picked.filter((p) => !bad.includes(p)));
+    if (!picked.length) return;
     const root = ctx.cwd.startsWith('~') ? (await api('/api/files?path=' + enc(ctx.cwd))).path : ctx.cwd;
-    const refs = picked.map((p) => '@' + (p.startsWith(root + '/') ? p.slice(root.length + 1) : p));
+    const refs = picked.map((p) => { const r = p.startsWith(root + '/') ? p.slice(root.length + 1) : p; return /\s/.test(r) ? '@"' + r + '"' : '@' + r; });
     const sep = ta.value && !/\s$/.test(ta.value) ? ' ' : '';
     ta.value += sep + refs.join(' ') + ' ';
     ta.focus();

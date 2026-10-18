@@ -204,6 +204,30 @@ func readEntries(cwd, dir string) []string {
 	return out
 }
 
+// atQuery is what follows the `@` being completed, and whether it opened
+// with a double quote, in which case it is the text after the quote. In an
+// Attach field the quoted form may hold spaces.
+func (f field) atQuery() (q string, quoted bool) {
+	q = f.Value[f.at:]
+	if f.Attach && strings.HasPrefix(q, `"`) {
+		return q[1:], true
+	}
+	return q, false
+}
+
+// atDone says the `@` list should close: the `@` was deleted, a quote was
+// closed, or whitespace ended an unquoted path.
+func (f field) atDone() bool {
+	if len(f.Value) < f.at {
+		return true
+	}
+	q, quoted := f.atQuery()
+	if quoted {
+		return strings.ContainsAny(q, `"`+"\n")
+	}
+	return strings.ContainsAny(q, " \t\n")
+}
+
 // list is the completion list open under the current field, nil when none.
 func (f *form) list() []string {
 	cur := f.Fields[f.Cur]
@@ -211,13 +235,14 @@ func (f *form) list() []string {
 		return fuzzy(cur.Slash(), cur.Value[cur.sl:])
 	}
 	if cur.at > 0 {
-		dir, name := splitPath(cur.Value[cur.at:])
+		q, _ := cur.atQuery()
+		dir, name := splitPath(q)
 		ents := f.entries(dir)
 		if cur.Attach {
-			// The harness ends an @path at whitespace, so such names are not offered.
+			// No @ form can hold a double quote or a newline in a name.
 			var ok []string
 			for _, e := range ents {
-				if !strings.ContainsAny(e, " \t") {
+				if !strings.ContainsAny(e, "\"\n") {
 					ok = append(ok, e)
 				}
 			}
@@ -254,13 +279,26 @@ func (f *form) accept(list []string) {
 		// A folder is descended into; a file replaces the @query with its
 		// path relative to the cwd and closes the list. An Attach field keeps
 		// the @ and ends the reference with a space.
-		dir, _ := splitPath(cur.Value[cur.at:])
+		q, quoted := cur.atQuery()
+		dir, _ := splitPath(q)
 		if cur.Attach {
-			if strings.HasSuffix(list[i], "/") {
-				cur.Value, cur.hl = cur.Value[:cur.at]+dir+list[i], 1
+			path := dir + list[i]
+			isDir := strings.HasSuffix(list[i], "/")
+			if quoted || strings.ContainsAny(path, " \t") {
+				// A path with whitespace is written @"path"; a folder leaves the
+				// quote open so the list goes on inside it.
+				if isDir {
+					cur.Value, cur.hl = cur.Value[:cur.at]+`"`+path, 1
+				} else {
+					cur.Value, cur.at, cur.hl = cur.Value[:cur.at]+`"`+path+`" `, 0, 0
+				}
 				return
 			}
-			cur.Value, cur.at, cur.hl = cur.Value[:cur.at]+dir+list[i]+" ", 0, 0
+			if isDir {
+				cur.Value, cur.hl = cur.Value[:cur.at]+path, 1
+				return
+			}
+			cur.Value, cur.at, cur.hl = cur.Value[:cur.at]+path+" ", 0, 0
 			return
 		}
 		if strings.HasSuffix(list[i], "/") {
@@ -309,7 +347,7 @@ func (f *form) submit() (bool, tea.Cmd) {
 // or deleting it, closes the list.
 func (f *form) edited(typed string) {
 	cur := &f.Fields[f.Cur]
-	if cur.at > 0 && (len(cur.Value) < cur.at || strings.ContainsAny(cur.Value[cur.at:], " \t\n")) {
+	if cur.at > 0 && cur.atDone() {
 		cur.at = 0
 	}
 	if cur.sl > 0 && (len(cur.Value) < cur.sl || strings.ContainsAny(cur.Value[cur.sl:], " \t\n")) {

@@ -73,22 +73,24 @@ func (m *Model) pickAttachments() tea.Cmd {
 }
 
 // attach adds `@path` references for paths to the current field: relative to
-// the form's cwd when inside it, absolute otherwise. A path with whitespace
-// cannot be a reference and is reported back.
+// the form's cwd when inside it, absolute otherwise, in double quotes when it
+// holds whitespace. A path with a double quote or a newline cannot be a
+// reference and is reported back.
 func (f *form) attach(paths []string) (skipped []string) {
 	cur := &f.Fields[f.Cur]
 	for _, p := range paths {
 		if rel := relativeTo(f.root(), p); rel != "" {
 			p = rel
 		}
-		if strings.ContainsAny(p, " \t\n") {
+		ref, ok := complete.Quote(p)
+		if !ok {
 			skipped = append(skipped, p)
 			continue
 		}
 		if cur.Value != "" && !strings.HasSuffix(cur.Value, " ") && !strings.HasSuffix(cur.Value, "\n") {
 			cur.Value += " "
 		}
-		cur.Value += "@" + p + " "
+		cur.Value += "@" + ref + " "
 	}
 	cur.at, cur.sl, cur.hl = 0, 0, 0
 	return skipped

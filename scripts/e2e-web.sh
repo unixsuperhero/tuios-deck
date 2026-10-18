@@ -81,6 +81,17 @@ check "@ completes a folder with a trailing slash" "$SCRATCH/out/at.json" '"capt
 curl -s "$base/api/complete?kind=slash&harness=claude-code&cwd=$SCRATCH&word=web" > "$SCRATCH/out/slash.json"
 check "/ lists the project command" "$SCRATCH/out/slash.json" '"web-cmd"'
 check "/ lists the project skill" "$SCRATCH/out/slash.json" '"web-skill"'
+printf 'x\n' > "$SCRATCH/web spaced.txt"
+curl -s "$base/api/complete?kind=at&cwd=$SCRATCH&word=web%20sp" > "$SCRATCH/out/at-space.json"
+check "@ offers a name with a space, whole" "$SCRATCH/out/at-space.json" '"web spaced.txt"'
+mkdir -p "$SCRATCH/.omp/commands" "$SCRATCH/.omp/skills/web-omp" "$SCRATCH/.omp/skills/web-omp-nodesc"
+printf 'run\n' > "$SCRATCH/.omp/commands/web-omp-cmd.md"
+printf -- '---\nname: web-omp\ndescription: d\n---\n' > "$SCRATCH/.omp/skills/web-omp/SKILL.md"
+printf -- '---\nname: web-omp-nodesc\n---\n' > "$SCRATCH/.omp/skills/web-omp-nodesc/SKILL.md"
+curl -s "$base/api/complete?kind=slash&harness=omp&cwd=$SCRATCH&word=web-omp" > "$SCRATCH/out/slash-omp.json"
+check "OMP lists its command" "$SCRATCH/out/slash-omp.json" '"web-omp-cmd"'
+check "OMP lists its skill as skill:name" "$SCRATCH/out/slash-omp.json" '"skill:web-omp"'
+if grep -q 'nodesc' "$SCRATCH/out/slash-omp.json"; then echo "FAIL OMP listed a skill with no description"; fails=$((fails+1)); else echo "PASS OMP skips a skill with no description"; fi
 curl -s "$base/api/complete?kind=slash&harness=codex&cwd=$SCRATCH&word=web" > "$SCRATCH/out/slash-codex.json"
 check "/ lists nothing for a harness with no known convention" "$SCRATCH/out/slash-codex.json" '"items":\[\]'
 

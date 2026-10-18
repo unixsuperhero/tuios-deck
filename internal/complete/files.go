@@ -14,8 +14,10 @@ const maxFiles = 200
 // path relative to cwd, or absolute, or under `~/`. It returns the folder
 // typed so far (as typed, ending in a slash or empty) and the entries of that
 // folder whose names start with the rest, folders with a trailing slash and
-// hidden entries left out. Names with whitespace are left out too, since the
-// harness reads an `@path` up to the next space.
+// hidden entries left out. word may be the inside of an open `@"…` quote, so
+// a typed folder can hold spaces; Quote says how a result is written back.
+// Names with a double quote or a newline are left out: no reference form
+// can hold them.
 func Files(cwd, word string) (dir string, names []string) {
 	i := strings.LastIndex(word, "/")
 	dir, prefix := word[:i+1], word[i+1:]
@@ -33,7 +35,7 @@ func Files(cwd, word string) (dir string, names []string) {
 	}
 	for _, e := range ents {
 		name := e.Name()
-		if strings.HasPrefix(name, ".") && !strings.HasPrefix(prefix, ".") || strings.ContainsAny(name, " \t\n") {
+		if strings.HasPrefix(name, ".") && !strings.HasPrefix(prefix, ".") || strings.ContainsAny(name, "\"\n") {
 			continue
 		}
 		if !strings.HasPrefix(strings.ToLower(name), strings.ToLower(prefix)) {
@@ -55,4 +57,18 @@ func Files(cwd, word string) (dir string, names []string) {
 		names = names[:maxFiles]
 	}
 	return dir, names
+}
+
+// Quote writes path as the harness reads it after an `@`: as is, or inside
+// double quotes (`@"my file.txt"`) when it holds whitespace, which Claude Code
+// and OMP both read as one reference. ok is false for a path with a double
+// quote or a newline, which no form can hold.
+func Quote(path string) (ref string, ok bool) {
+	if strings.ContainsAny(path, "\"\n") {
+		return "", false
+	}
+	if strings.ContainsAny(path, " \t") {
+		return `"` + path + `"`, true
+	}
+	return path, true
 }

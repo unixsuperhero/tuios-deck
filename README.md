@@ -722,19 +722,36 @@ outside the cwd is not listed.
 The daemon's `queue-prompt` carries text only, so an attachment is a file
 reference the agent reads itself, not an upload. In the prompt for an agent
 (`p`) and the new agent's first prompt, `@` keeps the `@` in front of the
-path (`@src/main.go `, a space ends it) so Claude Code and the like read the
-file; names with whitespace are not listed. `ctrl+o` opens the OS file
-dialog (`osascript` on macOS, `zenity` or `kdialog` elsewhere), several files
-at once, and adds each as `@path`: relative to the cwd when inside it,
-absolute otherwise. A prompt to a plain terminal keeps the plain-path `@`.
+path (`@src/main.go `, a space ends it) so Claude Code and OMP read the
+file. A path with whitespace is written `@"my dir/a file.txt"`, the quoted
+form both harnesses read (checked by asking each, with `claude -p` and
+`omp -p`, what a file named `a b.txt` held); a folder with a space in its
+name leaves the quote open so the list goes on inside it. Only a name with a
+double quote or a newline in it cannot be written and is not listed; the OS
+dialog reports it as not attached. `ctrl+o` opens the OS file dialog
+(`osascript` on macOS, `zenity` or `kdialog` elsewhere), several files at
+once, and adds each as `@path`: relative to the cwd when inside it, absolute
+otherwise. A prompt to a plain terminal keeps the plain-path `@`.
 
 A `/` typed as the first character lists the slash commands and skills the
-agent can run: for Claude Code (harness `claude` or `claude-code`),
-`commands/<name>.md` (a subfolder becomes `folder:name`) and
-`skills/<name>/SKILL.md` under `~/.claude` and every `.claude` folder from
-the cwd up. `tab` or `enter` puts `/name ` in the prompt; nothing runs until
-you submit it. Other harnesses list nothing, since the deck reads no
-convention for them. Plugin-provided commands are not listed.
+agent can run. Nothing runs until you submit the prompt, and the deck only
+reads folder names and `SKILL.md` frontmatter:
+
+- Claude Code (harness `claude` or `claude-code`): `commands/<name>.md` (a
+  subfolder becomes `folder:name`) and `skills/<name>/SKILL.md` under
+  `~/.claude` and every `.claude` folder from the cwd up. Plugin-provided
+  commands are not listed.
+- OMP (harness `omp`), following its own discovery: skills as
+  `/skill:<name>` from `<agent dir>/skills/*/SKILL.md` and `.omp/skills/*/SKILL.md`
+  in the cwd and each folder up to the repository root, where the name is
+  the frontmatter `name` (else the folder's) and a skill with no
+  `description` or with `enabled: false` is skipped, as OMP skips it; commands
+  as `/<name>` from `<agent dir>/commands/*.md` and `<cwd>/.omp/commands/*.md`
+  (not recursive). The agent dir is `$PI_CODING_AGENT_DIR` of the deck, or
+  `~/.omp/agent`; a profile's own dir is not followed. OMP also reads
+  Claude, Codex and other folders and extension commands when they are
+  switched on in its settings; those are off by default and not listed.
+- Other harnesses list nothing, since the deck reads no convention for them.
 
 `deck web` does the same in the prompt box and the new-agent first prompt:
 the suggestions list under the box (`↓`/`↑` or `ctrl+n`/`ctrl+p`, `tab` or
