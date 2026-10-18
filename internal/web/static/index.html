@@ -530,6 +530,7 @@ body.focused button.primary, body.focused .nav button.on, body.focused .tabs but
 <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js"></script>
 <script src="/reviews.js"></script>
+<script src="/focus-clock.js"></script>
 <script>
 (() => {
 const $ = (id) => document.getElementById(id);
@@ -547,6 +548,18 @@ const state = {
   ctx: [], ctxScope: 'all', ctxPane: null, ctxSel: null, ctxSort: 'created', ctxGroup: 'none',
 };
 let focusScope = null;
+let focusClock = null;
+function checkFocusClock() {
+  if (focusClock && focusClock.expired(Date.now())) unlockFocus();
+}
+for (const event of ['keydown', 'pointerdown', 'pointermove', 'wheel', 'input', 'paste', 'touchstart']) {
+  document.addEventListener(event, e => {
+    if (!e.isTrusted) return;
+    checkFocusClock();
+    if (focusClock) focusClock.activity(Date.now());
+  }, {capture: true, passive: true});
+}
+setInterval(checkFocusClock, 1000);
 function focusTask(id) {
   if (!focusScope) return true;
   if (focusScope.kind === 'project') return taskById(id)?.project_id === focusScope.id;
@@ -584,12 +597,14 @@ function updateFocusView() {
 }
 function startFocus(kind, id) {
   focusScope = {kind, id};
+  focusClock = new FocusClock(Date.now());
   state.taskSel = {kind, id};
   state.tab = state.tab === 'result' ? 'screen' : state.tab;
   state.detailKey = ''; state.detailText = ''; $('text').textContent = ''; setStatus('');
   setPage('deck'); updateFocusView(); showTab(state.tab, true);
 }
 function unlockFocus() {
+  focusClock = null;
   focusScope = null; updateFocusView(); setStatus('focus unlocked');
 }
 function openFocus() {

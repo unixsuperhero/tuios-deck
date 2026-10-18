@@ -195,6 +195,12 @@ func (m *Model) Init() tea.Cmd {
 
 // Update is the message loop.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg.(type) {
+	case tea.KeyPressMsg, tea.PasteMsg, tea.MouseMsg:
+		m.focusActivity(time.Now(), true)
+	case tickMsg:
+		m.focusActivity(time.Now(), false)
+	}
 	switch msg := msg.(type) {
 	case reviewsMsg:
 		m.reviews.busy = false

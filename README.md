@@ -526,6 +526,10 @@ control. Refreshes keep the selected pane and scroll position.
 The whole focused screen uses the selected scope’s colour: ANSI colours in
 the TUI and a tinted page and terminal background in the browser. Unlocking
 restores the normal theme.
+Focus unlocks after three minutes without user input. Keyboard, paste and
+received mouse input count in the TUI; trusted keyboard, pointer, wheel,
+touch and input events count in the browser, including the Live terminal.
+Daemon events, detail polls and the clock itself never extend the deadline.
 
 
 ## The TUI

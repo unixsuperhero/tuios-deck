@@ -4,15 +4,18 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
+	"github.com/unixsuperhero/tuios-deck/internal/focus"
 	"github.com/unixsuperhero/tuios-deck/internal/store"
 )
 
 type focusScope struct {
 	taskID, projectID string
+	clock             focus.Clock
 }
 
 func (m *Model) focusTask(id string) bool {
@@ -57,7 +60,7 @@ func (m *Model) focusTarget() (string, store.Theme) {
 }
 
 func (m *Model) startFocus(taskID, projectID string) tea.Cmd {
-	m.focus = &focusScope{taskID: taskID, projectID: projectID}
+	m.focus = &focusScope{taskID: taskID, projectID: projectID, clock: focus.New(time.Now())}
 	m.page = pageDeck
 	m.clearResult()
 	m.detailFor, m.detailErr, m.status = "", "", ""
@@ -71,7 +74,7 @@ func (m *Model) unlockFocus() tea.Cmd {
 	m.rebuildRows()
 	m.rebuildTasks()
 	m.setStatus("focus unlocked")
-	return m.loadDetail(false)
+	return nil
 }
 
 func (m *Model) openFocus() tea.Cmd {
@@ -163,4 +166,17 @@ func (m *Model) focusScreen(text string) string {
 		return "\x1b[" + strings.Join(kept, ";") + "m"
 	})
 	return lipgloss.NewStyle().Foreground(lipgloss.Color(fg)).Background(lipgloss.Color(theme.ANSI())).Render(text)
+}
+
+func (m *Model) focusActivity(now time.Time, user bool) {
+	if m.focus == nil {
+		return
+	}
+	if m.focus.clock.Expired(now) {
+		m.unlockFocus()
+		return
+	}
+	if user {
+		m.focus.clock.Activity(now)
+	}
 }
