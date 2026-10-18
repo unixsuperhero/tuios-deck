@@ -133,7 +133,11 @@ func (m *Model) View() tea.View {
 func (m *Model) titleLine() string {
 	if m.focus != nil {
 		name, _ := m.focusTarget()
-		return pad(" FOCUS · "+name+" · F unlock · T tasks", m.width)
+		s := " FOCUS · " + name + " · F unlock · T tasks"
+		if m.page == pageDeck {
+			s += " · sort: " + m.railSort.String()
+		}
+		return pad(s, m.width)
 	}
 	agents, attention := 0, 0
 	for _, r := range m.rows {
@@ -150,6 +154,9 @@ func (m *Model) titleLine() string {
 	}
 	if m.page == pageDeck && !m.grouping.bySession() {
 		s += " by " + m.grouping.String()
+	}
+	if m.page == pageDeck {
+		s += " · sort: " + m.railSort.String()
 	}
 	if m.page == pageContext {
 		s += " " + m.ctxTitle()

@@ -29,9 +29,13 @@ const (
 	// then every task on the pane's path from the root down, then the pane.
 	// Its depth varies per pane, so it is no level to nest others under.
 	lvTree
+	lvNone
 )
 
 func (l level) String() string {
+	if l == lvNone {
+		return "none"
+	}
 	if l == lvTree {
 		return "task tree"
 	}
@@ -92,6 +96,10 @@ func (g grouping) tree() bool {
 	return len(g) == 1 && g[0] == lvTree
 }
 
+func (g grouping) none() bool {
+	return len(g) == 1 && g[0] == lvNone
+}
+
 // presets are the groupings o and O cycle through, in order.
 var presets = []grouping{
 	{lvSession},
@@ -105,6 +113,7 @@ var presets = []grouping{
 	{lvHarness},
 	{lvState},
 	{lvKind},
+	{lvNone},
 }
 
 // parseGrouping reads a grouping written as level names joined by ">",
@@ -114,6 +123,8 @@ func parseGrouping(text string) (grouping, bool) {
 	switch strings.ToLower(strings.Join(strings.Fields(text), " ")) {
 	case "task tree", "tree":
 		return grouping{lvTree}, true
+	case "none":
+		return grouping{lvNone}, true
 	}
 	var g grouping
 	for _, part := range strings.Split(text, ">") {
@@ -219,12 +230,16 @@ func (m *Model) groupedRows() []row {
 	var rows []row
 	if m.focus != nil {
 		name, theme := m.focusTarget()
-		rows = append(rows, row{Header: name, Theme: &theme})
+		depth := 0
+		if !m.grouping.none() {
+			rows = append(rows, row{Header: name, Theme: &theme})
+			depth = 1
+		}
 		for i := range m.merged {
 			for j := range m.merged[i].Panes {
 				p := &m.merged[i].Panes[j]
 				if m.focusPane(p.ID) {
-					rows = append(rows, row{Pane: p, Depth: 1})
+					rows = append(rows, row{Pane: p, Depth: depth})
 				}
 			}
 		}
@@ -248,6 +263,12 @@ func (m *Model) groupedRows() []row {
 	}
 	if m.grouping.tree() {
 		return m.treeRows(all)
+	}
+	if m.grouping.none() {
+		for _, p := range all {
+			rows = append(rows, row{Pane: p})
+		}
+		return rows
 	}
 	m.nestRows(&rows, all, 0, false)
 	return rows
@@ -395,6 +416,7 @@ func (m *Model) sessionNamed(name string) *panes.Session {
 func (m *Model) rebuildRows() {
 	selected := m.selectedID()
 	m.rows = m.groupedRows()
+	m.sortRows()
 	newSel := -1
 	for i, r := range m.rows {
 		if r.Pane != nil && r.Pane.ID == selected {
@@ -433,4 +455,69 @@ func (m *Model) cycleGrouping(step int) {
 		cur = 0
 	}
 	m.setGrouping(presets[((cur+step)%n+n)%n])
+}
+
+type railSort int
+
+const (
+	railDefault railSort = iota
+	railName
+	railState
+	railHarness
+	railSession
+	railSortCount
+)
+
+func (s railSort) String() string {
+	return [...]string{"default", "name", "state", "harness", "session"}[s]
+}
+
+func (s railSort) value(p *panes.Pane) string {
+	switch s {
+	case railName:
+		return p.Name
+	case railState:
+		if !p.IsAgent {
+			return "terminal"
+		}
+		return p.State
+	case railHarness:
+		return p.Harness
+	case railSession:
+		return p.Session
+	}
+	return ""
+}
+
+// Sort only contiguous pane leaves, never group headers or the task hierarchy.
+func (m *Model) sortRows() {
+	if m.railSort == railDefault {
+		return
+	}
+	for start := 0; start < len(m.rows); {
+		if m.rows[start].Pane == nil {
+			start++
+			continue
+		}
+		end := start + 1
+		for end < len(m.rows) && m.rows[end].Pane != nil {
+			end++
+		}
+		leaves := m.rows[start:end]
+		sort.SliceStable(leaves, func(i, j int) bool {
+			a, b := leaves[i].Pane, leaves[j].Pane
+			av, bv := m.railSort.value(a), m.railSort.value(b)
+			if av != bv {
+				return av < bv
+			}
+			return a.ID < b.ID
+		})
+		start = end
+	}
+}
+
+func (m *Model) setRailSort(s railSort) {
+	m.railSort = s
+	m.rebuildRows()
+	m.setStatus("rail sort: " + s.String())
 }

@@ -50,6 +50,7 @@ var actions = map[string][]Action{
 		{"refresh", "r", "list the sessions and agents again", false},
 		{"group_next", "o", "next grouping of the list", false},
 		{"group_prev", "O", "previous grouping of the list", false},
+		{"sort_next", "s", "next sort of the rail panes", false},
 		{"new_agent", "n", "start an agent", false},
 		{"new_terminal", "t", "open a shell", false},
 		{"prompt", "p", "send a prompt", false},

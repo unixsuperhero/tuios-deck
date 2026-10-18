@@ -215,6 +215,14 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "O":
 		m.cycleGrouping(-1)
 		return m, nil
+	case "s":
+		m.setRailSort((m.railSort + 1) % railSortCount)
+		return m, nil
+	case "R":
+		m.railSort = railDefault
+		m.setGrouping(grouping{lvSession})
+		m.setStatus("view reset: session grouping, default sort")
+		return m, nil
 	case "n":
 		return m, m.openAgentForm()
 	case "t":

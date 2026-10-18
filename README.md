@@ -603,8 +603,8 @@ turns on the right. On every page `T` opens the tasks page, `C` the
 captures page, `I` the context page, `H` the history timeline, `U` the
 prototypes page, `V` the review queue, `A` the mass-add screen, `:` or
 `ctrl+p` the command palette, and `q` quits; `esc` comes back to the deck.
-The title line names the page and, on the deck, the grouping when it is not
-by session; on the context page, its sort, grouping and filter.
+The title line names the page and, on the deck, the current sort and the
+grouping when it is not by session; on the context page, its sort, grouping and filter.
 
 ### The deck page
 
@@ -639,6 +639,8 @@ With the rail focused:
 | `l` (`→`) | Focus the main area |
 | `1` `2` `3` `4`, `[` `]`, `tab` `shift+tab` | Screen, activity, transcript or turns of the selected pane |
 | `J` `K` (`ctrl+d` `ctrl+u`, `pgdown` `pgup`), `G` | Scroll the detail half a page; `G` follows the newest output again |
+| `s` | Cycle rail sort: default, name, state, harness, session. Configurable as `sort_next`; only on the deck page |
+| `R` | Reset the deck to session grouping and default sort, keeping selection, detail scroll and focus scope |
 | `o` `O` | Group the list the next way, or the previous one (below) |
 | `n` | Start an agent: session, agent command, name, cwd, task or project, first prompt. Waits until it is at its prompt |
 | `t` | Open a terminal: session, name, cwd, task or project. Always an interactive shell, the pane tuios itself opens; send commands to it with `p`. Creates the session when it does not exist |
@@ -695,7 +697,7 @@ position unless you are following the bottom.
 A pane the deck cannot talk to (one on `needs_input`) is refused a prompt;
 answer it in tuios.
 
-### Grouping the list
+### Grouping and sorting the list
 
 A grouping is a list of levels, outermost first, written `a > b > c`. The
 levels are session, project, task, parent task (the task's parent, or the
@@ -714,6 +716,7 @@ cwd
 harness
 state
 kind
+none
 ```
 
 then round to session again; `O` goes the other way. `task tree` (or
@@ -729,8 +732,23 @@ a header row, indented one step per level, with the next level's headers or
 the panes under it; a project or task header is in its theme, and a task
 header carries the path `project › top task › … › task`, without the
 project when a project level sits above it. Within a level groups sort by
-name with `(none)` last. The selection stays on the same pane across a
-regroup.
+name with `(none)` last. `none` stands alone and shows a flat list across
+sessions, without headers. During focus it only includes panes in the focus scope.
+
+Sorting is independent of grouping. `s` cycles `default`, `name`, `state`,
+`harness` and `session` on the deck page. The palette offers `sort rail by …`
+for each choice; the web rail has a Sort select. Default keeps the existing
+session/window listing order. The other choices sort ascending by the named
+field, case-sensitive, with pane ID as the deterministic tie-breaker. State
+treats non-agent panes as `terminal`; missing harness values sort first.
+Sorting applies within each group's pane rows, or globally with `none`.
+It does not reorder task headers, the review queue or other pages.
+
+The selected pane and detail scroll survive sorting, regrouping and daemon
+refreshes. `R` restores session grouping and default sort on the deck page;
+the web also has Reset view. Reset never unlocks focus. The browser saves
+grouping and rail sort locally. No recent sort is offered because the pane
+listing has no reliable recency timestamp.
 
 ### The tasks page
 

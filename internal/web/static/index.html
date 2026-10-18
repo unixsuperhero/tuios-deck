@@ -48,6 +48,8 @@ aside { border-right: 1px solid var(--line); background: var(--panel); display: 
 .railhead select { font-size: 12px; padding: 3px 6px; margin-left: auto; }
 .railhead #group-custom { font-size: 12px; padding: 3px 6px; width: 9em; min-width: 0; margin-left: auto; }
 .railhead #group-custom + select { margin-left: 0; }
+#page-deck .railhead { flex-wrap: wrap; }
+#page-deck .railhead label { display: flex; align-items: center; gap: 8px; }
 .rail { overflow: auto; min-height: 0; }
 .session { padding: 8px 12px 4px; font-weight: 600; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; display: flex; justify-content: space-between; gap: 8px; }
 .session span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -186,7 +188,7 @@ body.focused #nav button:not([data-page="deck"]):not([data-page="tasks"]),
 body.focused #btn-palette, body.focused #btn-agent, body.focused #btn-term,
 body.focused #btn-assign, body.focused #btn-extract, body.focused #btn-close,
 body.focused #tk-newproj, body.focused #tk-newtask, body.focused #tk-rename,
-body.focused #tk-theme, body.focused #tk-delete, body.focused #page-deck .railhead { display: none; }
+body.focused #tk-theme, body.focused #tk-delete, body.focused #page-deck .railgroup { display: none; }
 body.focused { --bg: color-mix(in srgb, var(--focus-color) 16%, #101318); --panel: color-mix(in srgb, var(--focus-color) 22%, #171b21); --fg: #f7f8fa; --muted: #d6dbe2; --line: color-mix(in srgb, var(--focus-color) 55%, #aaa); --accent: color-mix(in srgb, var(--focus-color) 65%, #fff); --sel: color-mix(in srgb, var(--focus-color) 40%, #222); --hover: color-mix(in srgb, var(--focus-color) 30%, #222); --term-bg: var(--bg); }
 body.focused .pane .chip, body.focused .pane .task, body.focused .glyph { color: var(--fg) !important; }
 body.focused button.primary, body.focused .nav button.on, body.focused .tabs button.on { color: #101318; }
@@ -219,9 +221,11 @@ body.focused #btn-focus-plan, body.focused #easy-filter, body.focused #tk-easy {
 <main>
   <div class="page split on" id="page-deck">
     <aside>
-      <div class="railhead"><span>Group by</span>
-        <input id="group-custom" placeholder="a > b > c" title="Group by levels joined by &gt;, then Enter">
-        <select id="group"></select>
+      <div class="railhead"><span class="railgroup">Group by</span>
+        <input class="railgroup" id="group-custom" placeholder="a > b > c" title="Group by levels joined by &gt;, then Enter">
+        <select class="railgroup" id="group" aria-label="Group panes by"></select>
+        <label>Sort <select id="rail-sort" aria-label="Sort panes by"></select></label>
+        <button id="rail-reset" title="Session grouping and default sort (R)">Reset view</button>
       </div>
       <div class="rail" id="list"><div class="empty">loading…</div></div>
     </aside>
@@ -557,12 +561,13 @@ const $ = (id) => document.getElementById(id);
 const DOTS = { working: '◐', needs_input: '●', errored: '✗', idle: '○', done: '✓' };
 // A grouping is a list of levels joined by " > ", the first outermost.
 const LEVELS = ['session', 'project', 'task', 'parent task', 'top-level task', 'cwd', 'harness', 'state', 'kind'];
-const GROUPS = ['session', 'task tree', 'project', 'project > parent task', 'task', 'top-level task', 'harness > project > parent task', 'cwd', 'harness', 'state', 'kind'];
+const GROUPS = ['session', 'task tree', 'project', 'project > parent task', 'task', 'top-level task', 'harness > project > parent task', 'cwd', 'harness', 'state', 'kind', 'none'];
+const RAIL_SORTS = ['default', 'name', 'state', 'harness', 'session'];
 const PAGES = ['deck', 'tasks', 'captures', 'context', 'reminders', 'review', 'history'];
 const state = {
   sessions: [], panes: {}, order: [], selected: null, tab: 'screen', transcripts: false,
   detailKey: '', detailText: '', pollTimer: null, refreshTimer: null, lastStatusErr: false,
-  projects: [], tasks: [], group: 'session', page: 'deck',
+  projects: [], tasks: [], group: 'session', railSort: 'default', page: 'deck',
   taskSel: null, captures: [], capSel: null, captureDir: '', palette: null, verbs: null,
   reminders: [], remTimer: null,
   ctx: [], ctxScope: 'all', ctxPane: null, ctxSel: null, ctxSort: 'created', ctxGroup: 'none',
@@ -744,6 +749,7 @@ function paneProject(p) { return p?.assignment?.project || ''; }
 function parseGroup(text) {
   const whole = String(text || '').trim().toLowerCase().replace(/\s+/g, ' ');
   if (whole === 'task tree' || whole === 'tree') return ['task tree'];
+  if (whole === 'none') return ['none'];
   const out = [];
   for (let part of String(text || '').split('>')) {
     part = part.trim().toLowerCase().replace(/\s+/g, ' ');
@@ -788,6 +794,7 @@ function groupKey(level, p, underProject) {
 function groups() {
   if (focusScope) return Object.values(state.panes).filter(focusPane).map(pane => ({pane, depth: 0}));
   const levels = parseGroup(state.group) || ['session'];
+  if (levels[0] === 'none') return Object.values(state.panes).map(pane => ({pane, depth: 0}));
   const rows = [];
   if (levels.length === 1 && levels[0] === 'session') {
     for (const s of state.sessions) {
@@ -862,7 +869,7 @@ function treeRows() {
 // setGroup regroups the rail by a preset or by free text "a > b > c".
 function setGroup(text) {
   const levels = parseGroup(text);
-  if (!levels) { setStatus(`levels are ${LEVELS.join(', ')}, joined by >; or task tree`, true); return; }
+  if (!levels) { setStatus(`levels are ${LEVELS.join(', ')}, joined by >; or task tree or none`, true); return; }
   const g = levels.join(' > ');
   state.group = g;
   fillGroupSelect();
@@ -890,6 +897,30 @@ $('group-custom').onkeydown = (e) => {
   if (e.key === 'Escape') { e.target.value = ''; e.target.blur(); }
 };
 $('group').onchange = () => setGroup($('group').value);
+function sortedRailRows() {
+  const rows = groups();
+  if (state.railSort === 'default') return rows;
+  const value = p => state.railSort === 'state' && !p.is_agent ? 'terminal' : p[state.railSort] || '';
+  const compare = (a, b) => a < b ? -1 : a > b ? 1 : 0;
+  for (let start = 0; start < rows.length;) {
+    if (!rows[start].pane) { start++; continue; }
+    let end = start + 1;
+    while (end < rows.length && rows[end].pane) end++;
+    const leaves = rows.slice(start, end).sort((a, b) => compare(value(a.pane), value(b.pane)) || compare(a.pane.id, b.pane.id));
+    for (let i = 0; i < leaves.length; i++) rows[start + i] = leaves[i];
+    start = end;
+  }
+  return rows;
+}
+function setRailSort(sort) {
+  state.railSort = sort;
+  $('rail-sort').value = sort;
+  try { localStorage.setItem('deck.railSort', sort); } catch (_) {}
+  renderList();
+  setStatus('rail sort: ' + sort);
+}
+$('rail-sort').onchange = () => setRailSort($('rail-sort').value);
+$('rail-reset').onclick = resetPageView;
 
 // ---------------------------------------------------------------- list
 function renderList() {
@@ -899,7 +930,7 @@ function renderList() {
   state.order = [];
   if (focusScope && !Object.values(state.panes).some(focusPane)) { list.innerHTML = '<div class="empty">No panes assigned to this focus scope.</div>'; return; }
   if (!state.sessions.length) { list.innerHTML = '<div class="empty">no sessions yet: start an agent or open a terminal</div>'; return; }
-  for (const r of groups()) {
+  for (const r of sortedRailRows()) {
     if (r.header !== undefined) {
       const h = document.createElement('div'); h.className = 'session';
       h.innerHTML = `<span></span><span></span>`;
@@ -1992,8 +2023,12 @@ $('cap-refresh').onclick = loadCaptures;
 $('cap-delete').onclick = deleteCapture;
 
 async function resetPageView() {
-  if (focusScope && state.page !== 'tasks') return;
+  if (focusScope && !['deck', 'tasks'].includes(state.page)) return;
   switch (state.page) {
+    case 'deck':
+      setRailSort('default');
+      setGroup('session');
+      break;
     case 'context':
       clearTimeout(state.ctxTimer);
       state.ctxScope = 'all'; state.ctxSort = 'created'; state.ctxGroup = 'none';
@@ -2310,12 +2345,13 @@ function deckCommands() {
     { label: 'go to review queue', run: () => setPage('review') },
     { label: 'go to reminders', run: () => setPage('reminders') },
     { label: 'go to history', desc: 'persisted timeline (H)', run: () => setPage('history') },
-    ...(['tasks', 'context', 'history', 'review'].includes(state.page) ? [{ label: 'reset page view', desc: 'clear view filters/sort; keep data and focus (R)', run: resetPageView }] : []),
+    ...(['deck', 'tasks', 'context', 'history', 'review'].includes(state.page) ? [{ label: 'reset page view', desc: 'restore view grouping/filters/sort; keep data and focus (R)', run: resetPageView }] : []),
     { label: 'new reminder…', run: newReminder },
     { label: 'context scope: toggle current pane / all', run: () => { state.ctxScope = state.ctxScope === 'all' ? 'current' : 'all'; setPage('context'); } },
     { label: 'extract context from selected pane', run: extractContext },
   ];
   for (const g of GROUPS) cmds.push({ label: `group by ${g}`, run: () => setGroup(g) });
+  for (const sort of RAIL_SORTS) cmds.push({ label: 'sort rail by ' + sort, run: () => { setPage('deck'); setRailSort(sort); } });
   cmds.push({ label: 'group by…', run: () => { setPage('deck'); $('group-custom').focus(); } });
   cmds.push(
     { label: 'new project', run: newProject },
@@ -2478,6 +2514,8 @@ const webKeys = [
   ['?', 'keybindings and actions…', 'pages', () => openHelp()],
   ['o', 'next grouping', 'pages', () => cycleGroup(1)],
   ['O', 'previous grouping', 'pages', () => cycleGroup(-1)],
+  ['s', 'next rail sort', 'deck', () => setRailSort(RAIL_SORTS[(RAIL_SORTS.indexOf(state.railSort) + 1) % RAIL_SORTS.length])],
+  ['R', 'reset rail view', 'deck', resetPageView],
   ['T', 'go to tasks', 'pages', () => setPage('tasks')],
   ['C', 'go to captures', 'pages', () => setPage('captures')],
   ['I', 'go to context', 'pages', () => setPage('context')],
@@ -2494,7 +2532,7 @@ const webKeys = [
   ['a', 'assign selected pane to task…', 'deck', () => $('btn-assign').click()],
   ['i', 'extract context from selected pane', 'deck', () => extractContext()],
 ];
-const focusPageKeys = ['F', '?', 'R', 'T', 'Escape', 'j', 'k', '1', '2', '3', '4', 'p', 'c'];
+const focusPageKeys = ['F', '?', 'R', 'T', 'Escape', 'j', 'k', '1', '2', '3', '4', 'p', 'c', 's'];
 function renderHelp() {
   const mode = $('help-mode').value;
   let rows = [], note = '';
@@ -2503,6 +2541,7 @@ function renderHelp() {
       [key, action, scope + (focusPageKeys.includes(key) ? '' : '; unavailable during focus')]);
     rows = [['Ctrl/Meta+k or p', 'command palette', 'outside dialogs and focus; also in inputs and Live'], ...rows];
     if (mode === 'pages' || ['tasks', 'context', 'history', 'review'].includes(mode)) rows.push(['R / Reset', 'reset page filters/sort; keep data and focus; do not mark reviewed', 'tasks/context/history/review']);
+    if (mode === 'pages') rows.push(['s', 'cycle pane rail sort', 'deck'], ['R / Reset view', 'restore session grouping and default sort; keep selection and focus', 'deck']);
     note = 'Page shortcuts apply outside inputs, dialogs and focused Live. Focus permits only Deck and Tasks; entries marked unavailable require unlocking.';
     if (mode !== 'pages') rows.push(
       ['Tab / Shift+Tab', 'next / previous control', mode + '; browser navigation'],
@@ -2525,6 +2564,8 @@ function renderHelp() {
   } else if (mode === 'focus') {
     note = 'Focus limits navigation to scoped Deck/Tasks and disables the palette, grouping and unrelated actions. After 15 active minutes the buffer takes priority over all other dialogs and shortcuts. No continuation within 30 seconds unlocks automatically; 3 minutes without activity also unlocks focus.';
     rows = [webKeys.find(([key]) => key === 'F'),
+      ['s', 'cycle sort within the focused pane rail', 'deck; focus remains active'],
+      ['R', 'reset the deck or task view without unlocking focus', 'deck/tasks; focus remains active'],
       ['Enter', 'continue focus for a fresh 15-active-minute cycle', 'focus buffer; even when Unlock now has focus'],
       ['Escape / F', 'unlock focus now', 'focus buffer; fixed keys'],
       ['Tab / Shift+Tab', 'move between Unlock now / Continue focus buttons', 'focus buffer'],
@@ -2595,6 +2636,9 @@ if (state.tab === 'result') state.tab = 'screen';
 try { const g = parseGroup(localStorage.getItem('deck.group')); if (g) state.group = g.join(' > '); } catch (_) {}
 fillGroupSelect();
 if (!GROUPS.includes(state.group)) $('group-custom').value = state.group;
+try { const sort = localStorage.getItem('deck.railSort'); if (RAIL_SORTS.includes(sort)) state.railSort = sort; } catch (_) {}
+for (const sort of RAIL_SORTS) { const o = document.createElement('option'); o.value = sort; o.textContent = sort; $('rail-sort').append(o); }
+$('rail-sort').value = state.railSort;
 try { state.ctxSort = localStorage.getItem('deck.ctxSort') || 'created'; state.ctxGroup = localStorage.getItem('deck.ctxGroup') || 'none'; } catch (_) {}
 $('ctx-sort').value = state.ctxSort; $('ctx-group').value = state.ctxGroup;
 setPage(location.hash.replace('#', '') || 'deck', true);

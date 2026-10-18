@@ -90,6 +90,7 @@ type Model struct {
 
 	merged   []panes.Session // the last listing, which o regroups without a daemon call
 	grouping grouping
+	railSort railSort
 	rows     []row
 	sel      int
 	railUp   int // the levels ( has stepped up from the innermost, for { and }

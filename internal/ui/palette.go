@@ -371,6 +371,13 @@ func (m *Model) deckCommands() []palItem {
 			return nil
 		}})
 	}
+	for s := railDefault; s < railSortCount; s++ {
+		items = append(items, palItem{"deck", "sort rail by " + s.String(), "sort pane leaves, keeping groups and selection (s cycles)", func() tea.Cmd {
+			m.page = pageDeck
+			m.setRailSort(s)
+			return nil
+		}})
+	}
 	items = append(items, palItem{"deck", "group by…", "group the left rail by levels such as project > parent task", m.openGroupingForm})
 	items = append(items, m.reminderCommands()...)
 	return append(items,
@@ -756,7 +763,7 @@ func (m *Model) openGroupingForm() tea.Cmd {
 			}
 			var out []string
 			if head == "" {
-				out = append(out, lvTree.String())
+				out = append(out, lvTree.String(), lvNone.String())
 			}
 			for _, name := range levelNames() {
 				out = append(out, head+name)
@@ -765,7 +772,7 @@ func (m *Model) openGroupingForm() tea.Cmd {
 		}}},
 		Validate: func(v []string) (int, string) {
 			if _, ok := parseGrouping(v[0]); !ok {
-				return 0, "levels are " + strings.Join(levelNames(), ", ") + ", joined by >; or task tree"
+				return 0, "levels are " + strings.Join(levelNames(), ", ") + ", joined by >; or task tree or none"
 			}
 			return 0, ""
 		},
