@@ -28,6 +28,7 @@ suites=(
 	"help          python3 scripts/e2e-help.py"
 	"turns         python3 scripts/e2e-turns.py"
 	"review        PORT=18910 python3 scripts/e2e-review.py"
+	"live          scripts/e2e-live.sh"
 )
 only=${ONLY:-}
 pids=() names=()
