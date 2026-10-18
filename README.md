@@ -242,6 +242,28 @@ added twice. The status line says how many were new and how many found.
 Each item may be starred, pinned and assigned to a task or a project, the
 way a pane is.
 
+## Recurring reminders
+
+A reminder has a title, an optional message and an interval (`90s`, `30m`,
+`2h`, `1d`, `1h30m`; a bare number is minutes). It repeats every interval
+from when it was added or last enabled. Manage them from the command palette
+(`:`): `new reminder…`, `edit reminder…` (an empty field keeps the value, `-`
+clears the message), `enable reminder…`, `disable reminder…`,
+`delete reminder…` and `reminders` (the list). The web page has a Reminders
+page and the same palette entries; the API is `GET/POST /api/reminders` and
+`PATCH/DELETE /api/reminders/{id}` (`title`, `message`, `every`, `enabled`).
+
+**Reminders fire only while `deck tui` or `deck web` is running.** Nothing is
+installed to run in the background. Each due reminder is delivered as a
+notice in the daemon's most recently active session (read with
+`tuios read-agent-messages`, shown by a tuios client) and as an OS
+notification (`osascript` on macOS, `notify-send` on Linux; the text is
+passed as an argument, never through a shell). `-reminders=false` turns the
+scheduler off and `-reminders-os=false` the OS notification. Reminders live
+in `deck.json`, with their next due time. One missed while the deck was off
+fires once when it starts, and the next one is a whole interval on the
+original schedule. Run only one deck on a store, or each fires its own copy.
+
 ## Captures
 
 `c` writes the selected pane's screen and scrollback to
@@ -797,7 +819,10 @@ drives it with `send-keys`. It seeds a `deck.json` by hand and points the
 deck at it through `TUIOS_DECK_DATA`, so your own is never touched.
 `scripts/e2e-web.sh` runs `deck web` against a throwaway daemon the same
 way and checks the API with curl, the event stream, and the WebSocket pane
-stream with `scripts/wscheck`. `scripts/e2e-setup.sh` runs
+stream with `scripts/wscheck`. `scripts/e2e-reminders.sh` drives the reminder palette
+forms in `deck tui` and the reminder API in `deck web`, and checks delivery,
+recurrence, disable, persistence and the OS notifier's arguments.
+`scripts/e2e-setup.sh` runs
 `deck setup` against a scratch HOME and drives the omp extension under bun
 with a fake pi and a fake tuios. Every check keeps what it saw under
 `$SCRATCH/out` and prints PASS or FAIL.
@@ -840,6 +865,8 @@ newest tag, or the newest commit on `main` while there are no tags.
   `deck.json`, and the themes they are drawn in.
 - `internal/context`: finding context items in a pane, and copying and
   opening them.
+- `internal/reminders`: delivering due reminders as a daemon notice and an
+  OS notification.
 - `internal/autocapture`: the automatic captures at a turn's or a
   command's end.
 - `internal/ui`: the Bubble Tea model, keys, forms, daemon commands and

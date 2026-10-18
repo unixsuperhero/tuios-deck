@@ -113,6 +113,7 @@ dialog .hint.err:empty { display: none; }
 .taskinfo dd { margin: 0; }
 .taskinfo h3 { font-size: 13px; margin: 16px 0 6px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
 .taskinfo ul { list-style: none; margin: 0; padding: 0; }
+.remitem { border: 1px solid var(--line, #444); border-radius: 6px; padding: 12px; margin-bottom: 12px; }
 .taskinfo li { padding: 4px 0; display: flex; gap: 8px; align-items: center; }
 .taskinfo li .state { color: var(--muted); font-size: 12px; }
 .taskinfo li button.link { border: none; background: none; color: var(--accent); padding: 0 4px; }
@@ -160,6 +161,7 @@ dialog .hint.err:empty { display: none; }
     <button data-page="tasks">Tasks</button>
     <button data-page="captures">Captures</button>
     <button data-page="context">Context</button>
+    <button data-page="reminders">Reminders</button>
   </nav>
   <span class="meta" id="meta">connecting…</span>
   <span class="badge needs" id="needs" hidden></span>
@@ -261,6 +263,13 @@ dialog .hint.err:empty { display: none; }
       <div class="taskinfo" id="ctxinfo"><div class="empty">select a context item</div></div>
     </section>
   </div>
+  <div class="page" id="page-reminders">
+    <div class="taskinfo">
+      <div class="toolbar"><span class="spacer"></span><button id="rem-new" class="primary">New reminder</button></div>
+      <div class="hint">Reminders fire only while deck web or deck tui is running.</div>
+      <div id="remlist"><div class="empty">loading…</div></div>
+    </div>
+  </div>
 </main>
 <footer>
   <span class="status" id="status"></span>
@@ -324,6 +333,15 @@ dialog .hint.err:empty { display: none; }
   <div class="actions"><button type="button" data-cancel>Cancel</button><button class="primary" value="ok" id="confirm-ok" autofocus>Close pane</button></div>
 </form></dialog>
 
+<dialog id="dlg-reminder"><form method="dialog">
+  <h2 id="rem-title">Reminder</h2>
+  <label>Title <input name="title" required></label>
+  <label>Message <input name="message" placeholder="the title when empty"></label>
+  <label>Every <input name="every" required placeholder="30m, 2h, 1d, 90s"></label>
+  <div class="hint err" data-err></div>
+  <div class="actions"><button type="button" data-cancel>Cancel</button><button class="primary" value="ok">Save</button></div>
+</form></dialog>
+
 <dialog id="dlg-name"><form method="dialog">
   <h2 id="name-title">Name</h2>
   <label id="name-label">Name <input name="name" required></label>
@@ -365,12 +383,13 @@ const DOTS = { working: '◐', needs_input: '●', errored: '✗', idle: '○', 
 // A grouping is a list of levels joined by " > ", the first outermost.
 const LEVELS = ['session', 'project', 'task', 'parent task', 'top-level task', 'cwd', 'harness', 'state', 'kind'];
 const GROUPS = ['session', 'task tree', 'project', 'project > parent task', 'task', 'top-level task', 'harness > project > parent task', 'cwd', 'harness', 'state', 'kind'];
-const PAGES = ['deck', 'tasks', 'captures', 'context'];
+const PAGES = ['deck', 'tasks', 'captures', 'context', 'reminders'];
 const state = {
   sessions: [], panes: {}, order: [], selected: null, tab: 'screen', transcripts: false,
   detailKey: '', detailText: '', pollTimer: null, refreshTimer: null, lastStatusErr: false,
   projects: [], tasks: [], group: 'session', page: 'deck',
   taskSel: null, captures: [], capSel: null, captureDir: '', palette: null, verbs: null,
+  reminders: [], remTimer: null,
   ctx: [], ctxSel: null, ctxSort: 'created', ctxGroup: 'none',
 };
 
@@ -712,6 +731,7 @@ function setPage(name, fromHash) {
   if (!fromHash && location.hash !== hash) history.replaceState(null, '', location.pathname + hash);
   if (name === 'captures') loadCaptures();
   if (name === 'context') loadContext();
+  if (name === 'reminders') loadReminders();
   if (name === 'tasks') { renderTree(); renderTaskInfo(); }
 }
 for (const b of document.querySelectorAll('#nav button')) b.onclick = () => setPage(b.dataset.page);
@@ -1393,6 +1413,66 @@ $('ctx-q').oninput = () => { clearTimeout(state.ctxTimer); state.ctxTimer = setT
 $('ctx-sort').onchange = () => { state.ctxSort = $('ctx-sort').value; try { localStorage.setItem('deck.ctxSort', state.ctxSort); } catch (_) {} renderContext(); };
 $('ctx-group').onchange = () => { state.ctxGroup = $('ctx-group').value; try { localStorage.setItem('deck.ctxGroup', state.ctxGroup); } catch (_) {} renderContext(); };
 
+// ---------------------------------------------------------------- reminders page
+const remWhen = (t) => new Date(t * 1000).toLocaleString();
+async function loadReminders() {
+  try { state.reminders = (await api('/api/reminders')).reminders || []; }
+  catch (e) { setStatus('reminders: ' + e.message, true); return; }
+  renderReminders();
+}
+function renderReminders() {
+  const list = $('remlist');
+  if (!state.reminders.length) { list.innerHTML = '<div class="empty">no reminders: New reminder adds one</div>'; return; }
+  list.replaceChildren();
+  for (const r of state.reminders) {
+    const box = document.createElement('div'); box.className = 'remitem';
+    const head = document.createElement('h2'); head.textContent = r.title;
+    const dl = document.createElement('dl');
+    const row = (k, v) => { const dt = document.createElement('dt'); dt.textContent = k; const dd = document.createElement('dd'); dd.textContent = v; dl.append(dt, dd); };
+    row('message', r.message || '(the title)');
+    row('every', r.every);
+    row('state', r.enabled ? 'on, next ' + remWhen(r.next) : 'off');
+    if (r.last) row('last fired', remWhen(r.last));
+    const bar = document.createElement('div'); bar.className = 'actions';
+    const btn = (label, fn, cls) => { const b = document.createElement('button'); b.textContent = label; if (cls) b.className = cls; b.onclick = fn; bar.append(b); };
+    btn('Edit', () => editReminder(r));
+    btn(r.enabled ? 'Disable' : 'Enable', () => patchReminder(r, { enabled: !r.enabled }));
+    btn('Delete', () => deleteReminder(r), 'danger');
+    box.append(head, dl, bar);
+    list.append(box);
+  }
+}
+async function patchReminder(r, body) {
+  try { setStatus((await api(`/api/reminders/${enc(r.id)}`, { method: 'PATCH', body: JSON.stringify(body) })).status); }
+  catch (e) { setStatus('error: ' + e.message, true); }
+  loadReminders();
+}
+async function newReminder() {
+  $('rem-title').textContent = 'New reminder';
+  const v = await dialog('dlg-reminder', { every: '30m' });
+  if (!v) return;
+  try { setStatus((await api('/api/reminders', { method: 'POST', body: JSON.stringify(v) })).status); }
+  catch (e) { setStatus('error: ' + e.message, true); }
+  if (state.page === 'reminders') loadReminders();
+}
+async function editReminder(r) {
+  $('rem-title').textContent = 'Edit reminder';
+  const v = await dialog('dlg-reminder', { title: r.title, message: r.message, every: r.every });
+  if (!v) return;
+  const body = { title: v.title, message: v.message };
+  if (v.every !== r.every) body.every = v.every;
+  patchReminder(r, body);
+}
+async function deleteReminder(r) {
+  if (!(await confirmDialog('Delete reminder ' + r.title + '?', '', 'Delete'))) return;
+  try { setStatus((await api(`/api/reminders/${enc(r.id)}`, { method: 'DELETE' })).status); }
+  catch (e) { setStatus('error: ' + e.message, true); }
+  loadReminders();
+}
+$('rem-new').onclick = newReminder;
+// Redraws only the list, never the dialogs, so nothing typed is lost.
+setInterval(() => { if (state.page === 'reminders' && !document.querySelector('dialog[open]')) loadReminders(); }, 5000);
+
 // ---------------------------------------------------------------- command palette
 function deckCommands() {
   const cmds = [
@@ -1403,6 +1483,8 @@ function deckCommands() {
     { label: 'go to tasks', run: () => setPage('tasks') },
     { label: 'go to captures', run: () => setPage('captures') },
     { label: 'go to context', run: () => setPage('context') },
+    { label: 'go to reminders', run: () => setPage('reminders') },
+    { label: 'new reminder…', run: newReminder },
     { label: 'extract context from selected pane', run: extractContext },
   ];
   for (const g of GROUPS) cmds.push({ label: `group by ${g}`, run: () => setGroup(g) });

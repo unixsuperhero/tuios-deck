@@ -357,6 +357,7 @@ func (m *Model) deckCommands() []palItem {
 		}})
 	}
 	items = append(items, palItem{"deck", "group by…", "group the left rail by levels such as project > parent task", m.openGroupingForm})
+	items = append(items, m.reminderCommands()...)
 	return append(items,
 		palItem{"deck", "new project", "add a project (N on the tasks page)", m.openProjectForm},
 		palItem{"deck", "new task", "add a top-level task; the project of the selected pane is offered", m.openNewTaskForm},
