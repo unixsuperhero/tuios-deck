@@ -512,6 +512,19 @@ when the daemon drops the presence, as it does across a restart. Without
 presence the Turns tab reads an agent's prompts from its activity instead,
 and context extraction leaves the transcript out.
 
+## Focus mode
+
+Press `F` in the TUI or use **Focus…** in the web header. On the tasks
+page this locks to the selected task or project; elsewhere it offers every
+task and project. A task includes all descendants, a project all its tasks.
+Only assigned panes and tasks within that scope remain visible. The deck and
+tasks pages stay available; unrelated pages, global pickers and editing
+controls are unavailable until **Unlock focus** or `F` releases the scope.
+The TUI binding is the configurable `focus` action. Focus belongs to this
+TUI or browser tab, not other clients; it is a distraction filter, not access
+control. Refreshes keep the selected pane and scroll position.
+
+
 ## The TUI
 
 The deck page is the one at the top of this file:

@@ -175,6 +175,11 @@ dialog .hint.err:empty { display: none; }
 #dlg-help .help-controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 12px 0; }
 .history-row { width: 100%; text-align: left; border-radius: 0; background: transparent; }
 #history-list { position: relative; }
+body.focused #nav button:not([data-page="deck"]):not([data-page="tasks"]),
+body.focused #btn-palette, body.focused #btn-agent, body.focused #btn-term,
+body.focused #btn-assign, body.focused #btn-extract, body.focused #btn-close,
+body.focused #tk-newproj, body.focused #tk-newtask, body.focused #tk-rename,
+body.focused #tk-theme, body.focused #tk-delete, body.focused #page-deck .railhead { display: none; }
 </style>
 </head>
 <body>
@@ -189,6 +194,8 @@ dialog .hint.err:empty { display: none; }
     <button data-page="review">Review</button>
     <button data-page="history" title="History timeline (H)">History</button>
   </nav>
+  <button id="btn-focus" title="Focus task or project (F)">Focus…</button>
+  <span id="focus-label" role="status"></span>
   <span class="meta" id="meta">connecting…</span>
   <span class="badge needs" id="needs" hidden></span>
   <span class="badge" id="agents">0 agents</span>
@@ -536,6 +543,70 @@ const state = {
   reminders: [], remTimer: null,
   ctx: [], ctxScope: 'all', ctxPane: null, ctxSel: null, ctxSort: 'created', ctxGroup: 'none',
 };
+let focusScope = null;
+function focusTask(id) {
+  if (!focusScope) return true;
+  if (focusScope.kind === 'project') return taskById(id)?.project_id === focusScope.id;
+  for (let t = taskById(id); t; t = taskById(t.parent_id)) if (t.id === focusScope.id) return true;
+  return false;
+}
+function focusPane(p) {
+  if (!focusScope) return true;
+  const a = p?.assignment;
+  return !!a && (a.task_id ? focusTask(a.task_id) : focusScope.kind === 'project' && a.project_id === focusScope.id);
+}
+function focusItem(kind, id) {
+  return !focusScope || (kind === 'task' ? focusTask(id) : focusScope.kind === 'project' && focusScope.id === id);
+}
+function focusTarget() { return focusScope && (focusScope.kind === 'task' ? taskById(focusScope.id) : projectById(focusScope.id)); }
+function updateFocusView() {
+  document.body.classList.toggle('focused', !!focusScope);
+  $('btn-focus').textContent = focusScope ? 'Unlock focus' : 'Focus…';
+  const target = focusTarget();
+  $('focus-label').textContent = target ? 'FOCUS · ' + (target.title || target.name) : '';
+  if (state.selected && !focusPane(state.panes[state.selected])) {
+    state.selected = null; closeLive(); state.detailKey = ''; state.detailText = ''; $('text').textContent = '';
+  }
+  if (state.taskSel && !focusItem(state.taskSel.kind, state.taskSel.id)) state.taskSel = null;
+  if (focusScope && !state.taskSel) state.taskSel = {...focusScope};
+  const ps = Object.values(state.panes).filter(focusPane);
+  $('agents').textContent = ps.filter(p => p.is_agent).length + ' agents';
+  const needs = ps.filter(p => p.needs_you).length;
+  $('needs').hidden = !needs; $('needs').textContent = needs + ' need you';
+  renderList(); renderWho(); renderTree(); renderTaskInfo();
+  if (!state.selected && state.order.length) select(state.order[0]);
+}
+function startFocus(kind, id) {
+  focusScope = {kind, id};
+  state.taskSel = {kind, id};
+  state.tab = state.tab === 'result' ? 'screen' : state.tab;
+  state.detailKey = ''; state.detailText = ''; $('text').textContent = ''; setStatus('');
+  setPage('deck'); updateFocusView(); showTab(state.tab, true);
+}
+function unlockFocus() {
+  focusScope = null; updateFocusView(); setStatus('focus unlocked');
+}
+function openFocus() {
+  if (focusScope) { unlockFocus(); return; }
+  if (state.page === 'tasks' && selItem()) { startFocus(selKind(), selItem().id); return; }
+  const dlg = document.createElement('dialog');
+  const form = document.createElement('form'); form.method = 'dialog';
+  const title = document.createElement('h2'); title.textContent = 'Focus task or project';
+  const label = document.createElement('label'); label.textContent = 'Scope (includes descendants)';
+  const select = document.createElement('select'); select.required = true;
+  for (const [kind, items] of [['project', state.projects], ['task', state.tasks]]) for (const it of items) {
+    const option = document.createElement('option'); option.value = kind + ':' + it.id;
+    option.textContent = kind + ': ' + (it.path || it.name); select.append(option);
+  }
+  label.append(select);
+  const cancel = document.createElement('button'); cancel.type = 'button'; cancel.textContent = 'Cancel'; cancel.onclick = () => dlg.close();
+  const start = document.createElement('button'); start.textContent = 'Start focus'; start.disabled = !select.options.length;
+  form.append(title, label, cancel, start); dlg.append(form); document.body.append(dlg);
+  form.onsubmit = () => { const [kind, id] = select.value.split(':'); startFocus(kind, id); };
+  dlg.onclose = () => dlg.remove(); dlg.showModal();
+}
+$('btn-focus').onclick = openFocus;
+
 
 // ---------------------------------------------------------------- API
 async function api(path, opts = {}) {
@@ -569,6 +640,8 @@ async function refresh() {
     $('agents').textContent = `${agents} agent${agents === 1 ? '' : 's'}`;
     $('needs').hidden = needs === 0; $('needs').textContent = `${needs} need you`;
     if (state.selected && !state.panes[state.selected]) { state.selected = null; closeLive(); }
+    if (focusScope && !focusTarget()) unlockFocus();
+    if (focusScope) { updateFocusView(); return; }
     renderList();
     renderWho();
     renderDatalists();
@@ -636,6 +709,7 @@ function groupKey(level, p, underProject) {
 // { pane, depth } for a pane, each level nested under the one before.
 // Groups sort by label with "(none)" last; sessions keep the daemon's order.
 function groups() {
+  if (focusScope) return Object.values(state.panes).filter(focusPane).map(pane => ({pane, depth: 0}));
   const levels = parseGroup(state.group) || ['session'];
   const rows = [];
   if (levels.length === 1 && levels[0] === 'session') {
@@ -813,6 +887,7 @@ function renderWho() {
   for (const b of ['btn-prompt', 'btn-capture', 'btn-close', 'btn-assign']) $(b).disabled = !p;
 }
 function select(id) {
+  if (!focusPane(state.panes[id])) return;
   if (state.selected === id) return;
   state.selected = id;
   closeLive();
@@ -898,6 +973,7 @@ document.addEventListener('change', (e) => { if (e.target.matches && e.target.ma
 
 // ---------------------------------------------------------------- pages
 function setPage(name, fromHash) {
+  if (focusScope && !['deck', 'tasks'].includes(name)) name = 'deck';
   if (!PAGES.includes(name)) name = 'deck';
   state.page = name;
   for (const p of PAGES) $('page-' + p).classList.toggle('on', p === name);
@@ -1488,6 +1564,7 @@ function selKind() { return state.taskSel?.kind; }
 function selItem() {
   if (!state.taskSel) return null;
   const it = state.taskSel.kind === 'project' ? projectById(state.taskSel.id) : taskById(state.taskSel.id);
+  if (!focusItem(state.taskSel.kind, state.taskSel.id)) return null;
   if (!it) state.taskSel = null;
   return it || null;
 }
@@ -1505,6 +1582,7 @@ function renderTree() {
   if (!state.projects.length) { tree.innerHTML = '<div class="empty">no projects yet: New project starts one</div>'; return; }
   const row = (kind, item, depth) => {
     const el = document.createElement('div');
+    if (!focusItem(kind, item.id)) return document.createDocumentFragment();
     const on = state.taskSel && state.taskSel.kind === kind && state.taskSel.id === item.id;
     el.className = `node ${kind}` + (on ? ' selected' : '');
     el.style.paddingLeft = `${12 + depth * 16}px`;
@@ -1587,7 +1665,7 @@ function renderTaskInfo() {
     li.append(d, name, st, go); ul2.append(li);
   }
   box.append(ul2);
-  renderNotes(box, kind, it.id);
+  if (!focusScope) renderNotes(box, kind, it.id);
   box.scrollTop = scroll;
 }
 // The notes a project or task sees come from the server, which knows the
@@ -2139,6 +2217,7 @@ async function loadVerbs() {
 }
 let pal = { items: [], shown: [], active: 0, verb: null };
 async function openPalette() {
+  if (focusScope) return;
   if (document.querySelector('dialog[open]')) return;
   const verbs = await loadVerbs();
   pal.items = [...deckCommands(), ...verbs.map((v) => ({ cat: 'tuios', label: v.verb, desc: v.description, verb: v }))];
@@ -2344,6 +2423,8 @@ document.addEventListener('keydown', (e) => {
   if (document.querySelector('dialog[open]') || (term && state.tab === 'live' && $('term').contains(document.activeElement))) return;
   if (e.target.matches('input, textarea, select')) return;
   if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.key === 'F') { e.preventDefault(); openFocus(); return; }
+  if (focusScope && !['T', 'Escape', 'j', 'k', '1', '2', '3', '4', 'p', 'c'].includes(e.key)) return;
   const binding = webKeys.find(([key, , scope]) => key === e.key && (scope === 'pages' || state.page === 'deck'));
   if (binding) { e.preventDefault(); binding[3](); }
   else if (state.page === 'review') { reviewPage.key(e); }

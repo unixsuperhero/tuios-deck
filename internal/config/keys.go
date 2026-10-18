@@ -29,6 +29,7 @@ var actions = map[string][]Action{
 		{"quit", "q", "leave the deck", true},
 		{"palette", ":", "open the command palette", true},
 		{"tasks", "T", "go to the tasks page", true},
+		{"focus", "F", "focus a task or project, or unlock", true},
 		{"captures", "C", "go to the captures page", true},
 		{"add_many", "A", "add projects and tasks from an outline", true},
 		{"context", "I", "go to the context page", true},

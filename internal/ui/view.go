@@ -127,6 +127,10 @@ func (m *Model) View() tea.View {
 }
 
 func (m *Model) titleLine() string {
+	if m.focus != nil {
+		name, _ := m.focusTarget()
+		return pad(" FOCUS · "+name+" · F unlock · T tasks", m.width)
+	}
 	agents, attention := 0, 0
 	for _, r := range m.rows {
 		if r.Pane != nil && r.Pane.IsAgent {
@@ -356,6 +360,9 @@ func (m *Model) statusLine() string {
 }
 
 func (m *Model) helpLine() string {
+	if m.focus != nil && m.mode == modeNormal {
+		return " F unlock · T tasks · esc deck · j/k select · h/l rail/detail · 1-4 tabs · J/K scroll · p prompt · c capture · q quit"
+	}
 	if m.mode == modeNormal {
 		key := "?"
 		if m.settings != nil {

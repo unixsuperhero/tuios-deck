@@ -217,6 +217,19 @@ func shortenHome(path string) string {
 // inside a group keep their session and window order.
 func (m *Model) groupedRows() []row {
 	var rows []row
+	if m.focus != nil {
+		name, theme := m.focusTarget()
+		rows = append(rows, row{Header: name, Theme: &theme})
+		for i := range m.merged {
+			for j := range m.merged[i].Panes {
+				p := &m.merged[i].Panes[j]
+				if m.focusPane(p.ID) {
+					rows = append(rows, row{Pane: p, Depth: 1})
+				}
+			}
+		}
+		return rows
+	}
 	if m.grouping.bySession() {
 		for i := range m.merged {
 			s := &m.merged[i]

@@ -1,0 +1,128 @@
+package ui
+
+import (
+	"strings"
+
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/unixsuperhero/tuios-deck/internal/store"
+)
+
+type focusScope struct {
+	taskID, projectID string
+}
+
+func (m *Model) focusTask(id string) bool {
+	if m.focus == nil {
+		return true
+	}
+	if m.focus.taskID == "" {
+		return m.store.ProjectOf(id) == m.focus.projectID
+	}
+	for _, t := range m.store.Path(id) {
+		if t.ID == m.focus.taskID {
+			return true
+		}
+	}
+	return false
+}
+
+func (m *Model) focusPane(id string) bool {
+	if m.focus == nil {
+		return true
+	}
+	a, ok := m.store.Assignment(id)
+	if !ok {
+		return false
+	}
+	if a.TaskID != "" {
+		return m.focusTask(a.TaskID)
+	}
+	return m.focus.taskID == "" && a.ProjectID == m.focus.projectID
+}
+
+func (m *Model) focusTarget() (string, store.Theme) {
+	if m.focus != nil {
+		if t := m.store.Task(m.focus.taskID); t != nil {
+			return t.Title, t.Theme
+		}
+		if p := m.store.Project(m.focus.projectID); p != nil {
+			return p.Name, p.Theme
+		}
+	}
+	return "", store.Theme{}
+}
+
+func (m *Model) startFocus(taskID, projectID string) tea.Cmd {
+	m.focus = &focusScope{taskID: taskID, projectID: projectID}
+	m.page = pageDeck
+	m.clearResult()
+	m.detailFor, m.detailErr, m.status = "", "", ""
+	m.rebuildRows()
+	m.rebuildTasks()
+	return m.loadDetail(true)
+}
+
+func (m *Model) unlockFocus() tea.Cmd {
+	m.focus = nil
+	m.rebuildRows()
+	m.rebuildTasks()
+	m.setStatus("focus unlocked")
+	return m.loadDetail(false)
+}
+
+func (m *Model) openFocus() tea.Cmd {
+	if m.focus != nil {
+		return m.unlockFocus()
+	}
+	if m.page == pageTasks {
+		if r := m.selectedRow(); r != nil {
+			if r.Task != nil {
+				return m.startFocus(r.Task.ID, "")
+			}
+			return m.startFocus("", r.Project.ID)
+		}
+	}
+	options := func() []string {
+		var out []string
+		for _, p := range m.store.Projects() {
+			out = append(out, "project: "+p.Name)
+		}
+		for _, t := range m.store.Tasks() {
+			out = append(out, "task: "+m.taskPath(t))
+		}
+		return out
+	}
+	resolve := func(v string) (string, string) {
+		for _, p := range m.store.Projects() {
+			if v == "project: "+p.Name {
+				return "", p.ID
+			}
+		}
+		for _, t := range m.store.Tasks() {
+			if v == "task: "+m.taskPath(t) {
+				return t.ID, ""
+			}
+		}
+		return "", ""
+	}
+	m.mode = modeForm
+	m.form = &form{Title: "focus task or project", Fields: []field{{Label: "scope", Options: options}},
+		Validate: func(v []string) (int, string) {
+			t, p := resolve(v[0])
+			if t == "" && p == "" {
+				return 0, "choose a task or project"
+			}
+			return 0, ""
+		}, Done: func(v []string) tea.Cmd { t, p := resolve(v[0]); return m.startFocus(t, p) },
+	}
+	return nil
+}
+
+func (m *Model) focusKeyAllowed(key string) bool {
+	if m.focus == nil {
+		return true
+	}
+	// Only scoped navigation and actions are available; global pickers expose unrelated data.
+	return strings.Contains("|F|q|ctrl+c|T|esc|j|k|up|down|h|l|left|right|g|G|home|end|J|K|ctrl+d|ctrl+u|pgdown|pgup|tab|shift+tab|[|]|1|2|3|4|r|enter|{|}|(|)|p|c|s|", "|"+key+"|")
+}

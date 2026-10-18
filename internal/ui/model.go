@@ -85,7 +85,8 @@ type Model struct {
 
 	width, height int
 
-	page page
+	page  page
+	focus *focusScope
 
 	merged   []panes.Session // the last listing, which o regroups without a daemon call
 	grouping grouping
