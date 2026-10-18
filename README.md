@@ -264,7 +264,11 @@ Every agent and terminal the deck starts is assigned to a task or, failing
 that, to a project: the `n` and `t` forms ask for one after the cwd, with
 the known task paths (`project / top task / … / title`) and project names
 listed under the field, and refuse a pane with neither. A task implies its
-project. `a` assigns, or reassigns, a pane already open through the assign
+project. In TUI and web modals, choosing a task fills the following project
+field, including the project inherited by a subtask. Changing the task
+updates the project; choosing a projectless task clears it. Prefilled tasks
+also fill their project. The project field remains editable.
+`a` assigns, or reassigns, a pane already open through the assign
 tree (below); the palette's "clear assignment" drops it. The assignment of a pane that is gone from two
 listings in a row is dropped on its own.
 
