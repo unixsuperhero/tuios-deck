@@ -121,6 +121,29 @@ default) and saves the file; the change applies at once.
 
 ### Key bindings
 
+Press uppercase `R` to reset the current page's view controls. The TUI action
+is `reset_view` in mode `deck` and can be rebound with `deck config bind`.
+The web Tasks, Context, History and Review pages also have a native **Reset**
+button; their `R` shortcut stays inactive in text fields, dialogs and Live.
+
+- Context returns to all panes, empty filters, no groups and newest first.
+- Tasks clears the Saved easy tasks filter, not the saved easy marks, and
+  restores the project/task hierarchy within the current focus scope.
+- Web History clears its search and event-kind filters. TUI History has no
+  filters to reset.
+- Review returns to unread prompts, oldest completion first. It closes the
+  opened detail without opening or marking another prompt reviewed.
+
+Reset never deletes data or unlocks focus. A selection that remains visible
+is retained. Captures, TUI History, reminders and the prototype page have no
+page-level filters or sorting controls to reset. Background refresh does not
+run reset or intentionally move the selection or scroll.
+
+Captures, History and Context default to newest first. Equal Context creation
+seconds use reverse append order; starring, pinning or re-extracting an existing
+item does not make it new. Review completion order and task hierarchy are not
+chronological-list defaults and stay unchanged.
+
 Press `?` on a TUI page, or choose `keybindings and actions…` in the
 palette, to open help at the current page. Page-specific tables cover tasks,
 captures, context, prototypes, review and history, followed by global keys.

@@ -79,10 +79,17 @@ function createReviewPage(api, setStatus, isActive) {
       if (rows[i]) { highlight(rows[i].id); [...$('review-list').children].find((row) => row.dataset.id === selected)?.focus({ preventScroll: true }); }
     }
   }
+  function reset() {
+    history = false; $('review-filter').value = 'pending';
+    opened = null;
+    $('review-who').textContent = '';
+    $('review-text').textContent = 'Highlight a prompt, then Enter or Open to read it and mark it reviewed.';
+    render();
+  }
   $('review-filter').onchange = () => { history = $('review-filter').value === 'reviewed'; selected = ''; render(); };
   $('review-refresh').onclick = () => load(true);
   $('review-open').onclick = open;
   render();
   setInterval(() => { if (isActive() && !document.querySelector('dialog[open]')) load(); }, 2000);
-  return { load, key };
+  return { load, key, reset };
 }

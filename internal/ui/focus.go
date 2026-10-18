@@ -134,7 +134,7 @@ func (m *Model) focusKeyAllowed(key string) bool {
 		return true
 	}
 	// Only scoped navigation and actions are available; global pickers expose unrelated data.
-	return strings.Contains("|?|F|q|ctrl+c|T|esc|j|k|up|down|h|l|left|right|g|G|home|end|J|K|ctrl+d|ctrl+u|pgdown|pgup|tab|shift+tab|[|]|1|2|3|4|r|enter|space|y|{|}|(|)|p|c|s|", "|"+key+"|")
+	return strings.Contains("|?|F|q|ctrl+c|T|esc|j|k|up|down|h|l|left|right|g|G|home|end|J|K|ctrl+d|ctrl+u|pgdown|pgup|tab|shift+tab|[|]|1|2|3|4|r|R|enter|space|y|{|}|(|)|p|c|s|", "|"+key+"|")
 }
 
 var focusSGR = regexp.MustCompile("\x1b\\[[0-9;]*m")

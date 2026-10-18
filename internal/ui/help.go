@@ -123,6 +123,7 @@ func (m *Model) helpRows(mode string) []helpRow {
 		rows = append(rows, helpRow{"up/down", "previous/next field", "normal mode"}, helpRow{"ctrl+s", "submit", "normal mode"}, helpRow{"ctrl+c", "cancel", "normal mode"})
 	case "pages":
 		rows = []helpRow{
+			{c.Binding(config.ModeDeck, "reset_view"), "reset filters/sort; no deletion or focus unlock", "context/tasks/review; pages without view controls unchanged"},
 			{"esc", "return to deck", "tasks/captures/context/prototypes/history/review"},
 			{"j/k, up/down", "next/previous row", "tasks/captures/context/prototypes/history/review"},
 			{"g/G, home/end", "first/last row", "tasks/context/history"},

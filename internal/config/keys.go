@@ -36,6 +36,7 @@ var actions = map[string][]Action{
 		{"context", "I", "go to the context page", true},
 		{"review", "V", "go to the finished prompt review queue", true},
 		{"history", "H", "go to the history timeline", true},
+		{"reset_view", "R", "reset page filters and sorting without deleting data or unlocking focus", true},
 		{"left", "h", "focus the list", false},
 		{"right", "l", "focus the detail", false},
 		{"down", "j", "next pane, or scroll the detail", false},

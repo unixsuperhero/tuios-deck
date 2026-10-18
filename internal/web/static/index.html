@@ -255,6 +255,7 @@ body.focused #btn-focus-plan, body.focused #easy-filter, body.focused #tk-easy {
     <section>
       <div class="toolbar">
         <span class="who spacer" id="taskwho"></span>
+        <button type="button" data-reset-page title="Reset view (R); keeps data and focus">Reset</button>
         <button id="tk-newproj">New project</button>
         <button id="tk-newtask">New task</button>
         <button id="tk-rename">Rename</button>
@@ -292,6 +293,7 @@ body.focused #btn-focus-plan, body.focused #easy-filter, body.focused #tk-easy {
     <section>
       <div class="toolbar"><span class="who spacer" id="review-who"></span>
         <button id="review-refresh">Refresh</button><button id="review-open" class="primary" disabled>Open</button>
+        <button type="button" data-reset-page title="Return to unread (R); does not mark prompts reviewed">Reset</button>
       </div>
       <div class="detail"><pre class="text" id="review-text">Highlight a prompt, then Enter or Open to read it and mark it reviewed.</pre></div>
     </section>
@@ -316,6 +318,7 @@ body.focused #btn-focus-plan, body.focused #easy-filter, body.focused #tk-easy {
     <section>
       <div class="toolbar">
         <span class="who spacer" id="ctxwho"></span>
+        <button type="button" data-reset-page title="Reset scope, filters, groups and sort (R)">Reset</button>
         <button id="ctx-copy" title="Copy the text to the clipboard">Copy</button>
         <button id="ctx-insert" title="Type the text into the pane selected on the deck page, without Enter">Insert</button>
         <button id="ctx-open" title="Open on the machine deck web runs on">Open</button>
@@ -338,6 +341,7 @@ body.focused #btn-focus-plan, body.focused #easy-filter, body.focused #tk-easy {
     <aside>
       <div class="railhead filters">
         <input type="search" id="history-q" aria-label="Search history" placeholder="Search history…">
+        <button type="button" data-reset-page title="Clear history filters (R)">Reset</button>
         <select id="history-kind" aria-label="History event kind">
           <option value="">All events</option>
           <option value="prompt-submitted">Prompts</option>
@@ -1987,6 +1991,35 @@ async function deleteCapture() {
 $('cap-refresh').onclick = loadCaptures;
 $('cap-delete').onclick = deleteCapture;
 
+async function resetPageView() {
+  if (focusScope && state.page !== 'tasks') return;
+  switch (state.page) {
+    case 'context':
+      clearTimeout(state.ctxTimer);
+      state.ctxScope = 'all'; state.ctxSort = 'created'; state.ctxGroup = 'none';
+      for (const id of ['ctx-kind', 'ctx-project', 'ctx-task', 'ctx-q']) $(id).value = '';
+      for (const id of ['ctx-starred', 'ctx-pinned']) $(id).checked = false;
+      $('ctx-sort').value = 'created'; $('ctx-group').value = 'none';
+      try { localStorage.removeItem('deck.ctxSort'); localStorage.removeItem('deck.ctxGroup'); } catch (_) {}
+      await loadContext();
+      break;
+    case 'history':
+      $('history-q').value = ''; $('history-kind').value = '';
+      await loadHistory();
+      break;
+    case 'tasks':
+      easyOnly = false; $('easy-only').checked = false;
+      renderTree(); renderTaskInfo();
+      break;
+    case 'review':
+      reviewPage.reset();
+      break;
+    default: return;
+  }
+  setStatus('View reset. No data deleted or prompts marked reviewed; focus unchanged.');
+}
+for (const button of document.querySelectorAll('[data-reset-page]')) button.onclick = resetPageView;
+
 // ---------------------------------------------------------------- context page
 async function extractContext() {
   const p = state.panes[state.selected];
@@ -2001,7 +2034,9 @@ function fillSelect(id, entries, any) {
   el.replaceChildren(new Option(any, ''), ...entries.map(([v, label]) => new Option(label, v)));
   el.value = entries.some(([v]) => v === cur) ? cur : '';
 }
+let contextRequest = 0;
 async function loadContext() {
+  const request = ++contextRequest;
   fillSelect('ctx-project', state.projects.map((p) => [p.id, p.name]), 'any project');
   fillSelect('ctx-task', state.tasks.map((t) => [t.id, t.path]), 'any task');
   const q = new URLSearchParams();
@@ -2010,8 +2045,11 @@ async function loadContext() {
   if ($('ctx-starred').checked) q.set('starred', '1');
   if ($('ctx-pinned').checked) q.set('pinned', '1');
   if (state.ctxScope === 'current' && !state.ctxPane) state.ctx = [];
-  else try { state.ctx = (await api('/api/context?' + q)).items || []; }
-  catch (e) { setStatus('context: ' + e.message, true); return; }
+  else try {
+    const result = await api('/api/context?' + q);
+    if (request !== contextRequest) return;
+    state.ctx = result.items || [];
+  } catch (e) { if (request === contextRequest) setStatus('context: ' + e.message, true); return; }
   if (state.ctxSel && !state.ctx.some((c) => c.id === state.ctxSel)) state.ctxSel = null;
   renderContext();
 }
@@ -2272,6 +2310,7 @@ function deckCommands() {
     { label: 'go to review queue', run: () => setPage('review') },
     { label: 'go to reminders', run: () => setPage('reminders') },
     { label: 'go to history', desc: 'persisted timeline (H)', run: () => setPage('history') },
+    ...(['tasks', 'context', 'history', 'review'].includes(state.page) ? [{ label: 'reset page view', desc: 'clear view filters/sort; keep data and focus (R)', run: resetPageView }] : []),
     { label: 'new reminder…', run: newReminder },
     { label: 'context scope: toggle current pane / all', run: () => { state.ctxScope = state.ctxScope === 'all' ? 'current' : 'all'; setPage('context'); } },
     { label: 'extract context from selected pane', run: extractContext },
@@ -2455,7 +2494,7 @@ const webKeys = [
   ['a', 'assign selected pane to task…', 'deck', () => $('btn-assign').click()],
   ['i', 'extract context from selected pane', 'deck', () => extractContext()],
 ];
-const focusPageKeys = ['F', '?', 'T', 'Escape', 'j', 'k', '1', '2', '3', '4', 'p', 'c'];
+const focusPageKeys = ['F', '?', 'R', 'T', 'Escape', 'j', 'k', '1', '2', '3', '4', 'p', 'c'];
 function renderHelp() {
   const mode = $('help-mode').value;
   let rows = [], note = '';
@@ -2463,6 +2502,7 @@ function renderHelp() {
     rows = webKeys.filter((r) => r[2] === 'pages' || mode === 'deck').map(([key, action, scope]) =>
       [key, action, scope + (focusPageKeys.includes(key) ? '' : '; unavailable during focus')]);
     rows = [['Ctrl/Meta+k or p', 'command palette', 'outside dialogs and focus; also in inputs and Live'], ...rows];
+    if (mode === 'pages' || ['tasks', 'context', 'history', 'review'].includes(mode)) rows.push(['R / Reset', 'reset page filters/sort; keep data and focus; do not mark reviewed', 'tasks/context/history/review']);
     note = 'Page shortcuts apply outside inputs, dialogs and focused Live. Focus permits only Deck and Tasks; entries marked unavailable require unlocking.';
     if (mode !== 'pages') rows.push(
       ['Tab / Shift+Tab', 'next / previous control', mode + '; browser navigation'],
@@ -2539,9 +2579,10 @@ document.addEventListener('keydown', (e) => {
     e.preventDefault(); openPalette(); return;
   }
   if (document.querySelector('dialog[open]') || (term && state.tab === 'live' && $('term').contains(document.activeElement))) return;
-  if (e.target.matches('input, textarea, select')) return;
+  if (e.target.matches('input, textarea, select') || e.target.isContentEditable) return;
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   if (focusScope && !focusPageKeys.includes(e.key)) return;
+  if (e.key === 'R' && state.page !== 'deck') { e.preventDefault(); resetPageView(); return; }
   const binding = webKeys.find(([key, , scope]) => key === e.key && (scope === 'pages' || state.page === 'deck'));
   if (binding) { e.preventDefault(); binding[3](); }
   else if (state.page === 'review') { reviewPage.key(e); }

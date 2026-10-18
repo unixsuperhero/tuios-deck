@@ -74,6 +74,11 @@ func (m *Model) reviewIndex() int {
 func (m *Model) handleReviewsKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	p := &m.reviews
 	switch msg.String() {
+	case "R":
+		p.history = false
+		p.opened, p.scroll = nil, 0
+		m.rebuildReviews()
+		m.setStatus("review view reset: unread, oldest completion first; nothing marked reviewed")
 	case "esc":
 		m.page = pageDeck
 		return m, m.loadDetail(true)

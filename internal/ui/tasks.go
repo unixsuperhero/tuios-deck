@@ -240,6 +240,10 @@ func nextColor(c string, free []string) string {
 func (m *Model) handleTasksKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	r := m.selectedRow()
 	switch msg.String() {
+	case "R":
+		m.easyOnly = false
+		m.rebuildTasks()
+		m.setStatus("task view reset; saved easy marks and focus unchanged")
 	case "E":
 		if r != nil && r.Task != nil {
 			return m, m.storeChange(m.store.SetTaskEasy(r.Task.ID, !r.Task.Easy), "updated saved easy list")

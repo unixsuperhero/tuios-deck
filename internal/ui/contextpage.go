@@ -288,6 +288,12 @@ func (m *Model) selectedItem() *store.ContextItem {
 func (m *Model) handleContextKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	it := m.selectedItem()
 	switch msg.String() {
+	case "R":
+		m.cx.scopeCurrent = false
+		m.cx.filter = ctxFilter{}
+		m.cx.group, m.cx.sort = ctxNone, sortCreated
+		m.rebuildContext()
+		m.setStatus("context view reset: all panes, no filters or groups, newest first")
 	case "esc":
 		m.page = pageDeck
 		return m, m.loadDetail(true)
