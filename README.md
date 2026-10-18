@@ -361,7 +361,9 @@ web
 A line with no indent is a project: an existing name is reused, a new one
 is created. Each further indent, two spaces or a tab, nests a task under
 the line above it, so `verb autocomplete` becomes a subtask of `command
-palette`. A title already taken under the same parent is reused rather than
+palette`. `tab` indents the line being typed by one level and `shift+tab`
+takes one level off it, so an outline can be typed without counting
+spaces; `shift+tab` on a line with no indent does nothing. A title already taken under the same parent is reused rather than
 added twice, which is how sub-items go under an existing task; a line with
 no indent may also name an existing task by its path, `deck / command
 palette`, to add under it. Blank lines and lines starting with `#` are

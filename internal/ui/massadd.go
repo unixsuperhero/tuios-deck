@@ -11,6 +11,7 @@ import (
 
 // massHint is the outline format, shown under the mass-add field.
 const massHint = `no indent is a project; each 2-space or tab indent nests a task under the line above
+tab/shift+tab indent or outdent the line being typed
 existing names are reused and # starts a comment, for example:
 deck
   command palette
@@ -173,7 +174,7 @@ func first(a, b string) string {
 // openMassAdd opens the mass-add screen with the outline prefilled.
 func (m *Model) openMassAdd(prefill string) tea.Cmd {
 	f := &form{Title: "add projects and tasks"}
-	f.Fields = []field{{Label: "outline", Keep: true, Multi: true, Value: prefill, Hint: massHint}}
+	f.Fields = []field{{Label: "outline", Keep: true, Multi: true, Outline: true, Value: prefill, Hint: massHint}}
 	// The raw value is read, not the trimmed one, so the first line's
 	// indent and the line numbers stay as typed.
 	f.Validate = func([]string) (int, string) {

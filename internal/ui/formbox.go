@@ -153,6 +153,8 @@ func (m *Model) formHelp() string {
 		return pos + " · ctrl+n/ctrl+p pick · tab or enter take the path, or open the folder · esc close the list"
 	case len(f.list()) > 0:
 		return pos + " · ctrl+n/ctrl+p pick · tab accept · enter accept or next · shift+tab back · esc cancel"
+	case cur.Multi && cur.Outline:
+		return pos + " · enter newline · tab/shift+tab indent · ctrl+s submit · @ a file · esc cancel"
 	case cur.Multi:
 		return pos + " · enter newline · ctrl+s submit · @ a file · shift+tab back · esc cancel"
 	case f.Cur+1 < len(f.Fields):

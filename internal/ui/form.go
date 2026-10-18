@@ -23,6 +23,8 @@ const listRows = 8
 // file path under the form's cwd. Hint, when set, is
 // shown under the field while it is the current one. New, "project" or
 // "task", ends the list with addNew, which opens the mass-add screen.
+// Outline, on a Multi field, makes tab and shift+tab indent and outdent
+// the line being typed, the last one, by one level.
 type field struct {
 	Label   string
 	Value   string
@@ -33,6 +35,7 @@ type field struct {
 	Multi   bool
 	New     string
 	HintFn  func() string // the hint worked out afresh on every draw, in place of Hint
+	Outline bool
 
 	hl int // the highlighted list entry plus one; 0 is none
 	at int // the offset of the '@' being completed plus one; 0 is none
@@ -301,6 +304,11 @@ func (f *form) handleKey(msg tea.KeyPressMsg) (finished bool, cmd tea.Cmd) {
 			}
 		}
 	}
+	if cur.Multi && cur.Outline && (key == "tab" || key == "shift+tab") {
+		cur.Value = indentLast(cur.Value, key == "tab")
+		f.edited("")
+		return false, nil
+	}
 	switch key {
 	case "ctrl+s", "ctrl+enter":
 		return f.submit()
@@ -348,6 +356,25 @@ func (f *form) handleKey(msg tea.KeyPressMsg) (finished bool, cmd tea.Cmd) {
 	}
 	f.edited("")
 	return false, nil
+}
+
+// indentLast puts two spaces at the start of the last line of v, or with
+// in false takes one level off it: a tab, two spaces, or a lone space.
+// A line with no indent stays as it is.
+func indentLast(v string, in bool) string {
+	i := strings.LastIndex(v, "\n") + 1
+	head, line := v[:i], v[i:]
+	switch {
+	case in:
+		line = "  " + line
+	case strings.HasPrefix(line, "\t"):
+		line = line[1:]
+	case strings.HasPrefix(line, "  "):
+		line = line[2:]
+	case strings.HasPrefix(line, " "):
+		line = line[1:]
+	}
+	return head + line
 }
 
 // paste adds text to the current field. A Multi field keeps its newlines;

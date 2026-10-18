@@ -678,6 +678,37 @@ assert va[0]["theme"]["color"] and cap[0]["theme"]["color"]
 PY2
 b send-keys -s host -w deck Escape >/dev/null; settle
 
+echo "== tab and shift+tab change the nesting level in the mass-add outline"
+b send-text -s host -w deck 'A'; settle
+b send-keys -s host -w deck BTab >/dev/null
+b send-text -s host -w deck 'deck'; settle; deckcap 20e-mass-btab0
+check "shift+tab at no indent leaves the line alone" "$SCRATCH/out/20e-mass-btab0.txt" '│     deck▏'
+check "the keys line names tab/shift+tab indent" "$SCRATCH/out/20e-mass-btab0.txt" 'tab/shift+tab indent'
+b send-keys -s host -w deck Enter >/dev/null
+b send-text -s host -w deck 'tabbed one'; b send-keys -s host -w deck Tab >/dev/null; settle; deckcap 20f-mass-tab
+check "tab indents the line being typed by one level" "$SCRATCH/out/20f-mass-tab.txt" '│       tabbed one▏'
+b send-keys -s host -w deck Enter >/dev/null
+b send-text -s host -w deck 'tabbed child'; b send-keys -s host -w deck 'Tab Tab' >/dev/null; settle; deckcap 20g-mass-tab2
+check "tab twice indents by two levels" "$SCRATCH/out/20g-mass-tab2.txt" '│         tabbed child▏'
+b send-keys -s host -w deck Enter >/dev/null
+b send-text -s host -w deck 'tabbed sibling'; b send-keys -s host -w deck 'Tab Tab BTab' >/dev/null; settle; deckcap 20h-mass-btab
+check "shift+tab outdents by one level" "$SCRATCH/out/20h-mass-btab.txt" '│       tabbed sibling▏'
+b send-keys -s host -w deck ctrl+s >/dev/null; settle; deckcap 20i-mass-tabbed
+check "the tabbed outline is added" "$SCRATCH/out/20i-mass-tabbed.txt" 'added 0 projects, 3 tasks'
+python3 - "$DATA" <<'PY3' && echo "PASS store nests the tabbed outline" || { echo "FAIL store shape after the tabbed mass add"; fails=$((fails+1)); }
+import json, sys
+d = json.load(open(sys.argv[1]))
+deck = [p for p in d["projects"] if p["name"] == "deck"][0]
+def one(title):
+    ts = [t for t in d["tasks"] if t["title"] == title]
+    assert len(ts) == 1, (title, ts)
+    return ts[0]
+a, c, s = one("tabbed one"), one("tabbed child"), one("tabbed sibling")
+assert a["project_id"] == deck["id"] and a["parent_id"] == "", a
+assert c["parent_id"] == a["id"], c
+assert s["project_id"] == deck["id"] and s["parent_id"] == "", s
+PY3
+
 echo "== a task picker offers + add new…, which opens the mass-add screen"
 select_pane 3
 b send-keys -s host -w deck a >/dev/null; settle
