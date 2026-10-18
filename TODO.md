@@ -2,26 +2,13 @@
 
 ## Priority
 
-- [x] migrate data store to an sqlite db
-- [x] keybindings help has to be grouped better and searchable.  very hard to
-find things right now
-- [x] make md report open with mdoc of the components and modules that make
-tuios-deck work and if we were to redesign them as modular, data-driven systems
-what would that look like.  i want them to be able to change and grow
-independently.  if they are separate and modular, then we will probbaly need an
-orchestrator, right?
-- [x] need to mark agents/terminals as stale and suggest to close them if no
-activity exceeding a certain threshold
-- [x] from any item on the deck page, i want to be able to open a modal that
-will let me review all items in it's task tree...project, task, subtask etc. and
-manage each of those
-
-
-## MUST DO SOON
-
 - [ ] redesign forms and input modal UX
-- [ ] reorganize the deck ui. okay. so we should have a project system where we only have one project active at a time and the switch project modal that we're gonna make has an option for making a new project. a project should have certain settings. like, first of all, a project should be based on a git repo. if we're making a new project and we don't select a git repo, then we should take a folder and make one but most of the time we're gonna be using an existing git repo so we know our base directory we should grab all of the work trees so that if they want to work out of a different work tree they can specify that so then anytime we make a new agent or terminal it's less work for the user creating that stuff 
-- [ ] add vim-sessions to type of item that is listed in deck pages.  when opening neovim, we want to select a project/git repo as the base dir
+  - [ ] no "text inputs" in a "normal" style modal mode.  press keys to indicate
+    which field to use for input  only then does it enter "input" mode.  then
+  esc returns to normal mode, tab cycles to next field, shift-tab cycles to
+  previous
+- [ ] reorganize the deck ui. okay. so we should have a project/task system where we only have one project/task active at a time and the switch project modal that we're gonna make has an option for making a new project. a project should have certain settings. like, first of all, a project should be based on a git repo. if we're making a new project and we don't select a git repo, then we should take a folder and make one but most of the time we're gonna be using an existing git repo so we know our base directory we should grab all of the work trees so that if they want to work out of a different work tree they can specify that so then anytime we make a new agent or terminal it's less work for the user creating that stuff 
+- [ ] add vim-sessions to type of item that is listed in deck pages.  when opening neovim, we want to select a project/git repo, or after deck redesign...it uses the currently pinned project/task's cwd as the base dir
 
 ## Standard Importance
 
@@ -211,4 +198,19 @@ leaf or if it can be locked to a high-level item like a project
 unlocks but has a buffer screen for 30s that will let the user hit enter and
 continue
 - [x] focus plan mode - let user mark easy tasks
+
+
+- [x] migrate data store to an sqlite db
+- [x] keybindings help has to be grouped better and searchable.  very hard to
+find things right now
+- [x] make md report open with mdoc of the components and modules that make
+tuios-deck work and if we were to redesign them as modular, data-driven systems
+what would that look like.  i want them to be able to change and grow
+independently.  if they are separate and modular, then we will probbaly need an
+orchestrator, right?
+- [x] need to mark agents/terminals as stale and suggest to close them if no
+activity exceeding a certain threshold
+- [x] from any item on the deck page, i want to be able to open a modal that
+will let me review all items in it's task tree...project, task, subtask etc. and
+manage each of those
 
