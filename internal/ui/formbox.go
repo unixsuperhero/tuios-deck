@@ -82,7 +82,14 @@ func (m *Model) formBox(width, maxH int) []string {
 func (m *Model) currentField(fl field, iw, room int) []string {
 	var out []string
 	value := fl.Value
-	if fl.Multi {
+	hint := fl.Hint
+	if fl.HintFn != nil {
+		hint = fl.HintFn()
+	}
+	if fl.Multi && fl.Outline {
+		out = append(out, cStatus.Render("› "+fl.Label+":"))
+		out = append(out, m.outlineView(iw, room-1-strings.Count(hint, "\n")-1)...)
+	} else if fl.Multi {
 		out = append(out, cStatus.Render("› "+fl.Label+":"))
 		vl := strings.Split(value, "\n")
 		if len(vl) > listRows {
@@ -104,10 +111,6 @@ func (m *Model) currentField(fl field, iw, room int) []string {
 			value = tail(value+"▏", iw-ansi.StringWidth(label))
 		}
 		out = append(out, ansi.Truncate(cStatus.Render(label)+value, iw, "…"))
-	}
-	hint := fl.Hint
-	if fl.HintFn != nil {
-		hint = fl.HintFn()
 	}
 	// A multiline field keeps its hint's lines, so the hint can show an
 	// example of what to type.
@@ -145,6 +148,50 @@ func (m *Model) currentField(fl field, iw, room int) []string {
 	return append(out, m.previewBox(iw, room-len(out))...)
 }
 
+// outlineRows is the most lines of an Outline field the box shows at once.
+const outlineRows = 14
+
+// outlineView is the lines of the current Outline field, at most rows of
+// them and never more than outlineRows, scrolled so the cursor's line is
+// in sight, with the cursor drawn at its column.
+func (m *Model) outlineView(iw, rows int) []string {
+	fl := &m.form.Fields[m.form.Cur]
+	rows = min(max(rows, 3), outlineRows)
+	vl := strings.Split(fl.Value, "\n")
+	line, col := fl.cursorLine()
+	// The window moves only when the cursor leaves it; a line marking what
+	// is cut off above or below takes a row.
+	if len(vl) <= rows {
+		fl.top = 0
+	} else {
+		rows -= 2
+		fl.top = min(max(fl.top, line-rows+1), line, len(vl)-rows)
+	}
+	end := min(fl.top+rows, len(vl))
+	var out []string
+	if fl.top > 0 {
+		out = append(out, cDim.Render(fmt.Sprintf("    ⋮ %d lines above", fl.top)))
+	}
+	w := iw - 4
+	for j := fl.top; j < end; j++ {
+		l := vl[j]
+		if j != line {
+			out = append(out, "    "+ansi.Truncate(l, w, "…"))
+			continue
+		}
+		left := firstRunes(l, col)
+		if ansi.StringWidth(left)+1 > w {
+			out = append(out, "    "+tail(left+"▏", w))
+		} else {
+			out = append(out, "    "+ansi.Truncate(left+"▏"+l[len(left):], w, "…"))
+		}
+	}
+	if end < len(vl) {
+		out = append(out, cDim.Render(fmt.Sprintf("    ⋮ %d lines below", len(vl)-end)))
+	}
+	return out
+}
+
 // formHelp names the keys the current field answers.
 func (m *Model) formHelp() string { return m.vimFormHelp(m.formHelpPlain()) }
 
@@ -160,7 +207,7 @@ func (m *Model) formHelpPlain() string {
 	case len(f.list()) > 0:
 		return pos + " · ctrl+n/ctrl+p pick · tab accept · enter accept or next · shift+tab back · esc cancel"
 	case cur.Multi && cur.Outline:
-		return pos + " · enter newline · tab/shift+tab indent · ctrl+s submit · @ a file · esc cancel"
+		return pos + " · ↑↓←→ move · enter split · tab/shift+tab indent · ctrl+u clear line · ctrl+s submit · esc cancel"
 	case cur.Attach:
 		return pos + " · enter newline · ctrl+s submit · @ attach a file · ctrl+o pick files · / command · shift+tab back · esc cancel"
 	case cur.Multi:

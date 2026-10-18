@@ -573,10 +573,17 @@ web
 A line with no indent is a project: an existing name is reused, a new one
 is created. Each further indent, two spaces or a tab, nests a task under
 the line above it, so `verb autocomplete` becomes a subtask of `command
-palette`. In this form `tab` indents the line being typed by one level
-(two spaces) and `shift+tab` takes one level off it, so an outline can be
-typed without counting spaces; `shift+tab` on a line with no indent does
-nothing, and neither key moves between fields here. A title already taken
+palette`. The outline has a line cursor: `up` and `down` (or `ctrl+p` and
+`ctrl+n`) move between lines, `left` and `right` within one, `home` and
+`end` (or `ctrl+a` and `ctrl+e`) to its ends. Typing inserts at the
+cursor; `enter` splits the line there and the new line below keeps the
+indent of the one above; `backspace` at the start of a line joins it to
+the one above; `ctrl+u` clears the cursor's line. `tab` indents the
+cursor's line by one level (two spaces) and `shift+tab` takes one level
+off it, so an outline can be typed without counting spaces; `shift+tab` on
+a line with no indent does nothing, and neither key moves between fields
+here. Up to 14 lines show at once, scrolled to keep the cursor in sight,
+and `@` lists no files here. A title already taken
 under the same parent is reused rather than added twice, which is how sub-items go under an existing task; a line with
 no indent may also name an existing task by its path, `deck / command
 palette`, to add under it. Blank lines and lines starting with `#` are
@@ -744,10 +751,11 @@ and brings the form back with the field set to the first project or task
 it added (a task as its path); `esc` brings the form back unchanged.
 
 The prompt (`p`), the new agent's first prompt and the mass-add outline are
-multiline: `enter` starts a new line, `ctrl+s` (or `ctrl+enter` where the
+multiline: `enter` starts a new line (the outline edits at a line cursor,
+see [Adding many at once](#adding-many-at-once); the others type at the end), `ctrl+s` (or `ctrl+enter` where the
 terminal reports it) submits, and a paste keeps its newlines.
 
-In a multiline field `@` at the start of a word lists what is in the
+In a multiline field other than the outline `@` at the start of a word lists what is in the
 selected pane's cwd (the deck's own when no pane is selected): folders with
 a trailing `/`, files plain, hidden ones left out, at most 200. Typing
 after the `@` filters the list; `tab` or `enter` on a folder opens it, on a

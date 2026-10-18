@@ -894,10 +894,12 @@ b send-keys -s host -w deck Escape >/dev/null; settle
 
 echo "== A adds projects, tasks and subtasks from an outline"
 # Types an outline line by line, Enter between lines, into the open form.
+# ctrl+u drops the indent the new line keeps from the one above, so each
+# line carries its own.
 type_lines() {
 	local l first=1
 	while IFS= read -r l; do
-		[ "$first" = 1 ] || b send-keys -s host -w deck Enter >/dev/null
+		[ "$first" = 1 ] || b send-keys -s host -w deck 'Enter ctrl+u' >/dev/null
 		first=0
 		b send-text -s host -w deck "$l" >/dev/null
 	done
@@ -914,7 +916,7 @@ b send-keys -s host -w deck ctrl+u >/dev/null
 printf 'deck\n    too deep\n' | type_lines
 b send-keys -s host -w deck ctrl+s >/dev/null; settle; deckcap 20c-mass-jump
 check "an indent jump of two levels is refused with its line" "$SCRATCH/out/20c-mass-jump.txt" 'line 2: indented more than one level'
-b send-keys -s host -w deck ctrl+u >/dev/null
+b send-keys -s host -w deck 'ctrl+u Backspace ctrl+u' >/dev/null   # clears the line, joins it to the one above, clears that
 printf '# the example from the hint\ndeck\n  command palette\n    verb autocomplete\n  captures page\nweb\n  landing\n' | type_lines
 b send-keys -s host -w deck ctrl+s >/dev/null; settle; deckcap 20d-mass-added
 check "status counts what was added; existing ones are reused" "$SCRATCH/out/20d-mass-added.txt" 'added 0 projects, 2 tasks'
@@ -948,10 +950,10 @@ b send-keys -s host -w deck Enter >/dev/null
 b send-text -s host -w deck 'tabbed one'; b send-keys -s host -w deck Tab >/dev/null; settle; deckcap 20f-mass-tab
 check "tab indents the line being typed by one level" "$SCRATCH/out/20f-mass-tab.txt" '│       tabbed one▏'
 b send-keys -s host -w deck Enter >/dev/null
-b send-text -s host -w deck 'tabbed child'; b send-keys -s host -w deck 'Tab Tab' >/dev/null; settle; deckcap 20g-mass-tab2
-check "tab twice indents by two levels" "$SCRATCH/out/20g-mass-tab2.txt" '│         tabbed child▏'
+b send-text -s host -w deck 'tabbed child'; b send-keys -s host -w deck 'Tab' >/dev/null; settle; deckcap 20g-mass-tab2
+check "the new line keeps the indent above and tab adds a level" "$SCRATCH/out/20g-mass-tab2.txt" '│         tabbed child▏'
 b send-keys -s host -w deck Enter >/dev/null
-b send-text -s host -w deck 'tabbed sibling'; b send-keys -s host -w deck 'Tab Tab BTab' >/dev/null; settle; deckcap 20h-mass-btab
+b send-text -s host -w deck 'tabbed sibling'; b send-keys -s host -w deck 'BTab' >/dev/null; settle; deckcap 20h-mass-btab
 check "shift+tab outdents by one level" "$SCRATCH/out/20h-mass-btab.txt" '│       tabbed sibling▏'
 b send-keys -s host -w deck ctrl+s >/dev/null; settle; deckcap 20i-mass-tabbed
 check "the tabbed outline is added" "$SCRATCH/out/20i-mass-tabbed.txt" 'added 0 projects, 3 tasks'
@@ -968,6 +970,39 @@ assert a["project_id"] == deck["id"] and a["parent_id"] == "", a
 assert c["parent_id"] == a["id"], c
 assert s["project_id"] == deck["id"] and s["parent_id"] == "", s
 PY3
+
+echo "== the outline has a line cursor: up, typing at it, enter splits, tab indents that line"
+b send-text -s host -w deck 'A'; settle
+b send-text -s host -w deck 'deck'; b send-keys -s host -w deck 'Enter Tab' >/dev/null
+b send-text -s host -w deck 'edit'; b send-keys -s host -w deck Enter >/dev/null
+b send-text -s host -w deck 'later'; settle; deckcap 20j-cur-inherit
+check "enter starts the next line at the same indent" "$SCRATCH/out/20j-cur-inherit.txt" '│       later▏'
+b send-keys -s host -w deck Up >/dev/null; b send-text -s host -w deck 'ed'; settle; deckcap 20k-cur-up
+check "up moves the cursor to the line above; typing goes there" "$SCRATCH/out/20k-cur-up.txt" '│       edited▏'
+check "the line below is untouched" "$SCRATCH/out/20k-cur-up.txt" '│       later  '
+b send-keys -s host -w deck Enter >/dev/null; b send-text -s host -w deck 'split child'; b send-keys -s host -w deck Tab >/dev/null; settle; deckcap 20l-cur-split
+python3 - "$SCRATCH/out/20l-cur-split.txt" <<'PYC' && echo "PASS enter splits below the cursor's line and tab indents that line" || { echo "FAIL the outline after up, enter and tab"; fails=$((fails+1)); }
+import re, sys
+rows = [re.sub(r"\s*│\s*$", "", l.split("│", 1)[1]) for l in open(sys.argv[1]) if l.count("│") >= 2]
+want = ["     deck", "       edited", "         split child▏", "       later"]
+i = rows.index(want[0])
+assert rows[i:i+4] == want, rows[i:i+4]
+PYC
+b send-keys -s host -w deck ctrl+s >/dev/null; settle; deckcap 20m-cur-added
+check "the cursor-edited outline is added" "$SCRATCH/out/20m-cur-added.txt" 'added 0 projects, 3 tasks'
+python3 - "$DATA" <<'PY4' && echo "PASS store nests the cursor-edited outline" || { echo "FAIL store shape after the cursor-edited mass add"; fails=$((fails+1)); }
+import json, sys
+d = json.load(open(sys.argv[1]))
+deck = [p for p in d["projects"] if p["name"] == "deck"][0]
+def one(title):
+    ts = [t for t in d["tasks"] if t["title"] == title]
+    assert len(ts) == 1, (title, ts)
+    return ts[0]
+e, c, l = one("edited"), one("split child"), one("later")
+assert e["project_id"] == deck["id"] and e["parent_id"] == "", e
+assert c["parent_id"] == e["id"], c
+assert l["project_id"] == deck["id"] and l["parent_id"] == "", l
+PY4
 
 echo "== a task picker offers + add new…, which opens the mass-add screen"
 select_pane 3

@@ -24,8 +24,9 @@ const listRows = 8
 // file path under the form's cwd. Hint, when set, is
 // shown under the field while it is the current one. New, "project" or
 // "task", ends the list with addNew, which opens the mass-add screen.
-// Outline, on a Multi field, makes tab and shift+tab indent and outdent
-// the line being typed, the last one, by one level.
+// Outline, on a Multi field, gives it a line cursor: the arrows move it,
+// typing and enter edit at it, tab and shift+tab indent and outdent its
+// line by one level, and `@` completes nothing.
 type field struct {
 	Label   string
 	Value   string
@@ -47,9 +48,11 @@ type field struct {
 	Attach bool
 	Slash  func() []string
 
-	hl int // the highlighted list entry plus one; 0 is none
-	at int // the offset of the '@' being completed plus one; 0 is none
-	sl int // the offset after the leading '/' being completed; 0 is none
+	hl  int // the highlighted list entry plus one; 0 is none
+	at  int // the offset of the '@' being completed plus one; 0 is none
+	sl  int // the offset after the leading '/' being completed; 0 is none
+	pos int // an Outline field's cursor, a byte offset into Value
+	top int // the first of an Outline field's lines in sight
 }
 
 func (f field) result() string {
@@ -357,7 +360,7 @@ func (f *form) edited(typed string) {
 	if cur.Slash != nil && typed == "/" && cur.Value == "/" {
 		cur.sl = 1
 	}
-	if cur.Multi && typed == "@" {
+	if cur.Multi && !cur.Outline && typed == "@" {
 		before := cur.Value[:len(cur.Value)-1]
 		if before == "" || strings.ContainsAny(before[len(before)-1:], " \t\n") {
 			cur.at = len(cur.Value)
@@ -403,8 +406,7 @@ func (f *form) handleKey(msg tea.KeyPressMsg) (finished bool, cmd tea.Cmd) {
 			}
 		}
 	}
-	if cur.Multi && cur.Outline && (key == "tab" || key == "shift+tab") {
-		cur.Value = indentLast(cur.Value, key == "tab")
+	if cur.Multi && cur.Outline && cur.outlineKey(key) {
 		f.edited("")
 		return false, nil
 	}
@@ -449,7 +451,11 @@ func (f *form) handleKey(msg tea.KeyPressMsg) (finished bool, cmd tea.Cmd) {
 		if k.Text == "" || k.Mod&^(tea.ModShift|tea.ModCapsLock|tea.ModNumLock|tea.ModScrollLock) != 0 {
 			return false, nil
 		}
-		cur.Value += k.Text
+		if cur.Outline {
+			cur.insert(k.Text)
+		} else {
+			cur.Value += k.Text
+		}
 		f.edited(k.Text)
 		return false, nil
 	}
@@ -499,6 +505,10 @@ func (f *form) paste(text string) {
 	if !f.Fields[f.Cur].Multi {
 		text = strings.ReplaceAll(text, "\n", " ")
 	}
-	f.Fields[f.Cur].Value += text
+	if cur := &f.Fields[f.Cur]; cur.Outline {
+		cur.insert(text)
+	} else {
+		cur.Value += text
+	}
 	f.edited("")
 }
