@@ -16,6 +16,10 @@ const keyHelpHint = "F1 keybindings"
 type keyHelp struct {
 	mode, scroll int
 	unbound      bool
+	// query filters every mode's rows at once; typing is true while the
+	// query line takes the keys.
+	query  string
+	typing bool
 }
 
 type helpRow struct{ key, action, scope string }
@@ -42,13 +46,49 @@ func (m *Model) openHelp() tea.Cmd {
 
 func (m *Model) handleHelpKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	h := m.help
+	if h.typing {
+		switch msg.String() {
+		case "f1", "ctrl+c":
+			m.help = nil
+		case "esc":
+			h.query, h.typing, h.scroll = "", false, 0
+		case "enter":
+			h.typing = false
+		case "backspace":
+			if h.query == "" {
+				h.typing = false
+			} else {
+				r := []rune(h.query)
+				h.query, h.scroll = string(r[:len(r)-1]), 0
+			}
+		case "ctrl+u":
+			h.query, h.scroll = "", 0
+		case "up", "down", "pgup", "pgdown", "ctrl+d", "home", "end":
+			h.typing = false
+			m.handleHelpKey(msg)
+			h.typing = true
+		default:
+			if k := msg.Key(); k.Text != "" && k.Mod&^tea.ModShift == 0 {
+				h.query, h.scroll = h.query+k.Text, 0
+			}
+		}
+		return m, nil
+	}
 	switch msg.String() {
-	case "f1", "esc", "ctrl+c":
+	case "f1", "ctrl+c":
 		m.help = nil
+	case "esc":
+		if h.query != "" {
+			h.query, h.scroll = "", 0
+		} else {
+			m.help = nil
+		}
+	case "/":
+		h.typing = true
 	case "tab", "right", "l":
-		h.mode, h.scroll = (h.mode+1)%len(helpModes()), 0
+		h.mode, h.scroll, h.query = (h.mode+1)%len(helpModes()), 0, ""
 	case "shift+tab", "left", "h":
-		h.mode, h.scroll = (h.mode+len(helpModes())-1)%len(helpModes()), 0
+		h.mode, h.scroll, h.query = (h.mode+len(helpModes())-1)%len(helpModes()), 0, ""
 	case "u":
 		h.unbound, h.scroll = !h.unbound, 0
 	case "j", "down":
@@ -86,8 +126,12 @@ func (m *Model) helpRows(mode string) []helpRow {
 			continue
 		}
 		for _, row := range m.helpRows("pages") {
-			scope, _, _ := strings.Cut(row.scope, ";")
+			scope, rest, more := strings.Cut(row.scope, ";")
 			if slices.Contains(strings.Split(scope, "/"), mode) {
+				row.scope = mode + " page"
+				if more {
+					row.scope += ";" + rest
+				}
 				rows = append(rows, row)
 			}
 		}
@@ -110,6 +154,8 @@ func (m *Model) helpRows(mode string) []helpRow {
 			scope = "live, after the prefix"
 		case mode != config.ModeDeck:
 			scope = "forms, vim modes on"
+		case deckMotion[a.Name]:
+			scope = deckMotionScope
 		}
 		rows = append(rows, helpRow{c.Binding(mode, a.Name), a.Name + ": " + a.Desc, scope})
 	}
@@ -123,9 +169,9 @@ func (m *Model) helpRows(mode string) []helpRow {
 			helpRow{"F1", "goes to the pane too; " + leader + " " + c.Binding(config.ModeLive, "help") + " opens this", "live"})
 	case config.ModeDeck:
 		rows = append(rows, helpRow{"ctrl+c", "quit, after a confirmation", "all pages, not dialogs"}, helpRow{"ctrl+p", "command palette", "all pages, not dialogs"},
-			helpRow{"up/down", "previous/next pane or detail row", "deck page"}, helpRow{"left/right", "focus rail/detail", "deck page"},
-			helpRow{"1/2/3/4", "Screen/Activity/Transcript/Turns", "deck page"}, helpRow{"[/]", "previous/next tab", "deck page"},
-			helpRow{"home/end", "first pane/follow detail end", "deck page"}, helpRow{"pgup/pgdown, ctrl+u/d", "scroll detail half a page", "deck page"},
+			helpRow{"up/down", "previous/next pane or detail row", deckMotionScope}, helpRow{"left/right", "focus rail/detail", deckMotionScope},
+			helpRow{"1/2/3/4", "Screen/Activity/Transcript/Turns", deckMotionScope}, helpRow{"[/]", "previous/next tab", deckMotionScope},
+			helpRow{"home/end", "first pane/follow detail end", deckMotionScope}, helpRow{"pgup/pgdown, ctrl+u/d", "scroll detail half a page", deckMotionScope},
 			helpRow{"enter", "refresh", "deck rail"}, helpRow{"{/}, (/)", "jump group/level", "deck rail"},
 			helpRow{"enter/space", "expand selected turn", "Turns detail"}, helpRow{"y", "copy selected turn", "Turns detail"},
 			helpRow{"U", "picker prototypes", "all pages, not dialogs"})
@@ -186,7 +232,7 @@ func (m *Model) helpRows(mode string) []helpRow {
 			{"enter", "continue focus for a fresh 15-active-minute cycle", "focus buffer; fixed key"},
 			{"F/esc", "unlock focus now", "focus buffer; fixed keys, not configured bindings"},
 			{"q/ctrl+c", "quit the deck", "focus buffer; fixed keys"},
-			{"tab/shift+tab, left/right", "choose mode", "help"}, {"u", "toggle actions without bindings", "help"}, {"j/k, up/down", "scroll", "help"}, {"pgup/pgdown, ctrl+u/d", "scroll page", "help"}, {"home/end, g/G", "first/last help row", "help"}, {"esc, ctrl+c", "close without changing selection", "help"},
+			{"tab/shift+tab, left/right", "choose mode", "help"}, {"/", "search every mode; enter keeps the filter, esc clears it", "help"}, {"u", "toggle actions without bindings", "help"}, {"j/k, up/down", "scroll", "help"}, {"pgup/pgdown, ctrl+u/d", "scroll page", "help"}, {"home/end, g/G", "first/last help row", "help"}, {"esc, ctrl+c", "close without changing selection", "help"},
 			{"text, ?", "filter commands", "palette"}, {"up/down, ctrl+p/n", "select command", "palette"}, {"enter", "run command", "palette"}, {"tab", "complete command name", "palette"}, {"esc, ctrl+c", "close", "palette"},
 			{"enter, y/Y", "confirm", "confirmation"}, {"esc, ctrl+c, n/N", "cancel", "confirmation"},
 			{"j/k", "select row", "presets/queue"}, {"n/e/d", "new/edit/delete", "presets/queue"}, {"x", "add example preset", "presets"}, {"enter", "start queued prompt", "queue"}, {"esc, ctrl+c", "close", "presets/queue"},
@@ -239,21 +285,177 @@ func (m *Model) helpSize() (int, int) {
 	return w - 2*min(5, max(0, (w-32)/2)), h - 2*min(5, max(0, (h-8)/2))
 }
 
+// helpGroup is one header in the help body and the rows under it.
+type helpGroup struct {
+	title string
+	rows  []helpRow
+}
+
+// deckMotionScope groups the deck page's movement keys under one header.
+const deckMotionScope = "deck page, motion"
+
+var deckMotion = map[string]bool{"left": true, "right": true, "down": true, "up": true, "top": true, "bottom": true,
+	"scroll_down": true, "scroll_up": true, "next_tab": true, "prev_tab": true, "group_next": true, "group_prev": true}
+
+// helpGroups groups a tab's rows by scope: the part before ";" is the
+// header and the rest stays on the row. The pages tab gets one header per
+// page instead, in page order, so a page's keys read together. A page's
+// own tab lists that page's keys first; otherwise scopes for every page
+// come first, daemon verbs last, the rest alphabetically.
+func helpGroups(mode string, rows []helpRow) []helpGroup {
+	var groups []helpGroup
+	add := func(title string, r helpRow) {
+		for i := range groups {
+			if groups[i].title == title {
+				groups[i].rows = append(groups[i].rows, r)
+				return
+			}
+		}
+		groups = append(groups, helpGroup{title, []helpRow{r}})
+	}
+	if mode == "pages" {
+		for p := pageTasks; p <= pageHistory; p++ {
+			for _, r := range rows {
+				scope, rest, _ := strings.Cut(r.scope, ";")
+				if slices.Contains(strings.Split(scope, "/"), p.String()) {
+					r.scope = strings.TrimSpace(rest)
+					add(p.String()+" page", r)
+				}
+			}
+		}
+		return groups
+	}
+	for _, r := range rows {
+		scope, rest, _ := strings.Cut(r.scope, ";")
+		r.scope = strings.TrimSpace(rest)
+		add(strings.TrimSpace(scope), r)
+	}
+	rank := func(t string) int {
+		switch {
+		case pageTabs[mode] && t == mode+" page":
+			return -1
+		case t == "all pages, not dialogs":
+			return 0
+		case strings.HasPrefix(t, "all pages"):
+			return 1
+		case strings.HasPrefix(t, "daemon command"):
+			return 3
+		}
+		return 2
+	}
+	slices.SortStableFunc(groups, func(a, b helpGroup) int {
+		if d := rank(a.title) - rank(b.title); d != 0 {
+			return d
+		}
+		return strings.Compare(a.title, b.title)
+	})
+	return groups
+}
+
+// helpSearch filters every mode's rows by the query: case-insensitive
+// substrings, every word of the query somewhere in the key, action or scope.
+// A row already listed under an earlier mode is not repeated, and the page
+// tabs are left out because the pages tab holds all of their rows.
+var pageTabs = func() map[string]bool {
+	tabs := map[string]bool{}
+	for p := pageTasks; p <= pageHistory; p++ {
+		tabs[p.String()] = true
+	}
+	return tabs
+}()
+
+func (m *Model) helpSearch(query string) []helpGroup {
+	words := strings.Fields(strings.ToLower(query))
+	seen := map[helpRow]bool{}
+	var groups []helpGroup
+	for _, mode := range helpModes() {
+		if pageTabs[mode] {
+			continue
+		}
+		g := helpGroup{title: mode}
+		for _, r := range m.helpRows(mode) {
+			text := strings.ToLower(r.key + " " + r.action + " " + r.scope)
+			if seen[r] || slices.ContainsFunc(words, func(w string) bool { return !strings.Contains(text, w) }) {
+				continue
+			}
+			seen[r] = true
+			g.rows = append(g.rows, r)
+		}
+		if len(g.rows) > 0 {
+			groups = append(groups, g)
+		}
+	}
+	return groups
+}
+
+// helpTabs draws the tab bar in width cells: every tab when they fit,
+// otherwise the current one and as many neighbours as fit, with an
+// ellipsis for the rest.
+func helpTabs(modes []string, cur, width int) string {
+	draw := func(lo, hi int) (string, int) {
+		var parts []string
+		if lo > 0 {
+			parts = append(parts, "…")
+		}
+		for i := lo; i <= hi; i++ {
+			name := " " + modes[i] + " "
+			if i == cur {
+				name = cSel.Render(name)
+			}
+			parts = append(parts, name)
+		}
+		if hi < len(modes)-1 {
+			parts = append(parts, "…")
+		}
+		out := strings.Join(parts, "│")
+		return out, ansi.StringWidth(out)
+	}
+	lo, hi := cur, cur
+	for grew := true; grew; {
+		grew = false
+		if hi < len(modes)-1 {
+			if _, w := draw(lo, hi+1); w <= width {
+				hi, grew = hi+1, true
+			}
+		}
+		if lo > 0 {
+			if _, w := draw(lo-1, hi); w <= width {
+				lo, grew = lo-1, true
+			}
+		}
+	}
+	out, _ := draw(lo, hi)
+	return ansi.Truncate(out, width, "…")
+}
+
 func (m *Model) helpView() string {
 	w, h := m.helpSize()
-	mode := helpModes()[m.help.mode]
+	modes := helpModes()
+	mode := modes[m.help.mode]
 	filter := "all actions"
 	if m.help.unbound {
 		filter = "unbound only"
 	}
-	lines := []string{cTitle.Render("Keybindings and actions"), "Mode: " + mode + " · " + filter}
-	if mode == config.ModeFormNormal || mode == config.ModeFormInsert {
+	searching := m.help.typing || m.help.query != ""
+	lines := []string{cTitle.Render("Keybindings and actions")}
+	if searching {
+		lines = append(lines, "Search: every mode · "+filter)
+	} else {
+		lines = append(lines, "Mode: "+mode+" · "+filter)
+		if h >= 14 {
+			lines = append(lines, helpTabs(modes, m.help.mode, max(1, w-4)))
+		}
+	}
+	if searching {
+		lines = append(lines, "Rows from every mode whose key, action or scope hold each word.")
+	} else if mode == config.ModeFormNormal || mode == config.ModeFormInsert {
 		lines = append(lines, fmt.Sprintf("vim_modes=%t; see forms for editing keys", m.vimModes()))
 	} else {
 		lines = append(lines, "TUI only. Configured keys override defaults; dialogs own their input.")
 	}
 	lines = append(lines, cHeader.Render("KEY                  ACTION / SCOPE"))
 	var body []string
+	wrap := func(s string) { body = append(body, strings.Split(ansi.Wrap(s, max(1, w-4), ""), "\n")...) }
 	note := ""
 	switch mode {
 	case config.ModeDeck, "pages", "actions":
@@ -261,28 +463,52 @@ func (m *Model) helpView() string {
 	case "modals":
 		note = "After 15 active minutes, the focus buffer pauses work. F1 opens its keybindings without pausing the 30-second unlock deadline."
 	}
-	if note != "" {
-		body = append(body, strings.Split(ansi.Wrap(note, max(1, w-4), ""), "\n")...)
+	if note != "" && !searching {
+		wrap(note)
 	}
-	rows := m.helpRows(mode)
-	for _, r := range rows {
-		key := r.key
-		if key == "" {
-			key = "(unbound)"
+	var groups []helpGroup
+	if searching {
+		groups = m.helpSearch(m.help.query)
+	} else {
+		groups = helpGroups(mode, m.helpRows(mode))
+	}
+	for _, g := range groups {
+		body = append(body, cHeader.Render("── "+g.title))
+		for _, r := range g.rows {
+			key := r.key
+			if key == "" {
+				key = "(unbound)"
+			}
+			line := fmt.Sprintf("%-20s %s", key, r.action)
+			if r.scope != "" {
+				line += " [" + r.scope + "]"
+			}
+			wrap(line)
 		}
-		line := fmt.Sprintf("%-20s %s [%s]", key, r.action, r.scope)
-		body = append(body, strings.Split(ansi.Wrap(line, max(1, w-4), ""), "\n")...)
 	}
-	if len(rows) == 0 {
+	switch {
+	case len(groups) == 0 && searching:
+		body = append(body, "Nothing matches. backspace edits the search; esc clears it.")
+	case len(groups) == 0:
 		body = append(body, "No actions without bindings in this mode. Choose actions for palette commands.")
 	}
 	body = append(body, "", "Help navigation")
 	for _, r := range m.helpRows("modals") {
 		if r.scope == "help" {
-			body = append(body, strings.Split(ansi.Wrap(fmt.Sprintf("%-20s %s", r.key, r.action), max(1, w-4), ""), "\n")...)
+			wrap(fmt.Sprintf("%-20s %s", r.key, r.action))
 		}
 	}
-	room := max(1, h-7)
+	var footer []string
+	if searching {
+		q := "/" + m.help.query
+		if m.help.typing {
+			q += "▏ enter keep · esc clear"
+		} else {
+			q += " · / edit · esc clear"
+		}
+		footer = append(footer, q)
+	}
+	room := max(1, h-3-len(lines)-len(footer))
 	if h < 8 {
 		lines = []string{"Help: " + mode}
 		room = max(1, h-2)
@@ -290,6 +516,9 @@ func (m *Model) helpView() string {
 	m.help.scroll = min(m.help.scroll, max(0, len(body)-room))
 	end := min(len(body), m.help.scroll+room)
 	lines = append(lines, body[m.help.scroll:end]...)
+	if h >= 8 {
+		lines = append(lines, footer...)
+	}
 	lines = append(lines, cDim.Render(fmt.Sprintf("F1 close · %d-%d/%d", m.help.scroll+1, end, len(body))))
 	if w >= 8 && h >= 8 {
 		box := []string{boxTop("help", w)}

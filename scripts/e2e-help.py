@@ -83,6 +83,38 @@ try:
     assert "Z" in next(line for line in text.splitlines() if "quit:" in line)
     assert "V" == next(line for line in text.splitlines() if "review:" in line).strip("│ ").split()[0]
     print("PASS help shows configured quit key", flush=True)
+    assert "── all pages, not dialogs" in text
+    keys("PageDown")
+    screen("deck-motion", "── deck page, motion", previous=text)
+    keys("Home")
+    screen("deck-top", "── all pages, not dialogs")
+    assert any(" deck │ form_normal │ form_insert " in line for line in text.splitlines())
+    print("PASS help groups a tab under scope headers and shows the tab bar", flush=True)
+    keys("/")
+    run("B", "send-text", "-s", "host", "-w", "deck", "pal")
+    text = screen("search-pal", "/pal▏")
+    assert "Search: every mode" in text and "── modals" in text and "filter commands" in text and "── deck" in text
+    assert "Mode: deck" not in text and "quit:" not in text
+    keys("Down")
+    text = screen("search-scrolled", "/pal▏", previous=text)
+    keys("Enter")
+    text = screen("search-kept", "/pal · / edit", previous=text)
+    keys("j")
+    screen("search-kept-j", "/pal · / edit", previous=text)
+    keys("Escape")
+    text = screen("search-cleared", "Mode: deck")
+    assert "/pal" not in text and "Keybindings and actions" in text
+    keys("/")
+    run("B", "send-text", "-s", "host", "-w", "deck", "q")
+    screen("search-q", "/q▏")
+    keys("Backspace Backspace")
+    text = screen("search-left", "Mode: deck")
+    keys("/")
+    run("B", "send-text", "-s", "host", "-w", "deck", "zzznomatch")
+    screen("search-none", "Nothing matches")
+    keys("Escape")
+    screen("search-none-cleared", "Mode: deck")
+    print("PASS / searches every mode under mode headers; esc and backspace leave search", flush=True)
     keys("u")
     screen("empty-unbound", "No actions without bindings")
     keys("u")
@@ -94,9 +126,15 @@ try:
     keys("Tab")
     text = screen("pages-easy", "toggle saved easy-task mark")
     assert "E" == next(line for line in text.splitlines() if "toggle saved easy-task mark" in line).strip("│ ").split()[0]
-    keys("End")
-    text = screen("pages-review", "refresh completed prompts")
+    assert "── tasks page" in text
+    keys("/")
+    run("B", "send-text", "-s", "host", "-w", "deck", "review")
+    keys("Enter")
+    text = screen("pages-review", "/review · / edit")
+    assert "refresh completed prompts" in text
     assert "open selected prompt and mark reviewed" in text and "switch awaiting review" in text and "scroll opened prompt" in text
+    keys("Escape")
+    screen("pages-back", "Mode: pages")
     keys("Tab")
     screen("forms", "Mode: forms")
     keys("Tab")
@@ -111,7 +149,12 @@ try:
     assert "(unbound)" in text and "new agent" not in text and "go to review queue" not in text
     print("PASS catalog includes Review with its binding, not as unbound", flush=True)
     keys("End")
-    screen("unbound-end", "daemon command via palette")
+    screen("unbound-end", "Help navigation")
+    keys("/")
+    run("B", "send-text", "-s", "host", "-w", "deck", "daemon command")
+    screen("unbound-daemon", "[daemon command via palette]")
+    keys("Escape")
+    screen("unbound-search-cleared", "Mode: actions · unbound only")
     keys("Escape")
     text = screen("restored", "help-selection-proof")
     assert "Keybindings and actions" not in text
