@@ -58,6 +58,18 @@ check "an explicit version is taken as is" "$SCRATCH/out/bumps.txt" "^v2.0.0: v2
 ( cd "$R" && git tag -d v0.3.9 v0.10.2 v0.3.10 >/dev/null && bash scripts/release.sh --dry-run ) > "$SCRATCH/out/bump-none.txt" 2>&1
 check "no tag yet starts at v0.0.1" "$SCRATCH/out/bump-none.txt" "^next:  *v0.0.1$"
 
+echo "== release.sh pushes a local main that is ahead, and refuses one that diverged"
+B="$SCRATCH/origin.git"; git init -q --bare -b main "$B"
+S="$SCRATCH/sync"; mkdir -p "$S/scripts"; cp "$here/scripts/release.sh" "$S/scripts/release.sh"
+G="git -c user.name=t -c user.email=t@t"
+( cd "$S" && git init -q -b main && $G add -A && $G commit -q -m base && git remote add origin "$B" && git push -q origin main \
+  && $G commit -q --allow-empty -m ahead && bash scripts/release.sh patch ) > "$SCRATCH/out/release-ahead.txt" 2>&1 || true
+check "an ahead main is pushed before anything else" "$SCRATCH/out/release-ahead.txt" "^pushed main to origin"
+[ "$(git -C "$B" rev-parse main)" = "$(git -C "$S" rev-parse HEAD)" ] && echo "PASS origin now holds the local main" || { echo "FAIL origin did not get the local main"; fails=$((fails+1)); }
+( cd "$S" && git reset -q --hard HEAD~1 && $G commit -q --allow-empty -m diverged && bash scripts/release.sh patch ) > "$SCRATCH/out/release-diverged.txt" 2>&1 && { echo "FAIL a diverged main released"; fails=$((fails+1)); } || echo "PASS a diverged main stops the release"
+check "the diverged message says what to do" "$SCRATCH/out/release-diverged.txt" "diverged from origin/main.*rebase or pull first"
+[ "$(git -C "$B" rev-parse main)" != "$(git -C "$S" rev-parse HEAD)" ] && echo "PASS origin kept its main" || { echo "FAIL origin took the diverged main"; fails=$((fails+1)); }
+
 echo "== the extension under bun, with a fake pi and a fake tuios"
 if command -v bun >/dev/null; then
 	export FAKE_TUIOS_LOG="$SCRATCH/out/fake-tuios.log"; : > "$FAKE_TUIOS_LOG"

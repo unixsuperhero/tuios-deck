@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Cuts a release: works out the next version, checks the tree, builds and
 # vets, tags the commit, pushes main and the tag, then asks the Go module
-# proxy for the new version so `deck update` and `go install ...@latest`
+# proxy for the new version. A local main ahead of origin is pushed on the
+# way; one behind or diverged from origin stops the release.
+# It then asks the proxy for the new version so `deck update` and `go install ...@latest`
 # see it at once instead of after the proxy's cache window.
 #
 #   scripts/release.sh            # bump the patch:  v0.3.9 → v0.3.10
@@ -52,8 +54,14 @@ fi
 [ -z "$(git status --porcelain)" ] || { echo "the tree is not clean; commit first" >&2; exit 1; }
 [ "$(git branch --show-current)" = main ] || { echo "release from main" >&2; exit 1; }
 git rev-parse -q --verify "refs/tags/$tag" >/dev/null && { echo "$tag exists" >&2; exit 1; }
+# A local main ahead of origin is pushed first; one behind or diverged from
+# it stops the release, since the tag would not be built on what is published.
 git fetch -q origin main
-[ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ] || { echo "main is not in sync with origin/main; push or pull first" >&2; exit 1; }
+if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]; then
+	git merge-base --is-ancestor origin/main HEAD || { echo "main has diverged from origin/main (or is behind it); rebase or pull first" >&2; exit 1; }
+	git push -q origin main || { echo "pushing main to origin was rejected; rebase on origin/main first" >&2; exit 1; }
+	echo "pushed main to origin ($(git rev-list --count origin/main@{1}..HEAD 2>/dev/null || echo some) commits)"
+fi
 GOWORK=off go build ./... && GOWORK=off go vet ./...
 git tag -a "$tag" -m "deck $tag"
 git push -q origin main "$tag"
