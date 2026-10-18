@@ -1412,7 +1412,7 @@ b send-keys -s host -w stale g >/dev/null; ssettle; scap 31b-stale-detail
 check "the detail header says stale and the last activity" "$SCRATCH/out/31b-stale-detail.txt" 'stale · last activity [0-9]*s ago'
 b send-text -s host -w stale ':'; ssettle; b send-text -s host -w stale 'group by stale'; ssettle
 b send-keys -s host -w stale Enter >/dev/null; ssettle; scap 31c-group-stale
-check "group by stale puts the stale panes under a stale header" "$SCRATCH/out/31c-group-stale.txt" '^stale'
+check "group by stale puts the stale panes under a stale header" "$SCRATCH/out/31c-group-stale.txt" '^▾ stale'
 b send-text -s host -w stale ':'; ssettle; b send-text -s host -w stale 'close stale panes'; ssettle
 b send-keys -s host -w stale Enter >/dev/null; ssettle; scap 32-stale-confirm
 check "close stale panes asks first" "$SCRATCH/out/32-stale-confirm.txt" 'close the [0-9]* stale panes listed? (y/n)'
