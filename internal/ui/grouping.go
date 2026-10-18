@@ -24,9 +24,17 @@ const (
 	lvState
 	lvKind
 	levels // the count
+
+	// lvTree is the task tree grouping, which stands alone: the project,
+	// then every task on the pane's path from the root down, then the pane.
+	// Its depth varies per pane, so it is no level to nest others under.
+	lvTree
 )
 
 func (l level) String() string {
+	if l == lvTree {
+		return "task tree"
+	}
 	return [...]string{"session", "project", "task", "parent task", "top-level task", "cwd", "harness", "state", "kind"}[l]
 }
 
@@ -79,9 +87,15 @@ func (g grouping) bySession() bool {
 	return len(g) == 0 || len(g) == 1 && g[0] == lvSession
 }
 
+// tree is whether the grouping is the task tree.
+func (g grouping) tree() bool {
+	return len(g) == 1 && g[0] == lvTree
+}
+
 // presets are the groupings o and O cycle through, in order.
 var presets = []grouping{
 	{lvSession},
+	{lvTree},
 	{lvProject},
 	{lvProject, lvParentTask},
 	{lvTask},
@@ -94,9 +108,13 @@ var presets = []grouping{
 }
 
 // parseGrouping reads a grouping written as level names joined by ">",
-// such as "project > parent task". It refuses an empty text or an unknown
-// level.
+// such as "project > parent task", or the task tree written "task tree"
+// or "tree". It refuses an empty text or an unknown level.
 func parseGrouping(text string) (grouping, bool) {
+	switch strings.ToLower(strings.Join(strings.Fields(text), " ")) {
+	case "task tree", "tree":
+		return grouping{lvTree}, true
+	}
 	var g grouping
 	for _, part := range strings.Split(text, ">") {
 		l, ok := parseLevel(part)
@@ -215,7 +233,90 @@ func (m *Model) groupedRows() []row {
 			all = append(all, &m.merged[i].Panes[j])
 		}
 	}
+	if m.grouping.tree() {
+		return m.treeRows(all)
+	}
 	m.nestRows(&rows, all, 0, false)
+	return rows
+}
+
+// treeRows is the rail as the task tree: a header per project, under it a
+// header per task on the panes' paths from the root down, and each pane one
+// level below its deepest header, ahead of the headers nested beside it.
+// Only the panes' own ancestry shows. Projects sort by name, tasks by when
+// they were made, panes keep their session and window order; unassigned
+// panes sit under "(none)", last.
+func (m *Model) treeRows(all []*panes.Pane) []row {
+	type node struct {
+		label   string
+		theme   store.Theme
+		created int64
+		id      string
+		panes   []*panes.Pane
+		kids    map[string]*node
+	}
+	child := func(n *node, id, label string, theme store.Theme, created int64) *node {
+		if n.kids == nil {
+			n.kids = map[string]*node{}
+		}
+		c, ok := n.kids[id]
+		if !ok {
+			c = &node{label: label, theme: theme, created: created, id: id}
+			n.kids[id] = c
+		}
+		return c
+	}
+	root := &node{}
+	var none []*panes.Pane
+	for _, p := range all {
+		project, task, _ := m.store.Resolve(p.ID)
+		if project == nil {
+			none = append(none, p)
+			continue
+		}
+		n := child(root, project.ID, project.Name, project.Theme, 0)
+		if task != nil {
+			for _, t := range m.store.Path(task.ID) {
+				n = child(n, t.ID, t.Title, t.Theme, t.Created)
+			}
+		}
+		n.panes = append(n.panes, p)
+	}
+	var rows []row
+	var walk func(n *node, depth int, byName bool)
+	walk = func(n *node, depth int, byName bool) {
+		if depth >= 0 {
+			theme := n.theme
+			rows = append(rows, row{Header: n.label, Theme: &theme, Depth: depth})
+			for _, p := range n.panes {
+				rows = append(rows, row{Pane: p, Depth: depth + 1})
+			}
+		}
+		kids := make([]*node, 0, len(n.kids))
+		for _, c := range n.kids {
+			kids = append(kids, c)
+		}
+		sort.Slice(kids, func(i, j int) bool {
+			a, b := kids[i], kids[j]
+			if byName && !strings.EqualFold(a.label, b.label) {
+				return strings.ToLower(a.label) < strings.ToLower(b.label)
+			}
+			if !byName && a.created != b.created {
+				return a.created < b.created
+			}
+			return a.id < b.id
+		})
+		for _, c := range kids {
+			walk(c, depth+1, false)
+		}
+	}
+	walk(root, -1, true)
+	if len(none) > 0 {
+		rows = append(rows, row{Header: noGroup})
+		for _, p := range none {
+			rows = append(rows, row{Pane: p, Depth: 1})
+		}
+	}
 	return rows
 }
 

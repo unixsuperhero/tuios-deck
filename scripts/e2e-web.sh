@@ -328,6 +328,8 @@ done
 check "page has the group select" "$SCRATCH/out/index.html" 'id="group"'
 check "page has the free-text grouping field" "$SCRATCH/out/index.html" 'id="group-custom"'
 check "page lists the nested presets" "$SCRATCH/out/index.html" "'harness > project > parent task'"
+check "page lists task tree right after session" "$SCRATCH/out/index.html" "GROUPS = \['session', 'task tree',"
+check "page builds the task tree from the tasks' parents" "$SCRATCH/out/index.html" "if (levels\[0\] === 'task tree') return treeRows();"
 check "pane rows lead with the project chip" "$SCRATCH/out/index.html" "chip.className = 'chip'"
 check "unassigned panes are marked" "$SCRATCH/out/index.html" "chip.classList.add('unassigned')"
 check "web palette moves on ctrl+n and ctrl+p" "$SCRATCH/out/index.html" "(ctrl && e.key === 'p')"

@@ -1,5 +1,7 @@
 package ui
 
+import "strings"
+
 // The group keys: { and } jump to the previous or next group at the same
 // nesting depth, ( and ) step one nesting level up or down. They stop at
 // the ends and say nothing there.
@@ -16,8 +18,18 @@ func seek(n, start, dir int, ok func(int) bool) int {
 }
 
 // railDepths is how many header depths the rail has: one per level of the
-// grouping, and one for the plain session grouping.
+// grouping, one for the plain session grouping, and as many as the deepest
+// header for the task tree.
 func (m *Model) railDepths() int {
+	if m.grouping.tree() {
+		n := 1
+		for _, r := range m.rows {
+			if r.Pane == nil {
+				n = max(n, r.Depth+1)
+			}
+		}
+		return n
+	}
 	return max(1, len(m.grouping))
 }
 
@@ -27,9 +39,11 @@ func (m *Model) railLevel() int {
 	return max(0, m.railDepths()-1-m.railUp)
 }
 
-// railHeader is the header at depth d that holds row i, or -1.
+// railHeader is the header at depth d that holds row i, or the deepest
+// one above it when nothing that deep does (a task tree pane can sit under
+// fewer headers than the rail has depths), or -1.
 func (m *Model) railHeader(i, d int) int {
-	return seek(len(m.rows), i, -1, func(j int) bool { return m.rows[j].Pane == nil && m.rows[j].Depth == d })
+	return seek(len(m.rows), i, -1, func(j int) bool { return m.rows[j].Pane == nil && m.rows[j].Depth <= d })
 }
 
 // railSelect selects the first pane under the header at h, the way j and k
@@ -67,8 +81,13 @@ func (m *Model) railNest(dir int) {
 	m.railUp -= dir
 	m.railSelect(m.railHeader(m.sel, min(d, m.railLevel())))
 	name := lvSession.String()
-	if len(m.grouping) > 0 {
-		name = m.grouping[m.railLevel()].String()
+	switch d := m.railLevel(); {
+	case m.grouping.tree() && d == 0:
+		name = "project"
+	case m.grouping.tree():
+		name = strings.Repeat("sub", d-1) + "task"
+	case len(m.grouping) > 0:
+		name = m.grouping[d].String()
 	}
 	m.setStatus("{/} jump by " + name)
 }

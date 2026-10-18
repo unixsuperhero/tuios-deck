@@ -341,7 +341,9 @@ check "unassigned fake agent row shows !!!!" "$SCRATCH/out/07-agent.txt" '^  . !
 check "sleeper row leads with the project's four letters" "$SCRATCH/out/07-agent.txt" '^  . deck sleeper'
 
 echo "== group the left rail with o and O"
-b send-keys -s host -w deck o >/dev/null; settle; deckcap 07b-by-project
+# o first reaches task tree, checked after the mass add below; the second
+# is project.
+b send-text -s host -w deck 'oo'; settle; deckcap 07b-by-project
 check "title says by project" "$SCRATCH/out/07b-by-project.txt" 'tuios-deck.* deck  by project'
 check "project header row in its glyph" "$SCRATCH/out/07b-by-project.txt" '^◆ deck '
 check "unassigned panes under (none)" "$SCRATCH/out/07b-by-project.txt" '(none)'
@@ -371,8 +373,8 @@ check "the help line names the group keys" "$SCRATCH/out/07b8-level-down.txt" '{
 b send-keys -s host -w deck o >/dev/null; settle; deckcap 07c-by-task
 check "title says by task" "$SCRATCH/out/07c-by-task.txt" 'tuios-deck.* deck  by task'
 check "task header row shows the path" "$SCRATCH/out/07c-by-task.txt" '^● deck › command palette'
-b send-text -s host -w deck 'OOO'; settle; deckcap 07d-by-session
-check "O three times is back to session" "$SCRATCH/out/07d-by-session.txt" 'grouped by session'
+b send-text -s host -w deck 'OOOO'; settle; deckcap 07d-by-session
+check "O four times is back to session" "$SCRATCH/out/07d-by-session.txt" 'grouped by session'
 check "session header row is back" "$SCRATCH/out/07d-by-session.txt" '▾ target'
 if grep -q ' deck  by ' "$SCRATCH/out/07d-by-session.txt"; then echo "FAIL title still names a grouping"; fails=$((fails+1)); else echo "PASS title drops the grouping by session"; fi
 
@@ -385,6 +387,7 @@ check "deck commands listed first" "$SCRATCH/out/07e-palette.txt" '\[deck\] *ass
 b send-text -s host -w deck 'group'; settle; deckcap 07f-filter
 check "typing filters to the group-by entries" "$SCRATCH/out/07f-filter.txt" '\[deck\] *group by session'
 check "every grouping has an entry" "$SCRATCH/out/07f-filter.txt" 'group by top-level task'
+check "task tree has an entry" "$SCRATCH/out/07f-filter.txt" 'group by task tree'
 if grep -q 'assign to task' "$SCRATCH/out/07f-filter.txt"; then echo "FAIL unmatched entries still shown"; fails=$((fails+1)); else echo "PASS unmatched entries hidden"; fi
 b send-text -s host -w deck ' by pro'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 07g-regrouped
 check "enter on group by project regroups the rail" "$SCRATCH/out/07g-regrouped.txt" 'tuios-deck.* deck  by project'
@@ -397,7 +400,7 @@ b send-text -s host -w deck 'harness > project'; b send-keys -s host -w deck Ent
 check "free-text grouping named in the title" "$SCRATCH/out/07g3-free-text.txt" 'tuios-deck.* deck  by harness > project'
 check "harness header at the outer level" "$SCRATCH/out/07g3-free-text.txt" '^▾ claude-code'
 check "project header indented under a harness" "$SCRATCH/out/07g3-free-text.txt" '^  ◆ deck '
-b send-text -s host -w deck 'oo'; settle; deckcap 07g4-back
+b send-text -s host -w deck 'ooo'; settle; deckcap 07g4-back
 check "o from a custom grouping restarts the presets" "$SCRATCH/out/07g4-back.txt" 'tuios-deck.* deck  by project '
 b send-keys -s host -w deck ctrl+p >/dev/null; settle; deckcap 07g5-ctrlp
 check "ctrl+p opens the palette" "$SCRATCH/out/07g5-ctrlp.txt" '─ command palette'
@@ -436,7 +439,7 @@ check "result names the build pane" "$SCRATCH/out/07l-result.txt" '"build"'
 check "status reports the call" "$SCRATCH/out/07l-result.txt" 'list-windows: ok'
 b send-keys -s host -w deck j >/dev/null; settle; deckcap 07m-moved
 if grep -q 'result of list-windows' "$SCRATCH/out/07m-moved.txt"; then echo "FAIL result view stayed after moving"; fails=$((fails+1)); else echo "PASS moving the selection ends the result view"; fi
-b send-text -s host -w deck 'O'; settle; deckcap 07n-session-again
+b send-text -s host -w deck 'OO'; settle; deckcap 07n-session-again
 check "O is back to session for the checks that follow" "$SCRATCH/out/07n-session-again.txt" 'grouped by session'
 
 echo "== tasks page: the seeded project and task"
@@ -848,6 +851,44 @@ check "prototype 6 shows the input" "$SCRATCH/out/21y-open-5.txt" '╭─ assign
 cmp -s "$DATA" "$SCRATCH/out/store-before-esc.json" && echo "PASS the store is unchanged after the three cancels" || { echo "FAIL a cancelled prototype changed the store"; fails=$((fails+1)); }
 b send-keys -s host -w deck Escape >/dev/null; settle; deckcap 21z-back
 check "esc on the prototypes page returns to the deck" "$SCRATCH/out/21z-back.txt" 'tuios-deck.* deck '
+
+echo "== the task tree: project, task, subtasks, then the pane"
+# Terminal goes on the subtask verb autocomplete the mass add made, and fake
+# is unassigned again so the (none) header shows.
+select_pane 2
+b send-keys -s host -w deck a >/dev/null; settle
+b send-keys -s host -w deck Enter >/dev/null; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 23a-unassign-fake
+check "both fields empty unassigns fake" "$SCRATCH/out/23a-unassign-fake.txt" 'unassigned fake'
+select_pane 0
+b send-keys -s host -w deck a >/dev/null; settle
+b send-text -s host -w deck 'verb autocomplete'; b send-keys -s host -w deck Tab >/dev/null
+b send-keys -s host -w deck Enter >/dev/null; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 23b-assign-sub
+check "Terminal is assigned to the subtask" "$SCRATCH/out/23b-assign-sub.txt" 'assigned Terminal [0-9a-f]* to deck › command palette › verb autocomplete'
+b send-keys -s host -w deck o >/dev/null; settle; deckcap 23c-tree
+check "one o from session is task tree" "$SCRATCH/out/23c-tree.txt" 'tuios-deck.* deck  by task tree'
+check "the project header at depth 0, just its glyph and name" "$SCRATCH/out/23c-tree.txt" '^◆ deck *│'
+check "a pane with only the project sits right under it" "$SCRATCH/out/23c-tree.txt" '^  · deck  *build'
+check "the task header indented under the project" "$SCRATCH/out/23c-tree.txt" '^  ● command palette *│'
+check "a later task sorts after the earlier one, its pane one level below it" "$SCRATCH/out/23c-tree.txt" '^    · deck brand new task  extra'
+check "the subtask header under the task" "$SCRATCH/out/23c-tree.txt" '^    . verb autocomplete *│'
+check "the pane under the subtask" "$SCRATCH/out/23c-tree.txt" '^      · deck verb autocompl.*Terminal'
+check "the selection stays on Terminal" "$SCRATCH/out/23c-tree.txt" 'target › Terminal [0-9a-f]*  '
+awk '/│/ && /^[^ │]/ { last = $0 } END { exit !(last ~ /^▾ \(none\)/) }' "$SCRATCH/out/23c-tree.txt" \
+	&& echo "PASS (none) is the last top-level header" || { echo "FAIL (none) is not the last top-level header"; fails=$((fails+1)); }
+check "fake sits under (none)" "$SCRATCH/out/23c-tree.txt" '^  . !!!! fake'
+if grep -q 'captures page\|landing\|◆ web' "$SCRATCH/out/23c-tree.txt"; then echo "FAIL a project or task with no pane shows"; fails=$((fails+1)); else echo "PASS projects and tasks with no pane under them are left out"; fi
+b send-text -s host -w deck '('; settle; deckcap 23d-up-task
+check "( climbs to the task level" "$SCRATCH/out/23d-up-task.txt" '{/} jump by task'
+check "( keeps Terminal, the first pane under command palette" "$SCRATCH/out/23d-up-task.txt" 'target › Terminal [0-9a-f]*  '
+b send-text -s host -w deck '('; settle; deckcap 23e-up-project
+check "( again climbs to the project level" "$SCRATCH/out/23e-up-project.txt" '{/} jump by project'
+check "( selects the project's first pane" "$SCRATCH/out/23e-up-project.txt" 'target › build  '
+b send-text -s host -w deck '}'; settle; deckcap 23f-next
+check "} moves to the next top-level header, (none)" "$SCRATCH/out/23f-next.txt" 'target › fake  '
+b send-text -s host -w deck '{'; settle; deckcap 23g-prev
+check "{ moves back to the project" "$SCRATCH/out/23g-prev.txt" 'target › build  '
+b send-text -s host -w deck 'O'; settle; deckcap 23h-session
+check "O returns to session" "$SCRATCH/out/23h-session.txt" 'grouped by session'
 
 echo "== h and l move the focus between the rail and the main area"
 # The build pane's screen holds the seq of the check above, taller than the detail.

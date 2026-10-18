@@ -308,6 +308,7 @@ kind (agents or terminals). `o` cycles the presets:
 
 ```
 session
+task tree
 project
 project > parent task
 task
@@ -319,8 +320,13 @@ state
 kind
 ```
 
-then round to session again; `O` goes the other way. The palette has
-`group by …` for each preset, and `group by…` asks for any list of levels,
+then round to session again; `O` goes the other way. `task tree` (or
+`tree`) stands alone: each pane sits under its project and every task on
+its path from the root down, one plain header per level with nothing but
+the name, so a pane on a sub-subtask is four levels deep, a pane with only
+a project sits right under it, and unassigned panes are under `(none)`.
+The palette has `group by …` for each preset, and `group by…` asks for any
+list of levels,
 such as `harness > project` (`top` and `parent` are short for top-level
 task and parent task; the field lists the level being typed). Each group is
 a header row, indented one step per level, with the next level's headers or

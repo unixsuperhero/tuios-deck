@@ -758,6 +758,9 @@ func (m *Model) openGroupingForm() tea.Cmd {
 				}
 			}
 			var out []string
+			if head == "" {
+				out = append(out, lvTree.String())
+			}
 			for _, name := range levelNames() {
 				out = append(out, head+name)
 			}
@@ -765,7 +768,7 @@ func (m *Model) openGroupingForm() tea.Cmd {
 		}}},
 		Validate: func(v []string) (int, string) {
 			if _, ok := parseGrouping(v[0]); !ok {
-				return 0, "levels are " + strings.Join(levelNames(), ", ") + ", joined by >"
+				return 0, "levels are " + strings.Join(levelNames(), ", ") + ", joined by >; or task tree"
 			}
 			return 0, ""
 		},

@@ -361,7 +361,7 @@ const $ = (id) => document.getElementById(id);
 const DOTS = { working: '◐', needs_input: '●', errored: '✗', idle: '○', done: '✓' };
 // A grouping is a list of levels joined by " > ", the first outermost.
 const LEVELS = ['session', 'project', 'task', 'parent task', 'top-level task', 'cwd', 'harness', 'state', 'kind'];
-const GROUPS = ['session', 'project', 'project > parent task', 'task', 'top-level task', 'harness > project > parent task', 'cwd', 'harness', 'state', 'kind'];
+const GROUPS = ['session', 'task tree', 'project', 'project > parent task', 'task', 'top-level task', 'harness > project > parent task', 'cwd', 'harness', 'state', 'kind'];
 const PAGES = ['deck', 'tasks', 'captures', 'context'];
 const state = {
   sessions: [], panes: {}, order: [], selected: null, tab: 'screen', transcripts: false,
@@ -424,7 +424,10 @@ function paneProject(p) { return p?.assignment?.project || ''; }
 // ---------------------------------------------------------------- grouping
 // parseGroup reads "a > b > c" into level names, or null when a level is
 // unknown. "top" and "parent" are short for top-level task and parent task.
+// The task tree, "task tree" or "tree", stands alone.
 function parseGroup(text) {
+  const whole = String(text || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  if (whole === 'task tree' || whole === 'tree') return ['task tree'];
   const out = [];
   for (let part of String(text || '').split('>')) {
     part = part.trim().toLowerCase().replace(/\s+/g, ' ');
@@ -476,6 +479,7 @@ function groups() {
     }
     return rows;
   }
+  if (levels[0] === 'task tree') return treeRows();
   const nest = (ps, depth, underProject) => {
     if (depth === levels.length) { for (const p of ps) rows.push({ pane: p, depth }); return; }
     const level = levels[depth];
@@ -499,10 +503,49 @@ function groups() {
   nest(all, 0, false);
   return rows;
 }
+// treeRows is the rail as the task tree: a header per project, under it a
+// header per task on the panes' paths from the root down, and each pane
+// one level below its deepest header, ahead of the headers beside it. Only
+// the panes' own ancestry shows. Projects sort by name, tasks by when they
+// were made; unassigned panes sit under "(none)", last.
+function treeRows() {
+  const root = { kids: new Map(), panes: [] };
+  const child = (n, id, label, theme, created) => {
+    if (!n.kids.has(id)) n.kids.set(id, { id, label, theme, created, kids: new Map(), panes: [] });
+    return n.kids.get(id);
+  };
+  const none = [];
+  for (const s of state.sessions) for (const p of s.panes || []) {
+    const a = p.assignment;
+    const pr = a && a.project_id && projectById(a.project_id);
+    if (!pr) { none.push(p); continue; }
+    let n = child(root, pr.id, pr.name, pr.theme, 0);
+    const path = [];
+    for (let t = a.task_id && taskById(a.task_id); t && path.length <= state.tasks.length; t = t.parent_id && taskById(t.parent_id)) path.unshift(t);
+    for (const t of path) n = child(n, t.id, t.title, t.theme, t.created);
+    n.panes.push(p);
+  }
+  const rows = [];
+  const walk = (n, depth, byName) => {
+    if (depth >= 0) {
+      rows.push({ header: n.label, theme: n.theme, note: '', depth });
+      for (const p of n.panes) rows.push({ pane: p, depth: depth + 1 });
+    }
+    const kids = [...n.kids.values()].sort((a, b) =>
+      byName ? a.label.localeCompare(b.label) || (a.id < b.id ? -1 : 1) : (a.created - b.created) || (a.id < b.id ? -1 : 1));
+    for (const c of kids) walk(c, depth + 1, false);
+  };
+  walk(root, -1, true);
+  if (none.length) {
+    rows.push({ header: '(none)', note: '', depth: 0 });
+    for (const p of none) rows.push({ pane: p, depth: 1 });
+  }
+  return rows;
+}
 // setGroup regroups the rail by a preset or by free text "a > b > c".
 function setGroup(text) {
   const levels = parseGroup(text);
-  if (!levels) { setStatus(`levels are ${LEVELS.join(', ')}, joined by >`, true); return; }
+  if (!levels) { setStatus(`levels are ${LEVELS.join(', ')}, joined by >; or task tree`, true); return; }
   const g = levels.join(' > ');
   state.group = g;
   fillGroupSelect();
@@ -543,6 +586,10 @@ function renderList() {
       const h = document.createElement('div'); h.className = 'session';
       h.innerHTML = `<span></span><span></span>`;
       h.firstChild.textContent = r.header; h.firstChild.title = r.header; h.lastChild.textContent = r.note;
+      if (r.theme) {
+        const g = document.createElement('span'); g.className = 'glyph'; g.textContent = r.theme.glyph + ' '; g.style.color = r.theme.css;
+        h.firstChild.prepend(g);
+      }
       if (r.depth) h.style.paddingLeft = `${12 + r.depth * 14}px`;
       list.append(h);
       continue;
