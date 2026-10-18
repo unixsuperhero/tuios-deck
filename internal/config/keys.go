@@ -69,6 +69,8 @@ var actions = map[string][]Action{
 		{"leader", "ctrl+a", "the prefix: the next key is a live command, or the prefix again to type it", false},
 		{"detach", "d", "back to the deck; the pane keeps running", false},
 		{"zoom", "z", "show the pane across the whole deck, or beside the rail again", false},
+		{"zoom_pane", "Z", "zoom the pane in its own tuios session (tiling on), or put it back", false},
+		{"fullscreen_pane", "f", "fullscreen the pane in its own tuios session (tiling off), or put it back", false},
 		{"next_pane", "j", "go live on the next pane of the rail", false},
 		{"prev_pane", "k", "go live on the previous pane of the rail", false},
 		{"help", "?", "show the live keys", false},

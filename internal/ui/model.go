@@ -357,6 +357,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.setStatus("error: " + msg.err.Error())
 		return m, m.waitLive()
 
+	case liveViewMsg:
+		if msg.l != m.live {
+			return m, nil
+		}
+		m.live.viewBusy = false
+		m.live.view = msg.state
+		m.setStatus(m.paneViewStatus(msg))
+		return m, nil
+
 	case detailMsg:
 		m.detailBusy = false
 		if msg.key != m.detailFor || m.result != nil || m.live != nil {

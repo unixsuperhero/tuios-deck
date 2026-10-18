@@ -3,8 +3,9 @@
 # enter goes live on the selected pane, typed keys reach the pane and its
 # screen comes back, the prefix (ctrl+a) runs the live commands (zoom, the
 # next and previous pane, the keys, detach), a paste is pasted, the size
-# lease fits the pane to the deck and lets go on detach, and a pane that
-# closes under the deck ends the session. Same shape as e2e.sh: daemon A
+# lease fits the pane to the deck and lets go on detach, under an attached
+# tuios client Z and f zoom and fullscreen the pane in tuios with the tiling
+# mode each needs, and a pane that closes under the deck ends the session. Same shape as e2e.sh: daemon A
 # holds the panes, daemon B runs the deck in a pane driven by send-keys.
 set -uo pipefail
 
@@ -139,6 +140,7 @@ check "zoom again brings the rail back" "$SCRATCH/out/06-unzoom.txt" 'fake'
 key ctrl+a; key '?'; settle; deckcap 07-help
 check "the prefix and ? open the live keys" "$SCRATCH/out/07-help.txt" 'Mode: live'
 check "the help lists detach" "$SCRATCH/out/07-help.txt" 'detach: back to the deck'
+check "the help lists the tuios zoom" "$SCRATCH/out/07-help.txt" 'zoom_pane'
 key Escape; settle; deckcap 08-help-closed
 check "esc closes the help and the session stays live" "$SCRATCH/out/08-help-closed.txt" 'LIVE .*target › build'
 key ctrl+a; key j
@@ -165,6 +167,58 @@ check "T opens the tasks page, so keys are the deck's" "$SCRATCH/out/13-tasks.tx
 key Escape; settle
 a capture-pane -s target -w build > "$SCRATCH/out/build-after.txt"
 check_absent "T was not typed into build" "$SCRATCH/out/build-after.txt" '\$ T$'
+
+echo "== a tuios client shows target: the lease cannot grow a tile, so Z zooms and f fullscreens the pane in tuios"
+# A client of A, in a pane of B, with A's folders and none of B's pane identity.
+b new-window -s host client --no-focus -- env -u TUIOS_SESSION -u TUIOS_PANE_ID -u TUIOS_PANE_TOKEN -u TUIOS_WINDOW_ID -u TUIOS_SOCKET -u TUIOS_HOST -u TUIOS_SSH -u TUIOS_ENV -u TUIOS_SERVER \
+	XDG_RUNTIME_DIR="$A/run" XDG_CONFIG_HOME="$A/config" XDG_CONFIG_DIRS="$A/config" XDG_STATE_HOME="$A/state" XDG_CACHE_HOME="$A/cache" XDG_DATA_HOME="$A/data" TMPDIR="$A/tmp" \
+	tuios attach target >/dev/null
+for ((i=0; i<50; i++)); do a call session-info '{"session":"target"}' | grep -q '"tui_attached": *true' && break; sleep .2; done
+tiling() { a call session-info '{"session":"target"}' | grep -o '"tiling_mode": *"[a-z]*"' | grep -o '[a-z]*"$' | tr -d '"'; }
+zoomed() { a list-windows -s target --json | grep -c '"zoomed": *true'; }
+if [ "$(tiling)" = tiling ]; then echo "PASS the client attached with tiling on"; else echo "FAIL target is not tiled under the client ($(tiling))"; fails=$((fails+1)); fi
+tile=$(cols_of_build size3)
+key g; key j --repeat 2; settle; key Enter
+wait_deck 'LIVE .*target › build' 5
+live=$(cols_of_build size4)
+if [ "$live" = "$tile" ]; then echo "PASS the lease left build at its tile, $tile, under the client"; else echo "FAIL build is $live live under the client, its tile was $tile"; fails=$((fails+1)); fi
+key ctrl+a; key Z
+wait_deck 'build is zoomed in target' 5; deckcap 15-zoomed
+check "Z after the prefix zooms build in its session" "$SCRATCH/out/15-zoomed.txt" 'build is zoomed in target (tiling on)'
+check "the live bar says zoomed" "$SCRATCH/out/15-zoomed.txt" 'LIVE .*· zoomed'
+if [ "$(zoomed)" = 1 ]; then echo "PASS list-windows marks build zoomed"; else echo "FAIL no zoomed window in target"; fails=$((fails+1)); fi
+# The client slides the pane to its zoom box; the stream's R frame moves the live bar's size when it lands.
+wait_deck_gone "$(echo "$tile" | tr x ×)" 5 || echo "WARN the live bar still shows the tile size $tile"
+zoom=$(cols_of_build size5)
+if [ "${zoom#*x}" -gt "${tile#*x}" ]; then echo "PASS the zoom gave build more rows ($zoom, tile $tile)"; else echo "FAIL build is $zoom zoomed, tile $tile"; fails=$((fails+1)); fi
+key ctrl+a; key Z
+wait_deck 'build is back in its tile' 5; deckcap 16-unzoomed
+check "Z again puts build back" "$SCRATCH/out/16-unzoomed.txt" 'build is back in its tile'
+check_absent "and the live bar no longer says zoomed" "$SCRATCH/out/16-unzoomed.txt" '· zoomed'
+if [ "$(zoomed)" = 0 ]; then echo "PASS no window is zoomed after Z again"; else echo "FAIL build is still zoomed"; fails=$((fails+1)); fi
+key ctrl+a; key f
+wait_deck 'build is fullscreen in target' 5; deckcap 17-fullscreen
+check "f after the prefix makes build fullscreen in its session" "$SCRATCH/out/17-fullscreen.txt" 'build is fullscreen in target (tiling off)'
+check "the live bar says fullscreen" "$SCRATCH/out/17-fullscreen.txt" 'LIVE .*· fullscreen'
+if [ "$(tiling)" = floating ]; then echo "PASS fullscreen turned tiling off"; else echo "FAIL target is $(tiling) while fullscreen"; fails=$((fails+1)); fi
+wait_deck_gone "$(echo "$tile" | tr x ×)" 5 || echo "WARN the live bar still shows the tile size $tile"
+full=$(cols_of_build size6)
+if [ "${full#*x}" -gt "${tile#*x}" ]; then echo "PASS fullscreen gave build more rows ($full, tile $tile)"; else echo "FAIL build is $full fullscreen, tile $tile"; fails=$((fails+1)); fi
+key ctrl+a; key f
+wait_deck 'build is back in its tile' 5; deckcap 18-unfull
+check "f again puts build back" "$SCRATCH/out/18-unfull.txt" 'build is back in its tile'
+if [ "$(tiling)" = tiling ]; then echo "PASS and tiling is on again"; else echo "FAIL target is $(tiling) after fullscreen ended"; fails=$((fails+1)); fi
+key ctrl+a; key Z
+wait_deck 'build is zoomed in target' 5
+key ctrl+a; key j
+wait_deck 'fake is zoomed in target' 5; deckcap 19-zoom-moves
+check "the zoom moves with j to the next pane" "$SCRATCH/out/19-zoom-moves.txt" 'LIVE .*target › fake.*· zoomed'
+key ctrl+a; key Z
+wait_deck 'fake is back in its tile' 5
+key ctrl+a; key d
+wait_deck 'detached from fake' 5
+b close-window -s host client >/dev/null
+for ((i=0; i<50; i++)); do a call session-info '{"session":"target"}' | grep -q '"tui_attached": *false' && break; sleep .2; done
 
 echo "== a pane that closes under the deck ends the session"
 key g; key j --repeat 2; settle

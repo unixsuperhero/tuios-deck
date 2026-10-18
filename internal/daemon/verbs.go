@@ -342,6 +342,48 @@ type Window struct {
 	CursorVisible bool   `json:"cursor_visible"`
 }
 
+// SessionTiling reports a session's tiling mode: "tiling" or "floating".
+func (c *Client) SessionTiling(ctx context.Context, session string) (string, error) {
+	var out struct {
+		TilingMode string `json:"tiling_mode"`
+	}
+	err := c.Call(ctx, "session-info", map[string]any{"session": session}, &out)
+	return out.TilingMode, err
+}
+
+// WindowZoomed reports whether list-windows marks a window zoomed.
+func (c *Client) WindowZoomed(ctx context.Context, session, window string) (bool, error) {
+	var out struct {
+		Windows []struct {
+			ID     string `json:"window_id"`
+			Zoomed bool   `json:"zoomed"`
+		} `json:"windows"`
+	}
+	if err := c.Call(ctx, "list-windows", map[string]any{"session": session}, &out); err != nil {
+		return false, err
+	}
+	for _, w := range out.Windows {
+		if w.ID == window {
+			return w.Zoomed, nil
+		}
+	}
+	return false, nil
+}
+
+// FocusWindow moves a session's focus to a window, switching to its
+// workspace.
+func (c *Client) FocusWindow(ctx context.Context, session, window string) error {
+	return c.Call(ctx, "focus-window", map[string]any{"session": session, "window": window}, nil)
+}
+
+// RunCommand runs a tape command (ToggleZoom, SnapFullscreen, EnableTiling)
+// or a keybinding action (unsnap) on the session's attached tuios client.
+// It acts on the focused window; with no client attached the daemon
+// answers needs_client.
+func (c *Client) RunCommand(ctx context.Context, session, command string) error {
+	return c.Call(ctx, "run-command", map[string]any{"session": session, "command": command}, nil)
+}
+
 // GetWindow describes one window, with its cursor when the daemon knows it.
 func (c *Client) GetWindow(ctx context.Context, session, window string) (Window, error) {
 	var out Window

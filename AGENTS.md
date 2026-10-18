@@ -42,6 +42,7 @@ internal/ui/         model.go state, keys.go dispatch, commands.go daemon calls 
                      jump.go the { } ( ) group and level jumps for the rail, tasks, context and Turns,
                      live.go the live mode (enter): keys to the pane through send-keys/send-text, the screen back through capture-pane,
                      a stream-pane held for its size lease and as the output signal; ctrl+a is the prefix, ctrl+a d detaches,
+                     liveview.go the pane's view in its own session (ctrl+a Z zoom, ctrl+a f fullscreen) through run-command,
                      pickers.go the prototypes page (U), the picker interface and finish; picker_fuzzy/tree/hotkey/miller/chips.go
                      one prototype each (fuzzy also draws the two-pane one), picker_preview.go the shared ? preview and its screen reads
 internal/web/        server.go routes (Handler), stream.go the WebSocket bridge to stream-pane, static/index.html the page
@@ -144,6 +145,18 @@ Rules the suites follow, and a new check should too:
   seconds or the daemon drops it, and it changes the pane's own size (what
   `tput cols` prints), not the `width` `list-windows` reports, which is the
   window's rectangle. `liveSize` and `View` must agree on the live area.
+- **A lease never makes a pane larger.** The live lease is `min` per
+  dimension with what the session's clients ask for, so under an attached
+  tuios client the pane stays the size of its tile and the live bar shows
+  that. `fit` is already sent; it grows the pane only while no client shows
+  the session. More room under a client comes from that client: liveview.go
+  focuses the pane and runs `ToggleZoom` (tiling on) or `SnapFullscreen`
+  (refused while tiling is on, so `DisableTiling` first) through
+  `run-command`, remembers the tiling mode it changed in `live.view`, and
+  puts it back with the `unsnap` action or a second `ToggleZoom`. There is
+  no daemon verb for zoom; `run-command` answers `needs_client` headless, and
+  the client slides the pane to its box after the verb returns, so a suite
+  waits for the live bar's size to leave the tile's before it measures.
 - **Presence.** `agent-transcript` is served only to a connection holding
   the person's nonce from `attach-presence`, and the daemon refuses that
   call from any process inside one of its own panes, by TTY, ancestry and

@@ -199,7 +199,7 @@ whose action moved elsewhere does nothing; swapping two keys is allowed.
 | Mode | Where | Actions |
 | --- | --- | --- |
 | `deck` | the dashboard; `help` `quit` `palette` `tasks` `captures` `add_many` `context` `review` `history` on every page, the rest on the deck page only | `help quit palette tasks captures add_many context review history left right down up top bottom scroll_down scroll_up next_tab prev_tab refresh group_next group_prev new_agent new_terminal prompt assign capture extract close live` |
-| `live` | the deck live on a pane; `leader` is the prefix (`ctrl+a`), the rest are the keys after it | `leader detach zoom next_pane prev_pane help` |
+| `live` | the deck live on a pane; `leader` is the prefix (`ctrl+a`), the rest are the keys after it | `leader detach zoom zoom_pane fullscreen_pane next_pane prev_pane help` |
 | `form_normal` | forms, vim modes on, normal mode | `insert append next_field prev_field clear submit cancel` |
 | `form_insert` | forms, vim modes on, insert mode | `leave_insert` (never a printable key, so no key that types can leave the mode) |
 
@@ -784,6 +784,8 @@ is a live command:
 | --- | --- |
 | `d` | Detach: focus comes back to the deck, the pane keeps running |
 | `z` | Zoom: the pane across the whole deck, or beside the rail again |
+| `Z` | Zoom the pane in its own tuios session (tiling on), or put it back |
+| `f` | Fullscreen the pane in its own tuios session (tiling off), or put it back |
 | `j` `k` | Go live on the next or the previous pane of the rail |
 | `?` | The live keys |
 | `ctrl+a` | Type `ctrl+a` itself into the pane |
@@ -792,8 +794,15 @@ is a live command:
 While the deck is live the pane is fitted to the live area through the
 stream's size lease, so what you see is the whole screen; the live bar shows
 the size, and the pane goes back to its own size on detach. An attached
-tuios client shows the smaller pane meanwhile. The session ends on its own
-when the pane closes. The prefix and the commands are the `live` mode of the
+tuios client shows the smaller pane meanwhile. A lease only ever makes a
+pane smaller, though: while a tuios client shows the session, the pane
+stays no larger than the tile that client draws it in, and the live bar
+shows that tile's size. `ctrl+a Z` asks the client to zoom the pane and
+`ctrl+a f` to make it fullscreen, each with the tiling mode it needs (zoom
+wants tiling on, a fullscreen snap wants it off); the same key again puts
+the pane and the tiling mode back, and the view moves with `j` and `k`. With
+no client attached the lease already fits the pane to the deck, so neither
+has anything to ask for. The session ends on its own when the pane closes. The prefix and the commands are the `live` mode of the
 settings file (below), so `ctrl+a` can be another key.
 
 The deck embeds no terminal emulator for this: the daemon renders the

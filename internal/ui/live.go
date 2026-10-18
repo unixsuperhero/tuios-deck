@@ -32,7 +32,9 @@ import (
 type live struct {
 	session, id, name string
 	zoom              bool
-	prefixed          bool // the prefix was pressed; the next key is a command
+	prefixed          bool          // the prefix was pressed; the next key is a command
+	view              paneViewState // what the deck changed in the pane's own session (liveview.go)
+	viewBusy          bool          // a view change is in flight
 	screen            []string
 	curX, curY        int
 	cursor            bool
@@ -109,8 +111,12 @@ func (m *Model) openLive() tea.Cmd {
 		return nil
 	}
 	zoom := false
+	var prev paneViewState // the view the pane left behind moves to the next one
 	if m.live != nil {
 		zoom = m.live.zoom
+		if !m.live.viewBusy {
+			prev = m.live.view
+		}
 		m.live.cancel()
 	}
 	m.clearResult()
@@ -126,6 +132,9 @@ func (m *Model) openLive() tea.Cmd {
 	go l.run(ctx, m.client, cols, rows)
 	leader := m.liveBinding("leader")
 	m.setStatus("live on " + p.Name + ": keys go to the pane; " + leader + " " + m.liveBinding("detach") + " comes back, " + leader + " " + m.liveBinding("help") + " lists the keys")
+	if prev.view != viewNormal {
+		return tea.Batch(m.waitLive(), m.paneViewCmd(l, prev, paneViewState{session: l.session, id: l.id, view: prev.view}))
+	}
 	return m.waitLive()
 }
 
@@ -183,6 +192,10 @@ func (m *Model) handleLiveKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		l.zoom = !l.zoom
 		l.lease(m.liveSize(l.zoom))
 		return m, nil
+	case "Z":
+		return m, m.togglePaneView(viewZoom)
+	case "f":
+		return m, m.togglePaneView(viewFullscreen)
 	case "j", "k":
 		m.move(map[string]int{"j": 1, "k": -1}[msg.String()])
 		if p := m.selected(); p != nil && p.ID == l.id {
@@ -437,9 +450,12 @@ func (m *Model) liveLines(width, height int) []string {
 	if l.cols > 0 {
 		bar += cDim.Render(fmt.Sprintf("  %d×%d", l.cols, l.rows))
 	}
+	if l.view.view != viewNormal {
+		bar += cDim.Render(" · " + l.view.view.String())
+	}
 	hint := "  " + cDim.Render(leader+" "+m.liveBinding("detach")+" detaches")
 	if l.prefixed {
-		hint = "  " + cStatus.Render(leader+" … "+m.liveBinding("detach")+" detach · "+m.liveBinding("zoom")+" zoom · "+m.liveBinding("next_pane")+"/"+m.liveBinding("prev_pane")+" pane · "+m.liveBinding("help")+" keys · esc cancel")
+		hint = "  " + cStatus.Render(leader+" … "+m.liveBinding("detach")+" detach · "+m.liveBinding("zoom")+" zoom · "+m.liveBinding("zoom_pane")+"/"+m.liveBinding("fullscreen_pane")+" in tuios · "+m.liveBinding("next_pane")+"/"+m.liveBinding("prev_pane")+" pane · "+m.liveBinding("help")+" keys · esc cancel")
 	}
 	lines := []string{ansi.Truncate(bar+hint, width, "…")}
 	for i := 0; i < height-1; i++ {
@@ -472,5 +488,5 @@ func cursorAt(line string, x int) string {
 // liveHelpLine is the help line while live.
 func (m *Model) liveHelpLine() string {
 	leader := m.liveBinding("leader")
-	return cLive.Render(" LIVE ") + cDim.Render(" keys go to "+m.live.name+" · "+leader+" "+m.liveBinding("detach")+" detach · "+leader+" "+m.liveBinding("zoom")+" zoom · "+leader+" "+m.liveBinding("next_pane")+"/"+m.liveBinding("prev_pane")+" other pane · "+leader+" "+leader+" types "+leader+" · "+leader+" "+m.liveBinding("help")+" keys")
+	return cLive.Render(" LIVE ") + cDim.Render(" keys go to "+m.live.name+" · "+leader+" "+m.liveBinding("detach")+" detach · "+leader+" "+m.liveBinding("zoom")+" zoom · "+leader+" "+m.liveBinding("zoom_pane")+"/"+m.liveBinding("fullscreen_pane")+" in tuios · "+leader+" "+m.liveBinding("next_pane")+"/"+m.liveBinding("prev_pane")+" other pane · "+leader+" "+leader+" types "+leader+" · "+leader+" "+m.liveBinding("help")+" keys")
 }
