@@ -10,6 +10,9 @@ import (
 )
 
 func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if handled, cmd := m.focusBufferKey(msg.String()); handled {
+		return m, cmd
+	}
 	if m.help != nil {
 		return m.handleHelpKey(msg)
 	}

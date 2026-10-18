@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
@@ -179,4 +180,25 @@ func (m *Model) focusActivity(now time.Time, user bool) {
 	if user {
 		m.focus.clock.Activity(now)
 	}
+}
+
+func (m *Model) focusBufferKey(key string) (bool, tea.Cmd) {
+	if m.focus == nil || m.focus.clock.BufferUntil.IsZero() {
+		return false, nil
+	}
+	switch key {
+	case "enter":
+		m.focus.clock = focus.New(time.Now())
+	case "F", "esc":
+		return true, m.unlockFocus()
+	case "q", "ctrl+c":
+		return true, tea.Quit
+	}
+	return true, nil
+}
+
+func (m *Model) focusBufferView() string {
+	seconds := max(0, int(time.Until(m.focus.clock.BufferUntil).Seconds()+0.999))
+	text := fmt.Sprintf("15 active minutes — continue focus?\n\nEnter continues for a fresh cycle.\nF or Esc unlocks now.\n\nUnlocking in %d seconds.", seconds)
+	return m.focusScreen(lipgloss.NewStyle().Width(m.width).Height(m.height).Align(lipgloss.Center, lipgloss.Center).Render(text))
 }

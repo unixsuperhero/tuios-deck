@@ -530,6 +530,12 @@ Focus unlocks after three minutes without user input. Keyboard, paste and
 received mouse input count in the TUI; trusted keyboard, pointer, wheel,
 touch and input events count in the browser, including the Live terminal.
 Daemon events, detail polls and the clock itself never extend the deadline.
+After fifteen consecutive completed one-minute intervals with user input in
+each, a thirty-second buffer asks whether to continue. **Enter** (or the
+browser’s **Continue focus**) starts a fresh cycle without moving selection
+or scroll. Other input does not extend the buffer; expiry or **Unlock now**
+releases focus. A minute without input breaks the streak. The clock starts
+when focus begins; these are elapsed intervals, not wall-clock minutes.
 
 
 ## The TUI

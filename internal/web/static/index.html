@@ -530,6 +530,11 @@ body.focused button.primary, body.focused .nav button.on, body.focused .tabs but
 <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js"></script>
 <script src="/reviews.js"></script>
+<dialog id="focus-buffer" aria-labelledby="focus-buffer-title"><form method="dialog">
+  <h2 id="focus-buffer-title">15 active minutes — continue focus?</h2>
+  <p>Enter continues for a fresh cycle. Otherwise focus unlocks in <span id="focus-seconds">30</span> seconds.</p>
+  <div class="actions"><button type="button" id="focus-stop">Unlock now</button><button type="button" id="focus-continue" class="primary">Continue focus (Enter)</button></div>
+</form></dialog>
 <script src="/focus-clock.js"></script>
 <script>
 (() => {
@@ -550,7 +555,12 @@ const state = {
 let focusScope = null;
 let focusClock = null;
 function checkFocusClock() {
-  if (focusClock && focusClock.expired(Date.now())) unlockFocus();
+  if (!focusClock) return;
+  if (focusClock.expired(Date.now())) { unlockFocus(); return; }
+  if (focusClock.bufferUntil) {
+    if (!$('focus-buffer').open) $('focus-buffer').showModal();
+    $('focus-seconds').textContent = Math.max(0, Math.ceil((focusClock.bufferUntil - Date.now()) / 1000));
+  }
 }
 for (const event of ['keydown', 'pointerdown', 'pointermove', 'wheel', 'input', 'paste', 'touchstart']) {
   document.addEventListener(event, e => {
@@ -560,6 +570,19 @@ for (const event of ['keydown', 'pointerdown', 'pointermove', 'wheel', 'input', 
   }, {capture: true, passive: true});
 }
 setInterval(checkFocusClock, 1000);
+function continueFocus() {
+  checkFocusClock();
+  if (!focusClock || !focusClock.bufferUntil) return;
+  focusClock = new FocusClock(Date.now()); $('focus-buffer').close();
+}
+$('focus-continue').onclick = continueFocus;
+$('focus-stop').onclick = unlockFocus;
+$('focus-buffer').oncancel = e => { e.preventDefault(); unlockFocus(); };
+document.addEventListener('keydown', e => {
+  if (!$('focus-buffer').open) return;
+  if (e.key === 'Enter') { e.preventDefault(); e.stopImmediatePropagation(); continueFocus(); }
+  else if (e.key === 'F') { e.preventDefault(); e.stopImmediatePropagation(); unlockFocus(); }
+}, true);
 function focusTask(id) {
   if (!focusScope) return true;
   if (focusScope.kind === 'project') return taskById(id)?.project_id === focusScope.id;
@@ -604,6 +627,7 @@ function startFocus(kind, id) {
   setPage('deck'); updateFocusView(); showTab(state.tab, true);
 }
 function unlockFocus() {
+  if ($('focus-buffer').open) $('focus-buffer').close();
   focusClock = null;
   focusScope = null; updateFocusView(); setStatus('focus unlocked');
 }

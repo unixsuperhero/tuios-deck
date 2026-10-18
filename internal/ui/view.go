@@ -48,6 +48,10 @@ func (m *Model) View() tea.View {
 		v.SetContent("loading…")
 		return v
 	}
+	if m.focus != nil && !m.focus.clock.BufferUntil.IsZero() {
+		v.SetContent(m.focusBufferView())
+		return v
+	}
 	if m.help != nil {
 		v.SetContent(m.helpView())
 		return v
