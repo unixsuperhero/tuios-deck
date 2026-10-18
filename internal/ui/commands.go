@@ -85,6 +85,10 @@ func (m *Model) refreshList() tea.Cmd {
 // loadDetail reads the selected pane for the current tab. With force it runs
 // even when a read is in flight; the tick calls it without force.
 func (m *Model) loadDetail(force bool) tea.Cmd {
+	if m.railReveal != "" && m.selectedID() != m.railReveal {
+		m.railReveal = ""
+		m.rebuildRows()
+	}
 	if m.result != nil {
 		return nil // a verb's result holds the pane until the selection or the tab moves
 	}

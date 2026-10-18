@@ -248,6 +248,29 @@ print(json.dumps([p["assignment"] for s in d["sessions"] for p in s["panes"] if 
 check "state pane shows its task" "$SCRATCH/out/pane-assignment.json" '"task": "autocomplete"'
 check "state pane shows its project" "$SCRATCH/out/pane-assignment.json" '"project": "deckproj"'
 check "state pane shows its top task" "$SCRATCH/out/pane-assignment.json" '"top": "palette"'
+echo "== task snooze and working visibility"
+if python3 - "$base" "$TID" "$TASKED" "$SCRATCH/deck.json" <<'PY'
+import datetime, json, sys, urllib.request
+base, task, window, path = sys.argv[1:]
+def api(route, body=None):
+    req = urllib.request.Request(base + route, data=None if body is None else json.dumps(body).encode(),
+        headers={'Content-Type':'application/json'}, method='GET' if body is None else 'PATCH')
+    return json.load(urllib.request.urlopen(req))
+def pane():
+    return next(p for s in api('/api/state')['sessions'] for p in s['panes'] if p['id'] == window)
+assert pane()['rail_hidden'] is False
+result = api('/api/tasks/' + task, {'snoozed': True})['task']
+tomorrow = datetime.datetime.combine(datetime.date.today() + datetime.timedelta(days=1), datetime.time())
+assert result['snoozed_until'] == int(tomorrow.timestamp())
+assert pane()['rail_hidden'] is True
+saved = next(t for t in json.load(open(path))['tasks'] if t['id'] == task)
+assert saved['snoozed_until'] == result['snoozed_until']
+assert api('/api/tasks/' + task, {'snoozed': False})['task']['snoozed_until'] == 0
+assert pane()['rail_hidden'] is False
+print('PASS parent snooze hides descendant panes, persists to midnight, and unsnoozes')
+PY
+then :; else echo "FAIL task snooze behavior"; fails=$((fails+1)); fi
+
 curl -s -X PUT -H "$J" -d '{"project":"deckproj"}' "$base/api/panes/target/$TASKED/assignment" > "$SCRATCH/out/assign.json"
 check "PUT assignment to a project" "$SCRATCH/out/assign.json" '"project":"deckproj"'
 check "PUT assignment to a project drops the task" "$SCRATCH/out/assign.json" '"task_id":""'
@@ -288,6 +311,27 @@ check "the turn capture's kind is turn" "$SCRATCH/out/captures-auto.json" '"sess
 check "web log names the auto capture" "$SCRATCH/out/web.log" 'auto-captured turn to .*target-fake-'
 [ "$(grep -c 'auto-captured turn to .*target-fake-' "$SCRATCH/out/web.log")" = 1 ] \
 	&& echo "PASS one log line for the one turn capture" || { echo "FAIL turn capture logged more than once"; fails=$((fails+1)); }
+
+curl -s -X PUT -H "$J" -d "{\"task_id\":\"$SID\"}" "$base/api/panes/target/$TASKED/assignment" > /dev/null
+curl -s -X PUT -H "$J" -d "{\"task_id\":\"$SID\"}" "$base/api/panes/target/$FAKE/assignment" > /dev/null
+a set-agent-state working -s target -w fake --harness claude-code >/dev/null
+curl -s "$base/api/state" > "$SCRATCH/out/visibility-mixed.json"
+curl -s -X DELETE "$base/api/panes/target/$TASKED/assignment" > /dev/null
+curl -s "$base/api/state" > "$SCRATCH/out/visibility-working.json"
+a set-agent-state needs_input -s target -w fake --harness claude-code >/dev/null
+curl -s "$base/api/state" > "$SCRATCH/out/visibility-attention.json"
+if python3 - "$SCRATCH/out" "$FAKE" <<'PY'
+import json, sys
+root, window = sys.argv[1:]
+for name, hidden in [('mixed', False), ('working', True), ('attention', False)]:
+    data = json.load(open(root + '/visibility-' + name + '.json'))
+    pane = next(p for s in data['sessions'] for p in s['panes'] if p['id'] == window)
+    assert pane['rail_hidden'] is hidden, (name, pane)
+print('PASS mixed working stays visible, all working hides, and attention restores')
+PY
+then :; else echo "FAIL task working visibility"; fails=$((fails+1)); fi
+curl -s -X DELETE "$base/api/panes/target/$FAKE/assignment" > /dev/null
+a set-agent-state idle -s target -w fake --harness claude-code >/dev/null
 
 echo "== delete project cascades"
 curl -s -X PUT -H "$J" -d "{\"task_id\":\"$SID\"}" "$base/api/panes/target/$TASKED/assignment" > "$SCRATCH/out/assign2.json"

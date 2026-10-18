@@ -225,6 +225,37 @@ project or task no longer holds its colour. The tasks page marks a done row
 `✓` and a skipped one `⊘`. A project written before it had a status reads
 as open.
 
+### Snoozing and the attention rail
+
+Press `z` on the TUI deck to snooze the selected pane's task until the next
+midnight in the deck process's local timezone. On the Tasks page, `z` toggles
+snooze for the selected task. In the browser, select a task on **Tasks** and
+use **Snooze until midnight** or **Unsnooze**. The deadline survives restarts;
+expiry restores eligible panes automatically without resetting filters or scroll.
+
+Snooze hides that task's panes and its descendants' panes from the deck's
+left rail in every grouping. It does not change status, stop processes, or
+remove tasks from the Tasks page. A descendant's own snooze remains in effect
+when its parent is unsnoozed.
+
+The rail also hides a task's panes while every live pane assigned directly
+to that task is working. One idle, done, errored, unknown, or needs-input pane
+keeps the whole task visible. Agent state comes from the daemon. A terminal
+counts as working only when OSC 133 command marks confirm a running command;
+a terminal without those marks stays visible. Unassigned and project-only
+panes are not hidden by this rule.
+
+Hidden panes remain listed in task details. Opening one explicitly still works;
+in the TUI it is temporarily revealed until selection moves elsewhere.
+Tasks with no panes remain on the Tasks page, as before.
+
+The API accepts `PATCH /api/tasks/{id}` with `{"snoozed": true}` or
+`{"snoozed": false}`. Task responses contain `snoozed_until`, a Unix-seconds
+deadline, or zero when cleared. `GET /api/state` retains every pane and adds
+`rail_hidden` to each one; `rail_wake` is the next snooze expiry, or zero.
+
+### Themes
+
 Every project and every task has its own theme, one of the 16 ANSI colours
 and one glyph, drawn before its name in the list, on the tasks page and on
 the web page. A new one takes a colour at random from the free ones, those
@@ -1233,9 +1264,9 @@ GET    /api/projects                           {"projects": [{id, name, theme: {
 POST   /api/projects                           {"name", "theme"?: {"color", "glyph"}}
 PATCH  /api/projects/{id}                      {"name"}, {"status": "open"|"done"|"skipped"}, {"theme": {"color", "glyph"}}, either half of the theme alone
 DELETE /api/projects/{id}                      with its tasks and their assignments; the answer counts them
-GET    /api/tasks?project=                     {"tasks": [{id, parent_id, project_id, title, path, depth, theme, status, easy, panes, …}]}
+GET    /api/tasks?project=                     {"tasks": [{id, parent_id, project_id, title, path, depth, theme, status, easy, snoozed_until, panes, …}]}
 POST   /api/tasks                              {"project_id", "title"} for a top-level task; {"parent_id", "title"} for a subtask; "theme"?
-PATCH  /api/tasks/{id}                         {"title"}, {"status": "open"|"done"|"skipped"}, {"easy": true|false}, {"theme": {…}}; a move: {"parent_id"} or {"parent": path} under a task, {"project_id"} or {"project": name} to a project’s top level
+PATCH  /api/tasks/{id}                         {"title"}, {"status": "open"|"done"|"skipped"}, {"easy": true|false}, {"snoozed": true|false}, {"theme": {…}}; a move: {"parent_id"} or {"parent": path} under a task, {"project_id"} or {"project": name} to a project’s top level
 DELETE /api/tasks/{id}                         with its subtasks and their assignments
 GET    /api/notes?task=ID | ?project=ID        {"notes": [{id, text, relation: own|ancestor|descendant, owner, task_id, project_id, created, updated}]}: every note that task or project sees
 POST   /api/notes                              {"task_id" | "project_id", "text"}
