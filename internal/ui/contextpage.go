@@ -120,18 +120,33 @@ func (m *Model) toggleCtxScope() {
 }
 
 func (m *Model) ctxMatches(c store.ContextItem) bool {
-	if m.cx.scopeCurrent && (c.Window != m.cx.scopePane.Window || c.Session != m.cx.scopePane.Session) {
-		return false
-	}
-	return m.cx.filter.keeps(c)
+	return m.inScope(c) && m.filterKeeps(m.cx.filter, c)
 }
 
-// keeps says whether the filter lets the item through.
-func (f ctxFilter) keeps(c store.ContextItem) bool {
+// inScope says whether the page's scope, all panes or the current one,
+// holds the item.
+func (m *Model) inScope(c store.ContextItem) bool {
+	return !m.cx.scopeCurrent || c.Window == m.cx.scopePane.Window && c.Session == m.cx.scopePane.Session
+}
+
+// scopedItems is every item the page's scope holds, before the filter.
+func (m *Model) scopedItems() []store.ContextItem {
+	var out []store.ContextItem
+	for _, c := range m.store.ContextItems() {
+		if m.inScope(c) {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+// filterKeeps says whether the filter lets the item through. A task keeps
+// the items of its subtasks too.
+func (m *Model) filterKeeps(f ctxFilter, c store.ContextItem) bool {
 	switch {
 	case f.Kind != "" && c.Kind != f.Kind,
 		f.ProjectID != "" && c.ProjectID != f.ProjectID,
-		f.TaskID != "" && c.TaskID != f.TaskID,
+		f.TaskID != "" && (c.TaskID == "" || !m.subtree(f.TaskID)[c.TaskID]),
 		f.Text != "" && !strings.Contains(strings.ToLower(c.Text), strings.ToLower(f.Text)):
 		return false
 	}
@@ -375,62 +390,11 @@ func (m *Model) ctxChange(err error, status string) tea.Cmd {
 	return nil
 }
 
-// openContextFilter asks for the kind, project, task and text the list
-// keeps; each field starts at the current filter and empty means any.
+// openContextFilter puts up the tree of kinds, projects and tasks that
+// hold context items; picking one filters the page.
 func (m *Model) openContextFilter() tea.Cmd {
 	f := m.cx.filter
-	project, task := "", ""
-	if p := m.store.Project(f.ProjectID); p != nil {
-		project = p.Name
-	}
-	if t := m.store.Task(f.TaskID); t != nil {
-		task = m.taskPath(*t)
-	}
-	kinds := func() []string { return store.ContextKinds() }
-	m.mode = modeForm
-	m.form = &form{
-		Title: "filter context",
-		Fields: []field{
-			{Label: "kind", Value: f.Kind, Keep: true, Options: kinds, Hint: "link file dir pr prompt command; empty for any"},
-			{Label: "project", Value: project, Keep: true, Options: m.projectOptions, Preview: m.projectPreview},
-			{Label: "task", Value: task, Keep: true, Options: m.taskOptions, Preview: m.taskPreview},
-			{Label: "text", Value: f.Text, Keep: true},
-		},
-		Validate: func(v []string) (int, string) {
-			if v[0] != "" && kindRank(v[0]) == len(store.ContextKinds()) {
-				return 0, "kind is one of " + strings.Join(store.ContextKinds(), " ")
-			}
-			if v[1] != "" && m.store.ProjectByName(v[1]) == nil {
-				return 1, "no project " + v[1]
-			}
-			if v[2] != "" {
-				if _, msg := m.findTask(v[2]); msg != "" {
-					return 2, msg
-				}
-			}
-			return 0, ""
-		},
-		Done: func(v []string) tea.Cmd {
-			nf := ctxFilter{Kind: v[0], Text: v[3]}
-			if p := m.store.ProjectByName(v[1]); v[1] != "" && p != nil {
-				nf.ProjectID = p.ID
-			}
-			if v[2] != "" {
-				if t, _ := m.findTask(v[2]); t != nil {
-					nf.TaskID = t.ID
-				}
-			}
-			m.cx.filter = nf
-			m.rebuildContext()
-			if nf.empty() {
-				m.setStatus("filter cleared")
-			} else {
-				m.setStatus("filtered: " + m.ctxFilterText())
-			}
-			return nil
-		},
-	}
-	return nil
+	return m.openTreeView(protoRun{purpose: purposeFilter, title: "filter context"}, f.ProjectID, f.TaskID)
 }
 
 // ctxFilterText is the filter in words, for the title and the status.

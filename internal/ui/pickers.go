@@ -242,7 +242,11 @@ func (m *Model) finishProto(n *pnode) tea.Cmd {
 		}
 		return m.assignPane(run.windowID, run.session, run.name, taskID, projectID)
 	}
-	m.cx.filter = nodeFilter(*n)
+	f := nodeFilter(*n)
+	if _, ok := p.(*treeView); ok {
+		f = mergeFilter(m.cx.filter, *n)
+	}
+	m.cx.filter = f
 	m.openContext()
 	if m.cx.filter.empty() {
 		m.setStatus("filter cleared")

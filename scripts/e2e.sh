@@ -353,8 +353,7 @@ b send-keys -s host -w deck Escape >/dev/null; settle
 select_pane 1
 b send-text -s host -w deck 'I'; settle
 b send-keys -s host -w deck f >/dev/null; settle
-b send-text -s host -w deck 'link'; b send-keys -s host -w deck Enter >/dev/null
-b send-keys -s host -w deck Enter >/dev/null; b send-keys -s host -w deck Enter >/dev/null; b send-keys -s host -w deck Enter >/dev/null; settle
+b send-text -s host -w deck '/link'; b send-keys -s host -w deck Enter >/dev/null; settle
 b send-keys -s host -w deck g >/dev/null; settle; deckcap 06l-filtered
 check "title shows the kind filter" "$SCRATCH/out/06l-filtered.txt" 'context .*kind link'
 check "status confirms the filter" "$SCRATCH/out/06l-filtered.txt" 'filtered: kind link'
@@ -1195,6 +1194,38 @@ b send-text -s host -w deck 'deck'; b send-keys -s host -w deck Enter >/dev/null
 check "status reports the item's assignment" "$SCRATCH/out/22b-ctx-assigned.txt" 'assigned https://example.com/tui-link to deck'
 python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if any(c["text"]=="https://example.com/tui-link" and c["project_id"]=="p_e2e001" for c in d["context_items"]) else 1)' "$DATA" \
 	&& echo "PASS the store holds the link under deck" || { echo "FAIL the link is not assigned to deck"; fails=$((fails+1)); }
+
+echo "== f on the context page: the same tree, counting items, hiding what has none, searching item text"
+# ctxitems FILE: how many item rows the context page lists.
+ctxitems() { python3 -c 'import re,sys; print(sum(1 for l in open(sys.argv[1]) if re.search(r"^ .. (link|file|dir|pr|prompt|command)\s+\S", l.split("│")[0])))' "$1"; }
+b send-keys -s host -w deck f >/dev/null; settle; deckcap 22c-filter-tree
+check "the filter box is the tree" "$SCRATCH/out/22c-filter-tree.txt" '╭─ filter context ─'
+check "the all row counts every item" "$SCRATCH/out/22c-filter-tree.txt" '│ *\* all  *[1-9][0-9]*  │'
+check "a kind row shows its count" "$SCRATCH/out/22c-filter-tree.txt" '■ link  *[1-9][0-9]*  │'
+check "a project with items shows its count" "$SCRATCH/out/22c-filter-tree.txt" '[^ ] deck  *1  │'
+if grep -q '[^ ] web  *[0-9]*  │' "$SCRATCH/out/22c-filter-tree.txt"; then echo "FAIL a project with no items is listed"; fails=$((fails+1)); else echo "PASS a project with no items is hidden"; fi
+if grep -q '■ pr  *[0-9]*  │' "$SCRATCH/out/22c-filter-tree.txt"; then echo "FAIL a kind with no items is listed"; fails=$((fails+1)); else echo "PASS a kind with no items is hidden"; fi
+b send-keys -s host -w deck g >/dev/null; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 22d-all
+check "all clears the filter" "$SCRATCH/out/22d-all.txt" 'filter cleared'
+all_items=$(ctxitems "$SCRATCH/out/22d-all.txt")
+[ "$all_items" -gt 1 ] && echo "PASS cleared, the page lists every item ($all_items)" || { echo "FAIL cleared page lists $all_items items"; fails=$((fails+1)); }
+b send-keys -s host -w deck f >/dev/null; settle
+b send-text -s host -w deck 'deck'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 22e-deck
+check "typing a project's name and picking it filters by the project" "$SCRATCH/out/22e-deck.txt" 'filtered: project deck *$'
+b send-keys -s host -w deck f >/dev/null; settle
+b send-text -s host -w deck 'tui-li'; settle
+b send-keys -s host -w deck End >/dev/null; settle; deckcap 22f-text
+check "the item text keeps the project whose name does not match" "$SCRATCH/out/22f-text.txt" '[^ ] deck  *1  │'
+check "its preview counts what it would keep" "$SCRATCH/out/22f-text.txt" '│keeps *1 context item holding "tui-li"'
+check "its preview lists the matching item" "$SCRATCH/out/22f-text.txt" '│link *https://example.com/tui-link'
+b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 22g-text-applied
+check "the typed text becomes the text filter" "$SCRATCH/out/22g-text-applied.txt" 'filtered: project deck, text tui-li'
+check "the page lists the matching item" "$SCRATCH/out/22g-text-applied.txt" 'link *https://example.com/tui-link'
+[ "$(ctxitems "$SCRATCH/out/22g-text-applied.txt")" = 1 ] && echo "PASS only that item is listed" || { echo "FAIL the filtered page lists $(ctxitems "$SCRATCH/out/22g-text-applied.txt") items"; fails=$((fails+1)); }
+b send-keys -s host -w deck f >/dev/null; settle
+b send-keys -s host -w deck g >/dev/null; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 22h-all-again
+check "all clears it again" "$SCRATCH/out/22h-all-again.txt" 'filter cleared'
+[ "$(ctxitems "$SCRATCH/out/22h-all-again.txt")" = "$all_items" ] && echo "PASS every item is back" || { echo "FAIL $(ctxitems "$SCRATCH/out/22h-all-again.txt") items back of $all_items"; fails=$((fails+1)); }
 b send-keys -s host -w deck Escape >/dev/null; settle
 
 echo "== the task tree: project, task, subtasks, then the pane"

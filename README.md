@@ -632,7 +632,7 @@ when it was found and whether it is starred and pinned.
 | `j` `k` `g` `G` | Select an item |
 | `{` `}` | The first item of the previous or next group, when grouped |
 | `s` | Sort the next way: newest, kind, starred first, pinned first |
-| `f` | Filter by kind, project, task and text; all empty clears the filter |
+| `f` | Filter through the assign tree's box (below): `all`, the kinds, then the projects and tasks, each with its item count |
 | `o` `O` | Group the next or the previous way: none, kind, project, task, pane |
 | `*` | Star or unstar the item |
 | `!` `P` | Pin or unpin it |
@@ -647,6 +647,20 @@ when it was found and whether it is starred and pinned.
 
 A prompt or a command has nothing to open; `y` and `enter` work on every
 kind.
+
+`f` (or the palette's "filter context…") opens the assign tree's box with
+`all` and the kinds (`link`, `file`, `dir`, `pr`, `prompt`, `command`) on
+top, then the project, task and subtask tree. Every row counts its items:
+a task counts its own and its subtasks', a project its own and its tasks'.
+A row with no items, kind or target, is hidden. The keys are the assign
+tree's. The query keeps a row whose name matches it or that holds an item
+whose text contains it, and the preview lists the items the row would keep,
+the matching ones first and marked, with their count. `enter` on `all`
+clears the kind, project and task filters; on a kind it sets the kind; on a
+project or a task it sets that, keeping the kind. The typed text becomes
+the text filter only when it did not match the picked row's name: `deck`
+then project deck filters by the project alone, `github` then project deck
+keeps deck's items holding `github`. The status line states the result.
 
 ### The assign tree
 
@@ -679,7 +693,7 @@ the tree back with the new task highlighted, `esc` brings it back as it was.
 ### Prototypes
 
 The two-pane preview with the tree on its left won, and is now the assign
-tree above. The page stays for now.
+tree above and the context page's `f`. The page stays for now.
 
 `U` (or the palette's "prototypes") opens a page of picker prototypes for
 assigning a pane and filtering the context page, so they can be tried on
@@ -735,7 +749,7 @@ then the query anywhere in it, then its letters in order. `ctrl+n` `ctrl+p`
 
 - `[deck]`, listed first: assign to task…, assign to project…, clear
   assignment, new agent, new terminal, prompt, capture, close pane,
-  refresh, go to deck, go to tasks, go to captures, go to context, prototypes, extract
+  refresh, go to deck, go to tasks, go to captures, go to context, filter context…, prototypes, extract
   context from pane, group by each of the presets, group by… for any
   levels, new project, new task, new subtask of…, add many…, add note,
   edit note…, delete note… (of the row selected on the tasks page),

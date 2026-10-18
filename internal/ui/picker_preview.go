@@ -105,7 +105,7 @@ func (m *Model) previewLines(n *pnode, width, height int) []string {
 		var kept []string
 		count := 0
 		for _, c := range m.store.ContextItems() {
-			if f.keeps(c) {
+			if m.filterKeeps(f, c) {
 				count++
 				if len(kept) < height {
 					kept = append(kept, kindStyle(c.Kind).Render(pad(c.Kind, 7))+" "+panes.OneLine(c.Text))
