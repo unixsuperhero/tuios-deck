@@ -7,10 +7,21 @@
 
 ## Standard Importance
 
+- [ ] write documentation listing and detailing all structs, pages, concepts,
+actions, etc.
+- [ ] deck cli should also have a subcmd to list-actions for keybindings
+- [ ] `deck confing init` should write the full config with an entry for every
+possible value
+- [ ] context, or anything that has a parent assigned to a task or project
+should inherit that task/project
 - [ ] give cli more subcommands.  one for each concept/object (context, agent,
 etc.) and give each one a set of subcommands that basically mirrors the apis to
 make deck controllable from a cli.  might want to add a rule to AGENTS.md as
 well
+- [ ] in prompt composer...need a binding to submit prompt immediately instead
+of queue for when turn is done
+- [ ] when i queue a prompt, then look at queued prompts...the list is empty but
+  it sends the prompts when turn is over...fix
 - [ ] Create an abstraction and utility for catalog modal and a meta catalog
   - [ ] need a modal whose options are a list of each type of catalog we have
   - [ ] options are nested modals...i only want to replace the current modal's
