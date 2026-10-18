@@ -97,7 +97,7 @@ Claude Code's. No file outside tuios adds a reader.
 Settings live in one JSON file, `$XDG_CONFIG_HOME/tuios-deck/config`
 (`~/.config/tuios-deck/config` when `XDG_CONFIG_HOME` is unset), apart from
 the data store. A missing file means the defaults. A file that does not
-parse, or names a setting that does not exist, stops `deck tui` at startup
+parse, holds anything after its one JSON document, or names a setting that does not exist, stops `deck tui` at startup
 with the file's name and the reason; nothing is silently ignored. The file is
 written whole through a temp file and a rename.
 

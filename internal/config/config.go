@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 )
@@ -38,7 +39,7 @@ func Dir() string {
 // DefaultPath is the settings file.
 func DefaultPath() string { return filepath.Join(Dir(), "config") }
 
-// Load reads the file at path. A missing file is the defaults; a file that
+// Load reads the file at path, which holds exactly one JSON document. A missing file is the defaults; a file that
 // does not parse, or names a setting that does not exist, is an error that
 // names the file.
 func Load(path string) (*Config, error) {
@@ -57,6 +58,9 @@ func Load(path string) (*Config, error) {
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(c); err != nil {
 		return nil, fmt.Errorf("settings %s: %w", path, err)
+	}
+	if _, err := dec.Token(); err != io.EOF {
+		return nil, fmt.Errorf("settings %s: unexpected data after the JSON document", path)
 	}
 	if err := c.Validate(); err != nil {
 		return nil, fmt.Errorf("settings %s: %w", path, err)
