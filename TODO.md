@@ -10,7 +10,7 @@ tuios-deck work and if we were to redesign them as modular, data-driven systems
 what would that look like.  i want them to be able to change and grow
 independently.  if they are separate and modular, then we will probbaly need an
 orchestrator, right?
-- [ ] need to mark agents/terminals as stale and suggest to close them if no
+- [x] need to mark agents/terminals as stale and suggest to close them if no
 activity exceeding a certain threshold
 - [x] from any item on the deck page, i want to be able to open a modal that
 will let me review all items in it's task tree...project, task, subtask etc. and
