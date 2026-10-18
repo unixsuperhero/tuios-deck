@@ -86,6 +86,19 @@ check "link extracted" "$SCRATCH/out/ctx-list.json" '"kind":"link","text":"https
 check "pr extracted" "$SCRATCH/out/ctx-list.json" '"kind":"pr","text":"https://github.com/acme/widgets/pull/77"'
 check "existing file extracted" "$SCRATCH/out/ctx-list.json" "\"kind\":\"file\",\"text\":\"[^\"]*ctx-file.txt\""
 check "item names its pane" "$SCRATCH/out/ctx-list.json" '"pane":"build"'
+a send-text -s target -w fake 'https://example.com/fake-only-link
+'
+a wait-for window-output -s target -w fake --pattern 'fake-only-link' --timeout 10000 >/dev/null
+curl -s -X POST "$base/api/panes/target/$FAKE/context/extract" > "$SCRATCH/out/ctx-extract-fake.json"
+curl -s "$base/api/context?session=target&window=$BUILD" > "$SCRATCH/out/ctx-scope-build.json"
+check "window scope keeps the build pane's items" "$SCRATCH/out/ctx-scope-build.json" 'ctx-link'
+if grep -q 'fake-only-link' "$SCRATCH/out/ctx-scope-build.json"; then echo "FAIL window scope kept the fake pane's item"; fails=$((fails+1)); else echo "PASS window scope drops the other pane"; fi
+curl -s "$base/api/context?session=target&window=$FAKE" > "$SCRATCH/out/ctx-scope-fake.json"
+check "window scope keeps the fake pane's item" "$SCRATCH/out/ctx-scope-fake.json" 'fake-only-link'
+if grep -q 'ctx-link' "$SCRATCH/out/ctx-scope-fake.json"; then echo "FAIL fake scope kept the build item"; fails=$((fails+1)); else echo "PASS fake scope drops the build pane"; fi
+curl -s "$base/api/context" > "$SCRATCH/out/ctx-scope-all.json"
+check "no window means all panes (build)" "$SCRATCH/out/ctx-scope-all.json" 'ctx-link'
+check "no window means all panes (fake)" "$SCRATCH/out/ctx-scope-all.json" 'fake-only-link'
 curl -s "$base/api/context?kind=link" > "$SCRATCH/out/ctx-links.json"
 check "filter by kind keeps the link" "$SCRATCH/out/ctx-links.json" 'ctx-link'
 if grep -q '"kind":"pr"' "$SCRATCH/out/ctx-links.json"; then echo "FAIL kind filter kept a pr"; fails=$((fails+1)); else echo "PASS kind filter drops the pr"; fi

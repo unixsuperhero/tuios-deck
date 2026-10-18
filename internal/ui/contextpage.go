@@ -26,6 +26,16 @@ type ctxPage struct {
 	sort   ctxSort
 	group  ctxGroup
 	filter ctxFilter
+	// scopeCurrent limits the list to the items of scopePane; the pane is
+	// the one selected on the deck when the page was opened, and is kept
+	// while another is not selected.
+	scopeCurrent bool
+	scopePane    ctxScopePane
+}
+
+// ctxScopePane names the pane the "current" scope keeps.
+type ctxScopePane struct {
+	Session, Window, Name string
 }
 
 // crow is a line of the context page: a group header or an item.
@@ -88,10 +98,33 @@ func kindStyle(k string) lipgloss.Style {
 // openContext shows the context page.
 func (m *Model) openContext() {
 	m.page = pageContext
+	if p := m.selected(); p != nil {
+		m.cx.scopePane = ctxScopePane{p.Session, p.ID, p.Name}
+	}
 	m.rebuildContext()
 }
 
-func (m *Model) ctxMatches(c store.ContextItem) bool { return m.cx.filter.keeps(c) }
+// toggleCtxScope flips between the current pane's items and all items.
+func (m *Model) toggleCtxScope() {
+	m.cx.scopeCurrent = !m.cx.scopeCurrent
+	m.rebuildContext()
+	if m.cx.scopeCurrent {
+		if m.cx.scopePane.Window == "" {
+			m.setStatus("scope current: no pane selected on the deck (esc, pick one, I)")
+		} else {
+			m.setStatus("scope current: " + m.cx.scopePane.Name)
+		}
+	} else {
+		m.setStatus("scope all panes")
+	}
+}
+
+func (m *Model) ctxMatches(c store.ContextItem) bool {
+	if m.cx.scopeCurrent && (c.Window != m.cx.scopePane.Window || c.Session != m.cx.scopePane.Session) {
+		return false
+	}
+	return m.cx.filter.keeps(c)
+}
 
 // keeps says whether the filter lets the item through.
 func (f ctxFilter) keeps(c store.ContextItem) bool {
@@ -270,6 +303,8 @@ func (m *Model) handleContextKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.setStatus("grouped by " + m.cx.group.String())
 	case "f":
 		return m, m.openContextFilter()
+	case "t":
+		m.toggleCtxScope()
 	case "*":
 		if it == nil {
 			return m, nil
@@ -501,7 +536,14 @@ func (m *Model) extractContext() tea.Cmd {
 
 // ctxTitle is what the title line says about the context page's view.
 func (m *Model) ctxTitle() string {
-	s := "sort " + m.cx.sort.String()
+	s := "scope all panes"
+	if m.cx.scopeCurrent {
+		s = "scope current: " + m.cx.scopePane.Name
+		if m.cx.scopePane.Window == "" {
+			s = "scope current: no pane"
+		}
+	}
+	s += " · sort " + m.cx.sort.String()
 	if m.cx.group != ctxNone {
 		s += " · by " + m.cx.group.String()
 	}
@@ -528,7 +570,12 @@ func ctxMarks(c store.ContextItem) string {
 func (m *Model) contextListLines(width, height int) []string {
 	lines := make([]string, 0, height)
 	if len(m.cx.rows) == 0 {
-		if len(m.store.ContextItems()) == 0 {
+		if m.cx.scopeCurrent && m.cx.scopePane.Window == "" {
+			lines = append(lines, cDim.Render("scope is the current pane, but none was selected"),
+				cDim.Render("esc, select a pane on the deck, then I; or t for all"))
+		} else if m.cx.scopeCurrent && len(m.store.ContextItems()) > 0 {
+			lines = append(lines, cDim.Render("no items from "+m.cx.scopePane.Name+" (t shows all, i extracts)"))
+		} else if len(m.store.ContextItems()) == 0 {
 			lines = append(lines, cDim.Render("no context items: press i on a pane"))
 		} else {
 			lines = append(lines, cDim.Render("nothing matches the filter (f)"))

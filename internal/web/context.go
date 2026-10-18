@@ -33,7 +33,7 @@ func truthy(v string) bool { return v == "1" || v == "true" || v == "yes" }
 
 // listContext lists the items newest first. kind, project and task narrow
 // it (a project or a task by id or by name), starred and pinned keep only
-// those, and q keeps the items whose text holds it, ignoring case.
+// those, window (with session) keeps one pane's items, and q keeps the items whose text holds it, ignoring case.
 func (s *Server) listContext(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	projectID, taskID := "", ""
@@ -58,6 +58,7 @@ func (s *Server) listContext(w http.ResponseWriter, r *http.Request) {
 		case q.Get("kind") != "" && c.Kind != q.Get("kind"),
 			projectID != "" && c.ProjectID != projectID,
 			taskID != "" && c.TaskID != taskID,
+			q.Get("window") != "" && (c.Window != q.Get("window") || c.Session != q.Get("session")),
 			truthy(q.Get("starred")) && !c.Starred,
 			truthy(q.Get("pinned")) && !c.Pinned,
 			text != "" && !strings.Contains(strings.ToLower(c.Text), text):

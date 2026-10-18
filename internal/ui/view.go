@@ -332,7 +332,7 @@ func (m *Model) helpLine() string {
 	case pageProtos:
 		return cDim.Render(" j/k select · enter try it for real · T tasks · I context · esc deck · q quit")
 	case pageContext:
-		return cDim.Render(" j/k select · {/} group · s sort · f filter · o/O group · * star · ! pin · a assign · y copy · enter insert · ^o open · w open with · x delete · esc deck · q quit")
+		return cDim.Render(" j/k select · {/} group · t scope · s sort · f filter · o/O group · * star · ! pin · a assign · y copy · enter insert · ^o open · w open with · x delete · esc deck · q quit")
 	}
 	if m.focusMain && m.tab == tabTurns && m.result == nil {
 		return cDim.Render(" main area: h rail · j/k row · enter/space expand · y copy · {/} group · g top · G newest · J/K half page · [/] or 1-4 tab · p prompt · T tasks · q quit")

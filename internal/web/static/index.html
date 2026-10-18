@@ -129,6 +129,7 @@ dialog .hint.err:empty { display: none; }
 .railhead.filters label { display: flex; gap: 4px; align-items: center; }
 .railhead.filters input[type=checkbox] { width: auto; }
 .ctxgroup { padding: 8px 12px 4px; font-weight: 600; color: var(--muted); font-size: 12px; }
+.scopebar { padding: 4px 12px; font-size: 12px; color: var(--muted); }
 .ctxrow { display: flex; gap: 8px; align-items: baseline; padding: 6px 12px; cursor: pointer; border-left: 3px solid transparent; }
 .ctxrow:hover { background: var(--hover); }
 .ctxrow.selected { background: var(--sel); border-left-color: var(--accent); }
@@ -238,6 +239,7 @@ dialog .hint.err:empty { display: none; }
   <div class="page split" id="page-context">
     <aside>
       <div class="railhead filters">
+        <select id="ctx-scope" title="Scope: the pane selected on the deck, or every pane"><option value="all">all panes</option><option value="current">current pane</option></select>
         <select id="ctx-kind" title="Kind"><option value="">any kind</option><option>link</option><option>pr</option><option>file</option><option>dir</option><option>prompt</option><option>command</option></select>
         <select id="ctx-project" title="Project"><option value="">any project</option></select>
         <select id="ctx-task" title="Task"><option value="">any task</option></select>
@@ -247,6 +249,7 @@ dialog .hint.err:empty { display: none; }
         <select id="ctx-sort" title="Sort"><option value="created">newest</option><option value="kind">kind</option><option value="starred">starred first</option><option value="pinned">pinned first</option></select>
         <select id="ctx-group" title="Group by"><option value="none">no groups</option><option value="kind">by kind</option><option value="project">by project</option><option value="task">by task</option><option value="pane">by pane</option></select>
       </div>
+      <div class="scopebar" id="ctxscope"></div>
       <div class="rail" id="ctxlist"><div class="empty">loading…</div></div>
     </aside>
     <section>
@@ -442,7 +445,7 @@ const state = {
   projects: [], tasks: [], group: 'session', page: 'deck',
   taskSel: null, captures: [], capSel: null, captureDir: '', palette: null, verbs: null,
   reminders: [], remTimer: null,
-  ctx: [], ctxSel: null, ctxSort: 'created', ctxGroup: 'none',
+  ctx: [], ctxScope: 'all', ctxPane: null, ctxSel: null, ctxSort: 'created', ctxGroup: 'none',
 };
 
 // ---------------------------------------------------------------- API
@@ -782,7 +785,7 @@ function setPage(name, fromHash) {
   const hash = name === 'deck' ? '' : '#' + name;
   if (!fromHash && location.hash !== hash) history.replaceState(null, '', location.pathname + hash);
   if (name === 'captures') loadCaptures();
-  if (name === 'context') loadContext();
+  if (name === 'context') { const p = state.panes[state.selected]; if (p) state.ctxPane = { session: p.session, id: p.id, name: p.name }; loadContext(); }
   if (name === 'reminders') loadReminders();
   if (name === 'tasks') { renderTree(); renderTaskInfo(); }
 }
@@ -1546,9 +1549,11 @@ async function loadContext() {
   fillSelect('ctx-task', state.tasks.map((t) => [t.id, t.path]), 'any task');
   const q = new URLSearchParams();
   for (const [k, id] of [['kind', 'ctx-kind'], ['project', 'ctx-project'], ['task', 'ctx-task'], ['q', 'ctx-q']]) if ($(id).value) q.set(k, $(id).value);
+  if (state.ctxScope === 'current' && state.ctxPane) { q.set('session', state.ctxPane.session); q.set('window', state.ctxPane.id); }
   if ($('ctx-starred').checked) q.set('starred', '1');
   if ($('ctx-pinned').checked) q.set('pinned', '1');
-  try { state.ctx = (await api('/api/context?' + q)).items || []; }
+  if (state.ctxScope === 'current' && !state.ctxPane) state.ctx = [];
+  else try { state.ctx = (await api('/api/context?' + q)).items || []; }
   catch (e) { setStatus('context: ' + e.message, true); return; }
   if (state.ctxSel && !state.ctx.some((c) => c.id === state.ctxSel)) state.ctxSel = null;
   renderContext();
@@ -1576,7 +1581,11 @@ function renderContext() {
   const list = $('ctxlist');
   const scroll = list.scrollTop;
   list.replaceChildren();
-  if (!state.ctx.length) list.innerHTML = '<div class="empty">no context items here: Extract context on a pane finds them</div>';
+  const cur = state.ctxScope === 'current';
+  $('ctxscope').textContent = cur ? (state.ctxPane ? 'scope: current pane ' + state.ctxPane.name : 'scope: current pane, none selected') : 'scope: all panes';
+  $('ctx-scope').value = state.ctxScope;
+  if (cur && !state.ctxPane) list.innerHTML = '<div class="empty">no pane was selected on the deck: pick one there, then come back, or choose all panes</div>';
+  else if (!state.ctx.length) list.innerHTML = '<div class="empty">' + (cur ? 'no items from ' + state.ctxPane.name + ': Extract context, or choose all panes' : 'no context items here: Extract context on a pane finds them') + '</div>';
   for (const [key, items] of ctxSorted()) {
     if (key) { const h = document.createElement('div'); h.className = 'ctxgroup'; h.textContent = key; list.append(h); }
     for (const c of items) {
@@ -1661,6 +1670,7 @@ $('ctx-open').onclick = async () => {
 };
 $('ctx-delete').onclick = deleteContext;
 for (const id of ['ctx-kind', 'ctx-project', 'ctx-task', 'ctx-starred', 'ctx-pinned']) $(id).onchange = loadContext;
+$('ctx-scope').onchange = () => { state.ctxScope = $('ctx-scope').value; loadContext(); };
 $('ctx-q').oninput = () => { clearTimeout(state.ctxTimer); state.ctxTimer = setTimeout(loadContext, 200); };
 $('ctx-sort').onchange = () => { state.ctxSort = $('ctx-sort').value; try { localStorage.setItem('deck.ctxSort', state.ctxSort); } catch (_) {} renderContext(); };
 $('ctx-group').onchange = () => { state.ctxGroup = $('ctx-group').value; try { localStorage.setItem('deck.ctxGroup', state.ctxGroup); } catch (_) {} renderContext(); };
@@ -1737,6 +1747,7 @@ function deckCommands() {
     { label: 'go to context', run: () => setPage('context') },
     { label: 'go to reminders', run: () => setPage('reminders') },
     { label: 'new reminder…', run: newReminder },
+    { label: 'context scope: toggle current pane / all', run: () => { state.ctxScope = state.ctxScope === 'all' ? 'current' : 'all'; setPage('context'); } },
     { label: 'extract context from selected pane', run: extractContext },
   ];
   for (const g of GROUPS) cmds.push({ label: `group by ${g}`, run: () => setGroup(g) });

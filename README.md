@@ -304,6 +304,16 @@ searched, so a long link stays whole. An item's text is cut at 500 bytes,
 and one with the kind, text and window of an item already kept is not
 added twice. The status line says how many were new and how many found.
 
+The context page has two scopes. `all panes` lists every item; `current
+pane` lists only the items of the pane that was selected on the deck when
+the page was opened, and remembers that pane until another is selected and
+the page is opened again. The title (and, on the web, a line over the list)
+names the scope. `t` toggles it in the TUI, the scope select on the web
+page does, and so does the command palette entry "context scope". With no
+pane selected the current scope says so instead of showing an empty list.
+Filters, sort, groups, stars and pins apply inside either scope. On the web
+the list is `/api/context?session=S&window=W`.
+
 Each item may be starred, pinned and assigned to a task or a project, the
 way a pane is.
 

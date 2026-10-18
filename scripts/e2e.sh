@@ -238,6 +238,21 @@ check "} jumps to the first item of the next kind" "$SCRATCH/out/06k3-next-kind.
 b send-text -s host -w deck '{'; settle; deckcap 06k4-prev-kind
 check "{ jumps back to the first kind" "$SCRATCH/out/06k4-prev-kind.txt" "kind *$first_kind"
 b send-text -s host -w deck 'O'; settle
+b send-text -s host -w deck 't'; settle; deckcap 06k2-scope-current
+check "t scopes the page to the pane selected on opening" "$SCRATCH/out/06k2-scope-current.txt" 'context .*scope current: build'
+check "current scope lists the build pane's link" "$SCRATCH/out/06k2-scope-current.txt" 'link *https://example.com/tui-link'
+b send-keys -s host -w deck Escape >/dev/null; settle
+select_pane 2
+b send-text -s host -w deck 'I'; settle; deckcap 06k3-scope-other
+check "reopening from another pane re-captures the scope" "$SCRATCH/out/06k3-scope-other.txt" 'context .*scope current: fake'
+check "current scope says the pane has no items" "$SCRATCH/out/06k3-scope-other.txt" 'no items from fake'
+if grep -q 'tui-link *$\|link *https://example.com/tui-link' "$SCRATCH/out/06k3-scope-other.txt"; then echo "FAIL current scope listed another pane's item"; fails=$((fails+1)); else echo "PASS current scope excludes the other pane's item"; fi
+b send-text -s host -w deck 't'; settle; deckcap 06k4-scope-all
+check "t returns to all panes" "$SCRATCH/out/06k4-scope-all.txt" 'context .*scope all panes'
+check "all scope lists both panes' items" "$SCRATCH/out/06k4-scope-all.txt" 'link *https://example.com/tui-link'
+b send-keys -s host -w deck Escape >/dev/null; settle
+select_pane 1
+b send-text -s host -w deck 'I'; settle
 b send-keys -s host -w deck f >/dev/null; settle
 b send-text -s host -w deck 'link'; b send-keys -s host -w deck Enter >/dev/null
 b send-keys -s host -w deck Enter >/dev/null; b send-keys -s host -w deck Enter >/dev/null; b send-keys -s host -w deck Enter >/dev/null; settle
