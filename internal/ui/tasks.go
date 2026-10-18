@@ -57,6 +57,16 @@ func (m *Model) rebuildTasks() {
 		}
 		rows = kept
 	}
+	if m.easyOnly {
+		kept := rows[:0]
+		for _, r := range rows {
+			if r.Task != nil && r.Task.Easy {
+				r.Depth = 0
+				kept = append(kept, r)
+			}
+		}
+		rows = kept
+	}
 	m.trows = rows
 	found := -1
 	for i, r := range rows {
@@ -230,6 +240,10 @@ func nextColor(c string, free []string) string {
 func (m *Model) handleTasksKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	r := m.selectedRow()
 	switch msg.String() {
+	case "E":
+		if r != nil && r.Task != nil {
+			return m, m.storeChange(m.store.SetTaskEasy(r.Task.ID, !r.Task.Easy), "updated saved easy list")
+		}
 	case "esc":
 		m.page = pageDeck
 		return m, m.loadDetail(true)
@@ -805,6 +819,9 @@ func (m *Model) taskListLines(width, height int) []string {
 			indent := strings.Repeat("  ", r.Depth)
 			glyph := themeStyle(t.Theme).Render(t.Theme.Glyph)
 			mark, title := " ", t.Title
+			if t.Easy {
+				title += " [easy]"
+			}
 			if store.IsFinal(t.Status) {
 				mark, title = cDim.Render(statusMark(t.Status)), cDim.Render(t.Title)
 			}

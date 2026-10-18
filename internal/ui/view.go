@@ -145,6 +145,9 @@ func (m *Model) titleLine() string {
 		}
 	}
 	s := cTitle.Render(" tuios-deck ") + cTabOn.Render(" "+m.page.String()+" ")
+	if m.page == pageTasks && m.easyOnly {
+		s += " · focus plan: saved easy tasks · E toggle easy · F focus · ctrl+f all tasks"
+	}
 	if m.page == pageDeck && !m.grouping.bySession() {
 		s += " by " + m.grouping.String()
 	}

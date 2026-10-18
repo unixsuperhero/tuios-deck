@@ -183,6 +183,7 @@ body.focused #tk-theme, body.focused #tk-delete, body.focused #page-deck .railhe
 body.focused { --bg: color-mix(in srgb, var(--focus-color) 16%, #101318); --panel: color-mix(in srgb, var(--focus-color) 22%, #171b21); --fg: #f7f8fa; --muted: #d6dbe2; --line: color-mix(in srgb, var(--focus-color) 55%, #aaa); --accent: color-mix(in srgb, var(--focus-color) 65%, #fff); --sel: color-mix(in srgb, var(--focus-color) 40%, #222); --hover: color-mix(in srgb, var(--focus-color) 30%, #222); --term-bg: var(--bg); }
 body.focused .pane .chip, body.focused .pane .task, body.focused .glyph { color: var(--fg) !important; }
 body.focused button.primary, body.focused .nav button.on, body.focused .tabs button.on { color: #101318; }
+body.focused #btn-focus-plan, body.focused #easy-filter, body.focused #tk-easy { display: none; }
 </style>
 </head>
 <body>
@@ -199,6 +200,7 @@ body.focused button.primary, body.focused .nav button.on, body.focused .tabs but
   </nav>
   <button id="btn-focus" title="Focus task or project (F)">Focus…</button>
   <span id="focus-label" role="status"></span>
+  <button id="btn-focus-plan">Focus plan</button>
   <span class="meta" id="meta">connecting…</span>
   <span class="badge needs" id="needs" hidden></span>
   <span class="badge" id="agents">0 agents</span>
@@ -240,7 +242,7 @@ body.focused button.primary, body.focused .nav button.on, body.focused .tabs but
 
   <div class="page split" id="page-tasks">
     <aside>
-      <div class="railhead"><span>Projects and tasks</span></div>
+      <div class="railhead"><span>Projects and tasks</span><label id="easy-filter"><input id="easy-only" type="checkbox" style="width:auto"> Saved easy tasks</label></div>
       <div class="rail tree" id="tasktree"><div class="empty">loading…</div></div>
     </aside>
     <section>
@@ -250,6 +252,7 @@ body.focused button.primary, body.focused .nav button.on, body.focused .tabs but
         <button id="tk-newtask">New task</button>
         <button id="tk-rename">Rename</button>
         <button id="tk-done">Toggle done</button>
+        <button id="tk-easy">Mark easy</button>
         <button id="tk-theme">Theme</button>
         <button id="tk-delete" class="danger">Delete</button>
       </div>
@@ -553,6 +556,22 @@ const state = {
   ctx: [], ctxScope: 'all', ctxPane: null, ctxSel: null, ctxSort: 'created', ctxGroup: 'none',
 };
 let focusScope = null;
+let easyOnly = false;
+function setEasyOnly(value) {
+  easyOnly = value; $('easy-only').checked = value;
+  if (value && !selItem()?.easy) state.taskSel = null;
+  setPage('tasks');
+}
+$('easy-only').onchange = e => setEasyOnly(e.target.checked);
+$('btn-focus-plan').onclick = () => setEasyOnly(true);
+$('tk-easy').onclick = async () => {
+  const it = selItem(); if (!it || selKind() !== 'task') return;
+  try {
+    await api('/api/tasks/' + enc(it.id), {method: 'PATCH', body: JSON.stringify({easy: !it.easy})});
+    await refresh();
+    if (easyOnly && !selItem()?.easy) { state.taskSel = null; renderTaskInfo(); }
+  } catch (e) { setStatus('error: ' + e.message, true); }
+};
 let focusClock = null;
 function checkFocusClock() {
   if (!focusClock) return;
@@ -621,6 +640,7 @@ function updateFocusView() {
 function startFocus(kind, id) {
   focusScope = {kind, id};
   focusClock = new FocusClock(Date.now());
+  easyOnly = false; $("easy-only").checked = false;
   state.taskSel = {kind, id};
   state.tab = state.tab === 'result' ? 'screen' : state.tab;
   state.detailKey = ''; state.detailText = ''; $('text').textContent = ''; setStatus('');
@@ -1633,12 +1653,15 @@ function renderTree() {
   const row = (kind, item, depth) => {
     const el = document.createElement('div');
     if (!focusItem(kind, item.id)) return document.createDocumentFragment();
+    if (easyOnly && (kind !== 'task' || !item.easy)) return document.createDocumentFragment();
+    if (easyOnly) depth = 0;
     const on = state.taskSel && state.taskSel.kind === kind && state.taskSel.id === item.id;
     el.className = `node ${kind}` + (on ? ' selected' : '');
     el.style.paddingLeft = `${12 + depth * 16}px`;
     const label = document.createElement('span'); label.className = 'label' + (item.status === 'done' ? ' done' : '');
     const gl = document.createElement('span'); gl.className = 'glyph'; gl.textContent = item.theme.glyph; gl.style.color = item.theme.css;
     label.append(gl, document.createTextNode(kind === 'project' ? item.name : item.title));
+    if (item.easy) label.append(document.createTextNode(' [easy]'));
     if (item.status === 'done') label.append(document.createTextNode(' ✓'));
     const count = document.createElement('span'); count.className = 'count';
     count.textContent = kind === 'project' ? `${item.open_tasks} open · ${item.panes} pane${item.panes === 1 ? '' : 's'}` : (item.panes ? `${item.panes} pane${item.panes === 1 ? '' : 's'}` : '');
@@ -1651,6 +1674,7 @@ function renderTree() {
     const walk = (parentId, depth) => { for (const t of childrenOf(parentId, p.id)) { tree.append(row('task', t, depth)); walk(t.id, depth + 1); } };
     walk('', 1);
   }
+  if (easyOnly && !tree.childElementCount) { const empty = document.createElement('div'); empty.className = 'empty'; empty.textContent = 'No saved easy tasks. Clear the filter and mark a task easy.'; tree.append(empty); }
   tree.scrollTop = scroll;
 }
 function panesOf(kind, id) {
@@ -1668,6 +1692,7 @@ function renderTaskInfo() {
   $('tk-newtask').disabled = !haveSel && !state.projects.length;
   $('tk-rename').disabled = !haveSel;
   $('tk-done').disabled = kind !== 'task';
+  $('tk-easy').disabled = kind !== 'task'; $('tk-easy').textContent = it?.easy ? 'Remove easy flag' : 'Mark easy';
   $('tk-theme').disabled = !haveSel;
   $('tk-delete').disabled = !haveSel;
   $('taskwho').textContent = it ? (kind === 'project' ? it.name : it.path) : '';

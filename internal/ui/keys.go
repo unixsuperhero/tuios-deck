@@ -95,6 +95,10 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "?":
 		return m, m.openHelp()
+	case "ctrl+f":
+		m.page, m.easyOnly = pageTasks, !m.easyOnly
+		m.rebuildTasks()
+		return m, nil
 	case "F":
 		return m, m.openFocus()
 	case "q", "ctrl+c":

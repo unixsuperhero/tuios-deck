@@ -537,6 +537,21 @@ or scroll. Other input does not extend the buffer; expiry or **Unlock now**
 releases focus. A minute without input breaks the streak. The clock starts
 when focus begins; these are elapsed intervals, not wall-clock minutes.
 
+### Focus plan: saved easy tasks
+
+On the tasks page, `E` toggles a task’s saved easy flag. `ctrl+f` opens
+(or clears) the **saved easy tasks** filter; it is the configurable
+`focus_plan` action. Select an easy task and press `F` to focus it and all
+its descendants, including descendants not themselves marked easy.
+
+In the browser, select a task and use **Mark easy** / **Remove easy flag**.
+**Focus plan** opens the saved list; **Saved easy tasks** toggles its filter.
+Select a row and use **Focus…** to start. Easy flags survive restarts in
+`deck.json`, are independent of task status, and are never inherited by
+children. The task API exposes `easy`; `PATCH /api/tasks/{id}` with
+`{"easy": true}` or `{"easy": false}` updates it.
+
+
 
 ## The TUI
 

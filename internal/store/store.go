@@ -37,6 +37,7 @@ type Task struct {
 	Title     string `json:"title"`
 	Theme     Theme  `json:"theme"`
 	Status    string `json:"status"`
+	Easy      bool   `json:"easy,omitempty"`
 	Created   int64  `json:"created"`
 	Updated   int64  `json:"updated"`
 }
@@ -455,6 +456,19 @@ func (s *Store) SetTaskStatus(id, status string) error {
 		return err
 	}
 	s.tasks[i].Status = status
+	s.tasks[i].Updated = now()
+	return s.save()
+}
+
+// SetTaskEasy saves whether a task belongs to the focus plan's easy list.
+func (s *Store) SetTaskEasy(id string, easy bool) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	i := s.taskIndex(id)
+	if i < 0 {
+		return fmt.Errorf("no task %s", id)
+	}
+	s.tasks[i].Easy = easy
 	s.tasks[i].Updated = now()
 	return s.save()
 }

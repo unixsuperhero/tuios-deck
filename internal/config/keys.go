@@ -30,6 +30,7 @@ var actions = map[string][]Action{
 		{"palette", ":", "open the command palette", true},
 		{"tasks", "T", "go to the tasks page", true},
 		{"focus", "F", "focus a task or project, or unlock", true},
+		{"focus_plan", "ctrl+f", "toggle the saved easy-task focus plan", true},
 		{"captures", "C", "go to the captures page", true},
 		{"add_many", "A", "add projects and tasks from an outline", true},
 		{"context", "I", "go to the context page", true},

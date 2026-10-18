@@ -63,6 +63,7 @@ func (m *Model) focusTarget() (string, store.Theme) {
 func (m *Model) startFocus(taskID, projectID string) tea.Cmd {
 	m.focus = &focusScope{taskID: taskID, projectID: projectID, clock: focus.New(time.Now())}
 	m.page = pageDeck
+	m.easyOnly = false
 	m.clearResult()
 	m.detailFor, m.detailErr, m.status = "", "", ""
 	m.rebuildRows()

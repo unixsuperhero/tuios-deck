@@ -97,9 +97,10 @@ type Model struct {
 	dirty    bool
 	listBusy bool
 
-	trows  []trow // the tasks page
-	tsel   int
-	tselID string
+	trows    []trow // the tasks page
+	tsel     int
+	tselID   string
+	easyOnly bool
 
 	caps      []capture.Entry // the captures page
 	csel      int
