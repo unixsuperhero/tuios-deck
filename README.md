@@ -963,7 +963,9 @@ forms in `deck tui` and the reminder API in `deck web`, and checks delivery,
 recurrence, disable, persistence and the OS notifier's arguments.
 `scripts/e2e-setup.sh` runs
 `deck setup` against a scratch HOME and drives the omp extension under bun
-with a fake pi and a fake tuios. Every check keeps what it saw under
+with a fake pi and a fake tuios. `scripts/e2e-turns.py` is a quick, 60-second
+check of one real shell command reaching the Turns tab (prompt, command-history,
+row, expansion); it needs a built `.dev/deck` and prints artifacts' path. Every check keeps what it saw under
 `$SCRATCH/out` and prints PASS or FAIL.
 
 ```sh
