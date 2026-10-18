@@ -166,7 +166,14 @@ dialog .hint.err:empty { display: none; }
 #pal-form label { display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
 #pal-form label .req { color: var(--err); }
 #pal-form .actions { display: flex; justify-content: flex-end; gap: 8px; }
-#dlg-help { width: min(900px, 94vw); max-height: 90vh; overflow: auto; }
+#dlg-help {
+  --help-x: clamp(0px, calc((100vw - 32ch) / 2), 5ch);
+  --help-y: clamp(0px, calc((100dvh - 8lh) / 2), 5lh);
+  width: min(900px, calc(100vw - 2 * var(--help-x)));
+  max-width: calc(100vw - 2 * var(--help-x));
+  max-height: calc(100dvh - 2 * var(--help-y));
+  margin: auto; overflow: auto;
+}
 #dlg-help .body { padding: 18px; }
 #dlg-help table { width: 100%; border-collapse: collapse; table-layout: fixed; }
 #dlg-help th, #dlg-help td { padding: 8px; text-align: left; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
