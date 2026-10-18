@@ -88,6 +88,8 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	case ":", "ctrl+p":
 		return m, m.openPalette()
+	case "V":
+		return m, m.openReviews()
 	case "T":
 		m.page = pageTasks
 		m.rebuildTasks()
@@ -103,6 +105,9 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "U":
 		m.openProtos()
 		return m, nil
+	}
+	if m.page == pageReviews {
+		return m.handleReviewsKey(msg)
 	}
 	if m.page == pageTasks {
 		return m.handleTasksKey(msg)

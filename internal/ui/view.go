@@ -61,6 +61,8 @@ func (m *Model) View() tea.View {
 
 	leftLines, rightLines := m.listLines(left, bodyH), m.detailLines(right, bodyH)
 	switch m.page {
+	case pageReviews:
+		leftLines, rightLines = m.reviewListLines(left, bodyH), m.reviewDetailLines(right, bodyH)
 	case pageTasks:
 		leftLines, rightLines = m.taskListLines(left, bodyH), m.taskDetailLines(right, bodyH)
 	case pageCaptures:
@@ -361,6 +363,8 @@ func (m *Model) helpLine() string {
 		return cDim.Render(" " + m.protoRun.title + " · the keys are in the box · ctrl+c cancel")
 	}
 	switch m.page {
+	case pageReviews:
+		return cDim.Render(" j/k highlight · enter open and review · tab queue/history · J/K scroll · r refresh · esc deck · q quit")
 	case pageTasks:
 		return cDim.Render(" j/k select · {/} group · (/) level · N project · n task/subtask · A add many · e edit · s status · m colour · M glyph · a assign pane · enter go to pane · x delete · esc deck · q quit")
 	case pageCaptures:

@@ -177,6 +177,7 @@ dialog .hint.err:empty { display: none; }
     <button data-page="captures">Captures</button>
     <button data-page="context">Context</button>
     <button data-page="reminders">Reminders</button>
+    <button data-page="review">Review</button>
   </nav>
   <span class="meta" id="meta">connecting…</span>
   <span class="badge needs" id="needs" hidden></span>
@@ -247,6 +248,21 @@ dialog .hint.err:empty { display: none; }
         <button id="cap-delete" class="danger">Delete</button>
       </div>
       <div class="detail"><pre class="text" id="captext"><span class="empty">select a capture</span></pre></div>
+    </section>
+  </div>
+
+  <div class="page split" id="page-review">
+    <aside>
+      <div class="railhead filters"><span id="review-count">Review queue</span>
+        <select id="review-filter" aria-label="Review view"><option value="pending">Awaiting review</option><option value="reviewed">Reviewed history</option></select>
+      </div>
+      <div class="rail" id="review-list" aria-label="Completed prompts"></div>
+    </aside>
+    <section>
+      <div class="toolbar"><span class="who spacer" id="review-who"></span>
+        <button id="review-refresh">Refresh</button><button id="review-open" class="primary" disabled>Open</button>
+      </div>
+      <div class="detail"><pre class="text" id="review-text">Highlight a prompt, then Enter or Open to read it and mark it reviewed.</pre></div>
     </section>
   </div>
 
@@ -455,6 +471,7 @@ dialog .hint.err:empty { display: none; }
 
 <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js"></script>
+<script src="/reviews.js"></script>
 <script>
 (() => {
 const $ = (id) => document.getElementById(id);
@@ -462,7 +479,7 @@ const DOTS = { working: '◐', needs_input: '●', errored: '✗', idle: '○', 
 // A grouping is a list of levels joined by " > ", the first outermost.
 const LEVELS = ['session', 'project', 'task', 'parent task', 'top-level task', 'cwd', 'harness', 'state', 'kind'];
 const GROUPS = ['session', 'task tree', 'project', 'project > parent task', 'task', 'top-level task', 'harness > project > parent task', 'cwd', 'harness', 'state', 'kind'];
-const PAGES = ['deck', 'tasks', 'captures', 'context', 'reminders'];
+const PAGES = ['deck', 'tasks', 'captures', 'context', 'reminders', 'review'];
 const state = {
   sessions: [], panes: {}, order: [], selected: null, tab: 'screen', transcripts: false,
   detailKey: '', detailText: '', pollTimer: null, refreshTimer: null, lastStatusErr: false,
@@ -842,6 +859,7 @@ function setPage(name, fromHash) {
   if (name === 'captures') loadCaptures();
   if (name === 'context') { const p = state.panes[state.selected]; if (p) state.ctxPane = { session: p.session, id: p.id, name: p.name }; loadContext(); }
   if (name === 'reminders') loadReminders();
+  if (name === 'review') reviewPage.load(true);
   if (name === 'tasks') { renderTree(); renderTaskInfo(); }
 }
 for (const b of document.querySelectorAll('#nav button')) b.onclick = () => setPage(b.dataset.page);
@@ -1973,6 +1991,7 @@ function deckCommands() {
     { label: 'go to tasks', run: () => setPage('tasks') },
     { label: 'go to captures', run: () => setPage('captures') },
     { label: 'go to context', run: () => setPage('context') },
+    { label: 'go to review queue', run: () => setPage('review') },
     { label: 'go to reminders', run: () => setPage('reminders') },
     { label: 'new reminder…', run: newReminder },
     { label: 'context scope: toggle current pane / all', run: () => { state.ctxScope = state.ctxScope === 'all' ? 'current' : 'all'; setPage('context'); } },
@@ -2146,6 +2165,8 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'T') { setPage('tasks'); return; }
   if (e.key === 'C') { setPage('captures'); return; }
   if (e.key === 'I') { setPage('context'); return; }
+  if (e.key === 'V') { setPage('review'); return; }
+  if (state.page === 'review' && e.key !== 'Escape') { reviewPage.key(e); return; }
   if (e.key === 'Escape') { setPage('deck'); return; }
   if (state.page !== 'deck') return;
   const ids = state.order;
@@ -2159,6 +2180,7 @@ document.addEventListener('keydown', (e) => {
   else if (e.key === 'a') $('btn-assign').click(); else if (e.key === 'i') extractContext();
 });
 
+const reviewPage = createReviewPage(api, setStatus, () => state.page === 'review');
 try { state.tab = localStorage.getItem('deck.tab') || 'screen'; } catch (_) {}
 if (state.tab === 'result') state.tab = 'screen';
 try { const g = parseGroup(localStorage.getItem('deck.group')); if (g) state.group = g.join(' > '); } catch (_) {}

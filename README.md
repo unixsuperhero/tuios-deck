@@ -311,6 +311,39 @@ queued: after a `held` or `stalled` one, look at the new pane before starting
 it again, because the text may already be in it. Deleting a task or a project
 deletes its queued prompts. They live in `deck.json` under `queued_prompts`.
 
+## Review queue
+
+Press `V` in either frontend, choose **Review** in the web navigation, or
+run **go to review queue** from the command palette. The configurable TUI
+action is `review`. Completed prompts are ordered by completion time,
+oldest first, rather than by when they started.
+
+Entering the page and highlighting a row do **not** open it or mark it
+reviewed. Press Enter on the highlighted row (or click **Open** on the web)
+to display its prompt, reported response and available pane output, and
+persist its first reviewed timestamp. The opened detail stays visible when
+the item leaves the pending list; nothing opens the next item automatically.
+TUI `tab` switches between pending and reviewed history, `j/k` highlights,
+`J/K` scrolls the opened detail, and `r` refreshes. The web uses the
+**Awaiting review / Reviewed history** selector. Refresh preserves the
+highlight, opened detail and scroll. Reopening history keeps the original
+reviewed timestamp.
+
+The source is the daemon’s actual `prompt` followed by `turn_end` activity,
+including OMP hook reports. Queued-only prompts, unfinished prompts, commands,
+state changes and orphan turn-end events are not review items. Activity text
+can be truncated by the daemon or harness. When collecting the latest finished
+turn of an idle/done agent, the deck also retains up to 2,000 recent pane lines,
+clearly labeled as pane output that may include earlier turns. It never
+attaches a currently running prompt’s output to an earlier turn.
+
+Snapshots and reviewed timestamps live in `deck.json` under `reviews` and
+survive pane closure and frontend restart. Collection runs beside either
+frontend, independently of auto-capture, without changing the current view.
+Only prompt/end pairs still present in the daemon’s bounded activity ring can
+be recovered; a harness that reports neither cannot populate this queue.
+Markdown/HTML documents and MCP are not review sources.
+
 ## Context items
 
 A context item is something worth keeping that a pane held: a `link`, a
@@ -402,11 +435,11 @@ and context extraction leaves the transcript out.
 
 ## The TUI
 
-The TUI has four pages. The deck page is the one at the top of this file:
+The deck page is the one at the top of this file:
 the panes on the left, the selected pane's screen, activity, transcript or
 turns on the right. On every page `T` opens the tasks page, `C` the
-captures page, `I` the context page, `U` the prototypes page, `A` the
-mass-add screen, `:` or
+captures page, `I` the context page, `U` the prototypes page, `V` the review
+queue, `A` the mass-add screen, `:` or
 `ctrl+p` the command palette, and `q` quits; `esc` comes back to the deck.
 The title line names the page and, on the deck, the grouping when it is not
 by session; on the context page, its sort, grouping and filter.
@@ -454,6 +487,7 @@ With the rail focused:
 | `x` | Close the pane, after a confirmation |
 | `r`, `enter` | Refresh |
 | `T` `C` `I` `U` `A` | The tasks page, the captures page, the context page, the prototypes page, the mass-add screen |
+| `V` | The completed prompt review queue (Enter opens and marks reviewed) |
 | `:` `ctrl+p` | The command palette |
 | `q` | Quit; the panes stay |
 
@@ -1043,6 +1077,8 @@ DELETE /api/panes/{session}/{id}/assignment    drop it
 GET    /api/captures                           the folder, newest first: {name, path, size, modified, session, pane, kind}; kind is "turn", "cmd" or ""
 GET    /api/captures/{name}                    {"name", "content", "lines"}
 DELETE /api/captures/{name}                    remove the file
+GET    /api/reviews                            {reviews, warning}; completion order, no review side effects; ?refresh=1 collects current daemon activity
+POST   /api/reviews/{id}/open                  {review}; marks this completed prompt reviewed, once
 GET    /api/prompt-presets                     {"presets": [{id, name, prefix, cwd}]}
 POST   /api/prompt-presets                     {name, prefix, cwd}; PATCH /api/prompt-presets/{id} changes any of them; DELETE removes it
 GET    /api/queued-prompts                     {"queued": [{id, text, preset, task_id, project_id, project, task, cwd, session, agent, window}]}
@@ -1085,6 +1121,11 @@ Turns row/expansion check. It needs an already-built `.dev/deck` (or `DECK`),
 uses isolated daemons, stops at the first failure, and prints its artifacts path.
 The deadline is 60 seconds including cleanup, with each subprocess capped at
 10 seconds. Every check keeps what it saw under `$SCRATCH/out` and prints PASS or FAIL.
+
+`scripts/e2e-review.py` checks completed-turn ordering, explicit opening,
+unreviewed navigation, stable detail scroll, reviewed history and persistence
+across the TUI, HTTP API and pane closure, against isolated real daemons.
+It uses `SCRATCH` and `PORT` (default 18963).
 
 ```sh
 go build -o .dev/deck ./cmd/deck

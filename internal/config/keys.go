@@ -31,6 +31,7 @@ var actions = map[string][]Action{
 		{"captures", "C", "go to the captures page", true},
 		{"add_many", "A", "add projects and tasks from an outline", true},
 		{"context", "I", "go to the context page", true},
+		{"review", "V", "go to the finished prompt review queue", true},
 		{"left", "h", "focus the list", false},
 		{"right", "l", "focus the detail", false},
 		{"down", "j", "next pane, or scroll the detail", false},

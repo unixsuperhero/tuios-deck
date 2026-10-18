@@ -40,10 +40,11 @@ const (
 	pageCaptures
 	pageContext
 	pageProtos
+	pageReviews
 )
 
 func (p page) String() string {
-	return [...]string{"deck", "tasks", "captures", "context", "prototypes"}[p]
+	return [...]string{"deck", "tasks", "captures", "context", "prototypes", "review"}[p]
 }
 
 type tab int
@@ -106,7 +107,8 @@ type Model struct {
 	capScroll int
 	capFollow bool
 
-	cx ctxPage // the context page
+	cx      ctxPage // the context page
+	reviews reviewPage
 
 	protoSel   int              // the prototypes page's highlighted row
 	proto      picker           // the prototype that is up
@@ -190,6 +192,15 @@ func (m *Model) Init() tea.Cmd {
 // Update is the message loop.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case reviewsMsg:
+		m.reviews.busy = false
+		m.reviews.err = ""
+		if msg.err != nil {
+			m.reviews.err = msg.err.Error()
+			m.setStatus("review: " + msg.err.Error())
+		}
+		m.rebuildReviews()
+		return m, nil
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		if m.tab == tabTurns && m.turns != nil {
@@ -368,6 +379,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case tickMsg:
+		if m.page == pageReviews {
+			m.rebuildReviews()
+		}
 		var cmds []tea.Cmd
 		if m.mode != modeConfirm && m.page == pageDeck {
 			cmds = append(cmds, m.loadDetail(false))
