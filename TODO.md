@@ -102,8 +102,8 @@ vim-like modes.  so keybindings can be based on mode
 should we move to an sqlite db?  where do we store context items
 - [x] context item screen should have 2 modes - one for the agent/term i'm on,
 and all
-- [ ] add add a page for history that will basically show a timeline or a log of like every every prompt i submitted every time a response from an agent was finished, same thing with submitting commands and the key actions and events that someone might want in a timeline for the things that we're managing here. 
-- [ ] the `?` binding should open a modal with all sorts of tables showing all
+- [x] add add a page for history that will basically show a timeline or a log of like every every prompt i submitted every time a response from an agent was finished, same thing with submitting commands and the key actions and events that someone might want in a timeline for the things that we're managing here. 
+- [x] the `?` binding should open a modal with all sorts of tables showing all
 the keybindings that are available and they should have either they should
 either have different tabs for the different modes or some type of picker or
 some way to change modes for which keybindings to show. and also there should be
@@ -115,7 +115,7 @@ start there
 - [x] add review queue - ask questions for details
   - Opening an entry marks it reviewed. Opening the queue page or highlighting
     an entry must not open it or mark it reviewed.
-- [ ] is basically a queue for any prompts that were triggered, in the order
+- [x] is basically a queue for any prompts that were triggered, in the order
 they finished, only included in list after they've finished.  will also include
 md/html docs, but that will involve creating an mcp server, and i don't want to
 do that yet
@@ -125,15 +125,15 @@ do that yet
 - [x] focus mode - ask questions for details
   - Focus can lock to any task or project, including descendants.
   - Easy-task marks persist and form a saved list for choosing the next focus task.
-- [ ] lock the screen into a single task.  i  havn't decided if it has to be a
+- [x] lock the screen into a single task.  i  havn't decided if it has to be a
 leaf or if it can be locked to a high-level item like a project
-- [ ] when locked, entire screen matches its theme
-- [ ] when idle for 3 minutes - no user interaction - it unlocks and entire left
+- [x] when locked, entire screen matches its theme
+- [x] when idle for 3 minutes - no user interaction - it unlocks and entire left
   rail is visible again
-- [ ] when there is activity every minute for 15 minutes straight, it also
+- [x] when there is activity every minute for 15 minutes straight, it also
 unlocks but has a buffer screen for 30s that will let the user hit enter and
 continue
-- [ ] focus plan mode - let user mark easy tasks
+- [x] focus plan mode - let user mark easy tasks
 
 # wait for explicit instructions to do
 
