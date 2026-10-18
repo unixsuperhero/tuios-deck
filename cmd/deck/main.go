@@ -165,12 +165,27 @@ func runTUI(args []string) error {
 	c.startAutoCapture(ctx, client, dir, nil)
 	c.startReminders(ctx, client, st, nil)
 	go review.Run(ctx, client, st, nil)
-	go history.Run(ctx, client, st)
+	historyDone := startHistory(ctx, client, st)
 	m := ui.New(client, st, version, dir)
 	m.SetSettings(cfg, config.DefaultPath())
 	defer m.Close()
 	_, err = tea.NewProgram(m).Run()
+	cancel()
+	<-historyDone
 	return err
+}
+
+// startHistory runs the history recorder and returns a channel that closes
+// once it has written its last batch, which a front end waits on before it
+// exits: the recorder batches a storm of events into one save, so a cancel
+// alone could lose the events of the last second.
+func startHistory(ctx context.Context, client *daemon.Client, st *store.Store) <-chan struct{} {
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		history.Run(ctx, client, st)
+	}()
+	return done
 }
 
 func runWeb(args []string) error {
@@ -200,7 +215,7 @@ func runWeb(args []string) error {
 	c.startAutoCapture(ctx, client, dir, func(msg string) { web.Log.Print(msg) })
 	c.startReminders(ctx, client, st, func(msg string) { web.Log.Print(msg) })
 	go review.Run(ctx, client, st, func(msg string) { web.Log.Print(msg) })
-	go history.Run(ctx, client, st)
+	historyDone := startHistory(ctx, client, st)
 	srv := &http.Server{Addr: *listen, Handler: s.Handler(), ReadHeaderTimeout: 10 * time.Second}
 	go func() {
 		<-ctx.Done()
@@ -209,7 +224,10 @@ func runWeb(args []string) error {
 		srv.Shutdown(shut)
 	}()
 	web.Log.Printf("serving http://%s for daemon %s", *listen, client.Socket)
-	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+	err = srv.ListenAndServe()
+	stop()
+	<-historyDone
+	if err != nil && err != http.ErrServerClosed {
 		return err
 	}
 	return nil

@@ -146,7 +146,10 @@ func Open(path string) (*Store, error) {
 	s.presets = f.Presets
 	s.queue = f.Queue
 	s.reviews = f.Reviews
-	s.history = f.History
+	if n := len(s.reviews) - maxReviews; n > 0 {
+		s.reviews = s.reviews[n:]
+	}
+	s.history = pruneHistory(f.History)
 	s.stashes = f.Stashes
 	return s, nil
 }

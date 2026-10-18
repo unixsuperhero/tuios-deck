@@ -22,6 +22,10 @@ type Review struct {
 	ReviewedAt  int64  `json:"reviewed_at"`
 }
 
+// maxReviews bounds retained turns; each keeps up to 2000 lines of pane
+// output, and every save writes the whole store. The oldest go first.
+const maxReviews = 500
+
 // AddReviews saves only unseen completed turns. Existing snapshots and review
 // timestamps are immutable, including when the daemon repeats its activity ring.
 func (s *Store) AddReviews(items []Review) error {
@@ -42,8 +46,13 @@ func (s *Store) AddReviews(items []Review) error {
 	if len(s.reviews) == old {
 		return nil
 	}
+	before := s.reviews[:old]
+	if n := len(s.reviews) - maxReviews; n > 0 {
+		before = append([]Review(nil), before...)
+		s.reviews = append([]Review(nil), s.reviews[n:]...)
+	}
 	if err := s.save(); err != nil {
-		s.reviews = s.reviews[:old]
+		s.reviews = before
 		return err
 	}
 	return nil

@@ -23,8 +23,34 @@ type HistoryEntry struct {
 	Detail   string `json:"detail"`
 }
 
+// maxHistory bounds the timeline. Every save writes the whole store, so an
+// unbounded history makes each save, and the CPU the deck burns, grow with
+// every event; a store once reached 46,000 entries and 35 MB. The oldest
+// entries go first.
+const maxHistory = 10000
+
+// droppedHistoryKinds were recorded by earlier decks and are pruned on load.
+// Harnesses animate pane titles (a spinner frame per event), so retitles were
+// 98% of one store's history and carried nothing a person asked to keep.
+var droppedHistoryKinds = map[string]bool{"window-retitled": true}
+
+// pruneHistory drops the kinds no longer recorded and caps the rest.
+func pruneHistory(h []HistoryEntry) []HistoryEntry {
+	kept := h[:0:0]
+	for _, e := range h {
+		if !droppedHistoryKinds[e.Kind] {
+			kept = append(kept, e)
+		}
+	}
+	if len(kept) > maxHistory {
+		kept = kept[len(kept)-maxHistory:]
+	}
+	return kept
+}
+
 // AddHistory atomically keeps new observations. Re-reading a retained source
-// never duplicates an entry or changes its first observation.
+// never duplicates an entry or changes its first observation. Callers batch
+// entries: one call is one save of the whole store.
 func (s *Store) AddHistory(entries ...HistoryEntry) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -34,7 +60,8 @@ func (s *Store) AddHistory(entries ...HistoryEntry) error {
 			s.historyIDs[e.ID] = true
 		}
 	}
-	old := len(s.history)
+	before := append([]HistoryEntry(nil), s.history...)
+	added := 0
 	for _, e := range entries {
 		if s.historyIDs[e.ID] {
 			continue
@@ -44,15 +71,20 @@ func (s *Store) AddHistory(entries ...HistoryEntry) error {
 		}
 		s.history = append(s.history, e)
 		s.historyIDs[e.ID] = true
+		added++
 	}
-	if len(s.history) == old {
+	if added == 0 {
 		return nil
 	}
-	if err := s.save(); err != nil {
-		for _, e := range s.history[old:] {
+	if n := len(s.history) - maxHistory; n > 0 {
+		for _, e := range s.history[:n] {
 			delete(s.historyIDs, e.ID)
 		}
-		s.history = s.history[:old]
+		s.history = append([]HistoryEntry(nil), s.history[n:]...)
+	}
+	if err := s.save(); err != nil {
+		s.history = before
+		s.historyIDs = nil
 		return err
 	}
 	return nil

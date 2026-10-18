@@ -551,9 +551,11 @@ The timeline records:
   the saved queue and initial prompts for new agents. Daemon queue acceptance
   is labeled separately from confirmed delivery. A later harness prompt report
   is another source observation, not a second deck submission.
-- Observed pane and session creation/closure, pane exit, retitle, workspace
-  moves, minimize/restore, agent state changes and activity session/subagent
-  events. These include actions performed outside the deck too.
+- Observed pane and session creation/closure, pane exit, workspace moves,
+  minimize/restore, agent state changes and activity session/subagent events.
+  These include actions performed outside the deck too. Retitles are not
+  recorded: harnesses animate pane titles, a spinner frame per event, and
+  they once made up 98% of a store's history.
 
 On the TUI, `j/k` or arrows select, `g/G` select first/last, `J/K` or
 Page Down/Up scroll the detail, `r` refreshes, and Enter goes to the source

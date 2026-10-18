@@ -17,7 +17,16 @@ import (
 
 const Boundary = "History keeps deck submission acknowledgements, observed events and retained agent activity / shell commands. Queue acceptance is not delivery. Offline gaps, expired rings and unreported prompts cannot be recovered. A turn-end note is not necessarily the full response."
 
-var eventTypes = []string{"agent-activity", "command-started", "command-finished", "window-created", "window-closed", "window-exit", "window-retitled", "window-moved", "window-minimized", "window-restored", "session-created", "session-closed", "gap"}
+// eventTypes leaves out window-retitled on purpose: harnesses animate pane
+// titles, a spinner frame per event, which once made retitles 98% of a store's
+// history and rewrote the whole file a dozen times a second.
+var eventTypes = []string{"agent-activity", "command-started", "command-finished", "window-created", "window-closed", "window-exit", "window-moved", "window-minimized", "window-restored", "session-created", "session-closed", "gap"}
+
+// flushEvery bounds how often live events are written. Every save rewrites
+// the whole store, so an event more than a second after the last save is
+// written at once, and the ones that follow within that second share one
+// save when it ends. A lone event is never delayed; only a storm is batched.
+const flushEvery = time.Second
 
 // Run subscribes before recovering retained sources, so recovery cannot miss
 // events that arrive while the sources are being read. Stable IDs deduplicate both.
@@ -43,18 +52,51 @@ func watch(ctx context.Context, client *daemon.Client, st *store.Store) error {
 	if err != nil {
 		return err
 	}
+	var pending []store.HistoryEntry
+	var lastSave time.Time
+	var due <-chan time.Time // armed while a batch waits; nil blocks the case
+	flush := func() error {
+		due = nil
+		lastSave = time.Now()
+		if len(pending) == 0 {
+			return nil
+		}
+		err := st.AddHistory(pending...)
+		pending = pending[:0]
+		return err
+	}
 	for {
 		select {
 		case <-ctx.Done():
+			flush()
 			return ctx.Err()
+		case <-due:
+			if err := flush(); err != nil {
+				return err
+			}
 		case ev, ok := <-events:
 			if !ok {
+				flush()
 				return fmt.Errorf("daemon stream closed; retained sources will be read on reconnect")
 			}
 			if ev.Type == "subscribed" {
 				err = recoverSources(ctx, client, st, ev.BootID)
+				lastSave = time.Now()
 			} else {
-				err = observe(ctx, client, st, ev)
+				var entries []store.HistoryEntry
+				entries, err = observe(ctx, client, st, ev)
+				pending = append(pending, entries...)
+				if err == nil && len(pending) > 0 {
+					// A harness report (a prompt, a turn end) is rare and is
+					// what the person waits to see, so it is written at once;
+					// command and window events come in storms and wait.
+					urgent := ev.Type == "agent-activity"
+					if wait := flushEvery - time.Since(lastSave); urgent || wait <= 0 || len(pending) >= 1000 {
+						err = flush()
+					} else if due == nil {
+						due = time.After(wait)
+					}
+				}
 			}
 			if err != nil {
 				return err
@@ -143,7 +185,9 @@ func command(boot string, c daemon.HistoryEntry) []store.HistoryEntry {
 	}
 }
 
-func observe(ctx context.Context, client *daemon.Client, st *store.Store, ev daemon.Event) error {
+// observe turns one live event into the entries it records. The caller
+// batches them into one save; only a gap saves here, through recovery.
+func observe(ctx context.Context, client *daemon.Client, st *store.Store, ev daemon.Event) ([]store.HistoryEntry, error) {
 	var raw struct {
 		Time       int64                `json:"time"`
 		Entry      daemon.ActivityEntry `json:"entry"`
@@ -151,22 +195,22 @@ func observe(ctx context.Context, client *daemon.Client, st *store.Store, ev dae
 		CommandSeq int64                `json:"command_seq"`
 	}
 	if err := json.Unmarshal(ev.Raw, &raw); err != nil {
-		return err
+		return nil, err
 	}
 	if ev.Type == "agent-activity" {
 		if h, ok := activity(ev.BootID, ev.Session, ev.Window, raw.Entry); ok {
-			return st.AddHistory(h)
+			return []store.HistoryEntry{h}, nil
 		}
-		return nil
+		return nil, nil
 	}
+	var entries []store.HistoryEntry
 	if ev.Type == "command-finished" {
 		cctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
 		cmds, err := client.CommandHistory(cctx, ev.Session, ev.Window, 200)
 		if err != nil && !vanished(err) {
-			return err
+			return nil, err
 		}
-		var entries []store.HistoryEntry
 		for _, c := range cmds {
 			entries = append(entries, command(ev.BootID, c)...)
 		}
@@ -174,11 +218,8 @@ func observe(ctx context.Context, client *daemon.Client, st *store.Store, ev dae
 		// when the matching command has already left the ring instead of inventing it.
 		for _, c := range cmds {
 			if c.Seq == raw.CommandSeq {
-				return st.AddHistory(entries...)
+				return entries, nil
 			}
-		}
-		if err := st.AddHistory(entries...); err != nil {
-			return err
 		}
 	}
 	sourceID := fmt.Sprintf("%s/%d", ev.BootID, ev.Seq)
@@ -198,13 +239,14 @@ func observe(ctx context.Context, client *daemon.Client, st *store.Store, ev dae
 	if ev.Type == "gap" {
 		h.Summary = "History gap: " + ev.Reason
 	}
-	if err := st.AddHistory(h); err != nil {
-		return err
-	}
+	entries = append(entries, h)
 	if ev.Type == "gap" {
-		return recoverSources(ctx, client, st, ev.BootID)
+		if err := st.AddHistory(entries...); err != nil {
+			return nil, err
+		}
+		return nil, recoverSources(ctx, client, st, ev.BootID)
 	}
-	return nil
+	return entries, nil
 }
 
 func vanished(err error) bool {
