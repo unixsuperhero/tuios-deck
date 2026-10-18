@@ -565,8 +565,10 @@ when focus is outside an input. Both keep the selected event and the detail
 scroll when new events arrive.
 
 Recording runs while the deck runs, even with `-auto-capture=false`. On
-startup and reconnect it reads each live pane's retained activity and command
-history. Those rings are bounded: activity retains 256 entries; command history
+startup, and whenever the daemon reports a gap in its event stream (a restart
+included), it reads each live pane's retained activity and command
+history; a short disconnect is resumed from the last event seen and reads
+nothing again. Those rings are bounded: activity retains 256 entries; command history
 retains 200 commands and collapses repeat command lines to their latest run.
 Closed panes, expired entries, commands without shell integration and prompts
 never reported by a harness cannot be backfilled. Live repeat commands are
@@ -1396,8 +1398,16 @@ newest tag, or the newest commit on `main` while there are no tags.
   opening them.
 - `internal/reminders`: delivering due reminders as a daemon notice and an
   OS notification.
+- `internal/events`: the one daemon event subscription a deck process
+  keeps. It reconnects with a growing backoff, resumes with `after_seq` so a
+  blip loses nothing, and fans each event out to the recorders behind it
+  (auto-capture, history) and to the front end: the TUI once, the web page
+  once per browser tab. When the daemon reports a gap, or a recorder falls
+  behind, that recorder re-reads the daemon's rings.
 - `internal/autocapture`: the automatic captures at a turn's or a
-  command's end.
+  command's end, a handler behind the event stream.
+- `internal/history`: the history timeline's recorder, a handler behind the
+  event stream that batches a second's events into one save.
 - `internal/ui`: the Bubble Tea model, keys, forms, daemon commands and
   view, with the tasks, captures, context and prototypes pages, the
   mass-add screen, the Turns tab, the grouping of the list, the group
