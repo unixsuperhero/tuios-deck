@@ -332,7 +332,7 @@ dialog .hint.err:empty { display: none; }
 <dialog id="dlg-prompt"><form method="dialog">
   <h2 id="prompt-title">Prompt</h2>
   <label>Preset (optional) <select name="preset" data-preset></select></label>
-  <label>Text <textarea name="text" required data-compose="prompt"></textarea></label>
+  <label>Text <textarea name="text" required autofocus data-compose="prompt"></textarea></label>
   <div class="hint" id="prompt-hint"></div>
   <div class="actions"><button type="button" data-cancel>Cancel</button><button class="primary" value="ok">Send</button></div>
 </form></dialog>
@@ -373,7 +373,7 @@ dialog .hint.err:empty { display: none; }
   </div>
   <div class="row"><label>Working directory <input name="cwd" placeholder="empty: the preset's, else the daemon's"></label><button type="button" data-browse="cwd">Browse…</button></div>
   <label>Send to a running agent instead (optional) <select name="window" data-panes></select></label>
-  <label>Prompt <textarea name="text" required></textarea></label>
+  <label>Prompt <textarea name="text" required data-compose="queue"></textarea></label>
   <div class="hint">The preset's prefix is put in front once, now. Start it later from Queued prompts.</div>
   <div class="hint err" data-err></div>
   <div class="actions"><button type="button" data-cancel>Cancel</button><button class="primary" value="ok">Save</button></div>
@@ -1019,6 +1019,14 @@ function composeCtx(ta) {
   if (ta.dataset.compose === 'agent') {
     const f = ta.form.elements;
     return { cwd: f.cwd.value || '~', harness: f.agent.value.trim(), on: true };
+  }
+  if (ta.dataset.compose === 'queue') {
+    // The harness and folder the prompt will meet: the chosen running agent's,
+    // else the agent field's; the folder typed, else the preset's, else the pane's.
+    const f = ta.form.elements, pane = state.panes[f.window.value] || state.panes[state.selected];
+    const preset = (state.presets || []).find((x) => x.name === f.preset.value);
+    const target = state.panes[f.window.value];
+    return { cwd: f.cwd.value.trim() || preset?.cwd || pane?.cwd || '~', harness: target ? target.harness || '' : f.agent.value.trim(), on: true };
   }
   const p = state.panes[state.selected];
   return { cwd: p?.cwd || '~', harness: p?.harness || '', on: !!p?.is_agent };

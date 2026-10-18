@@ -759,6 +759,14 @@ the suggestions list under the box (`↓`/`↑` or `ctrl+n`/`ctrl+p`, `tab` or
 machine's files through `/api/files` (click folders to open, files to
 select, across folders) since a browser's picker cannot name a path there.
 
+The queued-prompt form takes both too, for the harness that will read the
+prompt (the chosen running agent's, else the agent field's) and under the
+folder it will start in: the cwd typed, else the preset's, else the chosen
+pane's (or the selected pane's). In the TUI `ctrl+o` on the prompt picks files
+and anywhere else picks the folder. The prompt (`p`) opens on its text, with
+the preset one `shift+tab` up, and shifted letters type like any others; only
+ctrl and alt chords are shortcuts.
+
 A confirmation (closing a pane, deleting a row, a capture or a context
 item) asks on the status line and defaults to yes, `(Y/n)`: `enter` or `y`
 confirms, `n` or `esc` cancels, and any other key does nothing.
