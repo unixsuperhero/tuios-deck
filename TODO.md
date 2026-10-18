@@ -112,7 +112,9 @@ start there
 
 ## Review Queue
 
-- [ ] add review queue - ask questions for details
+- [x] add review queue - ask questions for details
+  - Opening an entry marks it reviewed. Opening the queue page or highlighting
+    an entry must not open it or mark it reviewed.
 - [ ] is basically a queue for any prompts that were triggered, in the order
 they finished, only included in list after they've finished.  will also include
 md/html docs, but that will involve creating an mcp server, and i don't want to
