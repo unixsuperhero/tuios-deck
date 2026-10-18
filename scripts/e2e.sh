@@ -776,6 +776,67 @@ assert len(t) == 1 and t[0]["project_id"] == deck["id"], t
 assert d["assignments"][sys.argv[2]]["task_id"] == t[0]["id"]
 PY2
 
+echo "== prototypes page: U lists the pickers, and each one assigns for real"
+select_pane 2
+FAKE=$(window_id fake)
+b send-text -s host -w deck 'U'; settle; deckcap 21p-protos
+check "title names the prototypes page" "$SCRATCH/out/21p-protos.txt" 'tuios-deck.* prototypes '
+check "row 1 is the single fuzzy list" "$SCRATCH/out/21p-protos.txt" ' 1 single fuzzy list *assign'
+check "row 2 is the two-pane preview" "$SCRATCH/out/21p-protos.txt" ' 2 two-pane preview *assign'
+check "row 3 is the tree" "$SCRATCH/out/21p-protos.txt" ' 3 tree *assign'
+check "row 4 is the hotkey quick-pick" "$SCRATCH/out/21p-protos.txt" ' 4 hotkey quick-pick *assign'
+check "row 5 is the miller columns" "$SCRATCH/out/21p-protos.txt" ' 5 miller columns *assign'
+check "row 6 is the type-ahead chips" "$SCRATCH/out/21p-protos.txt" ' 6 type-ahead chips *assign'
+check "a filter row drives the context page" "$SCRATCH/out/21p-protos.txt" ' 1 single fuzzy list *filter'
+check "the right side names the pane an assign is for" "$SCRATCH/out/21p-protos.txt" 'enter assigns target › fake'
+check "the right side lists the highlighted prototype's keys" "$SCRATCH/out/21p-protos.txt" 'ctrl+n/ctrl+p or ↓/↑ move'
+# assigned PANE TASK-ID PROJECT-ID: the store holds that assignment for the pane.
+assigned() { python3 -c 'import json,sys; a=json.load(open(sys.argv[1]))["assignments"].get(sys.argv[2],{}); sys.exit(0 if a.get("task_id","")==sys.argv[3] and a.get("project_id","")==sys.argv[4] else 1)' "$DATA" "$@"; }
+LANDING=$(python3 -c 'import json,sys; print([t["id"] for t in json.load(open(sys.argv[1]))["tasks"] if t["title"]=="landing"][0])' "$DATA")
+
+b send-keys -s host -w deck 'g Enter' >/dev/null; settle; deckcap 21q-fuzzy
+check "prototype 1 opens as a box" "$SCRATCH/out/21q-fuzzy.txt" '╭─ assign fake · single fuzzy list'
+check "prototype 1 lists every target with its path" "$SCRATCH/out/21q-fuzzy.txt" 'deck / command palette / verb autocomplete'
+check "prototype 1 ends with + add new…" "$SCRATCH/out/21q-fuzzy.txt" '+ add new…'
+b send-text -s host -w deck 'landi'; settle; deckcap 21r-fuzzy-typed
+check "a fragment keeps the matching target" "$SCRATCH/out/21r-fuzzy-typed.txt" 'web / landing'
+if grep -q 'verb autocomplete' "$SCRATCH/out/21r-fuzzy-typed.txt"; then echo "FAIL the fragment kept unmatched targets"; fails=$((fails+1)); else echo "PASS unmatched targets hidden"; fi
+b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 21s-fuzzy-picked
+check "status reports the assignment like the form does" "$SCRATCH/out/21s-fuzzy-picked.txt" 'assigned fake to web › landing'
+check "the prototypes page stays up to try the next one" "$SCRATCH/out/21s-fuzzy-picked.txt" 'tuios-deck.* prototypes '
+assigned "$FAKE" "$LANDING" "" && echo "PASS prototype 1 assigned fake to the task" || { echo "FAIL fake is not assigned to landing"; fails=$((fails+1)); }
+
+b send-keys -s host -w deck g >/dev/null; b send-keys -s host -w deck j --repeat 3 >/dev/null; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 21t-hotkey
+check "prototype 4 numbers the most used target first" "$SCRATCH/out/21t-hotkey.txt" ' 1 ◆ deck .*2 panes'
+check "prototype 4 offers 0 for more" "$SCRATCH/out/21t-hotkey.txt" ' 0   more…'
+b send-keys -s host -w deck 1 >/dev/null; settle; deckcap 21u-hotkey-picked
+check "1 assigns at once" "$SCRATCH/out/21u-hotkey-picked.txt" 'assigned fake to deck'
+assigned "$FAKE" "" p_e2e001 && echo "PASS prototype 4 assigned fake to the project" || { echo "FAIL fake is not assigned to project deck"; fails=$((fails+1)); }
+
+b send-keys -s host -w deck g >/dev/null; b send-keys -s host -w deck j --repeat 2 >/dev/null; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 21v-tree
+check "prototype 3 starts with the projects collapsed" "$SCRATCH/out/21v-tree.txt" '▸ ◆ deck'
+b send-keys -s host -w deck l >/dev/null; settle; deckcap 21w-tree-open
+check "l expands the project" "$SCRATCH/out/21w-tree-open.txt" '▾ ◆ deck'
+check "the expanded project shows its tasks" "$SCRATCH/out/21w-tree-open.txt" '● command palette'
+b send-keys -s host -w deck 'j Enter' >/dev/null; settle; deckcap 21x-tree-picked
+check "enter on the task assigns it" "$SCRATCH/out/21x-tree-picked.txt" 'assigned fake to deck › command palette'
+assigned "$FAKE" t_e2e001 "" && echo "PASS prototype 3 assigned fake to the task" || { echo "FAIL fake is not assigned to command palette"; fails=$((fails+1)); }
+
+cp "$DATA" "$SCRATCH/out/store-before-esc.json"
+for row in 1 4 5; do # prototypes 2, 5 and 6
+	b send-keys -s host -w deck g >/dev/null; b send-keys -s host -w deck j --repeat $row >/dev/null; b send-keys -s host -w deck Enter >/dev/null; settle
+	deckcap "21y-open-$row"
+	b send-text -s host -w deck 'deck'; b send-keys -s host -w deck l >/dev/null; settle
+	b send-keys -s host -w deck Escape >/dev/null; settle; deckcap "21y-esc-$row"
+	check "esc leaves prototype row $((row+1)) without assigning" "$SCRATCH/out/21y-esc-$row.txt" 'cancelled'
+done
+check "prototype 2 shows a preview beside the list" "$SCRATCH/out/21y-open-1.txt" 'path *deck'
+check "prototype 5 shows the breadcrumb" "$SCRATCH/out/21y-open-4.txt" '╭─ assign fake · miller columns'
+check "prototype 6 shows the input" "$SCRATCH/out/21y-open-5.txt" '╭─ assign fake · type-ahead chips'
+cmp -s "$DATA" "$SCRATCH/out/store-before-esc.json" && echo "PASS the store is unchanged after the three cancels" || { echo "FAIL a cancelled prototype changed the store"; fails=$((fails+1)); }
+b send-keys -s host -w deck Escape >/dev/null; settle; deckcap 21z-back
+check "esc on the prototypes page returns to the deck" "$SCRATCH/out/21z-back.txt" 'tuios-deck.* deck '
+
 echo "== h and l move the focus between the rail and the main area"
 # The build pane's screen holds the seq of the check above, taller than the detail.
 select_pane 1

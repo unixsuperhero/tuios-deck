@@ -23,6 +23,7 @@ const (
 	modeForm
 	modeConfirm
 	modePalette
+	modeProto // a prototype picker is up
 )
 
 // page is which view the deck shows: the deck of panes, the tasks tree or
@@ -34,10 +35,11 @@ const (
 	pageTasks
 	pageCaptures
 	pageContext
+	pageProtos
 )
 
 func (p page) String() string {
-	return [...]string{"deck", "tasks", "captures", "context"}[p]
+	return [...]string{"deck", "tasks", "captures", "context", "prototypes"}[p]
 }
 
 type tab int
@@ -97,6 +99,12 @@ type Model struct {
 	capFollow bool
 
 	cx ctxPage // the context page
+
+	protoSel   int              // the prototypes page's highlighted row
+	proto      picker           // the prototype that is up
+	protoBack  picker           // the prototype the mass-add screen put aside
+	protoRun   protoRun         // what the prototype that is up drives
+	protoShots map[string]*shot // the screens its preview read, by window id
 
 	focusMain  bool // h and l move it: the rail, or the main area to the right
 	tab        tab
@@ -186,6 +194,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if m.mode == modePalette && m.pal != nil {
 			m.pal.setQuery(m.pal.Query + panes.OneLine(msg.String()))
+		}
+		if m.mode == modeProto && m.proto != nil {
+			return m, m.protoPaste(panes.OneLine(msg.String()))
 		}
 		return m, nil
 
@@ -290,6 +301,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			m.nonce = msg.nonce
 		}
+		return m, nil
+
+	case previewMsg:
+		m.takePreview(msg)
 		return m, nil
 
 	case actionMsg:

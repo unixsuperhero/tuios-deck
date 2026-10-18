@@ -49,6 +49,9 @@ func (m *Model) View() tea.View {
 		return v
 	}
 	left := m.leftWidth()
+	if m.page == pageProtos {
+		left = m.width / 2
+	}
 	right := m.width - left - 1
 	bodyH := m.height - 3
 
@@ -64,6 +67,8 @@ func (m *Model) View() tea.View {
 		leftLines, rightLines = m.captureListLines(left, bodyH), m.captureDetailLines(right, bodyH)
 	case pageContext:
 		leftLines, rightLines = m.contextListLines(left, bodyH), m.contextDetailLines(right, bodyH)
+	case pageProtos:
+		leftLines, rightLines = m.protoListLines(left, bodyH), m.protoDetailLines(right, bodyH)
 	}
 	// The palette lies over the lower part of the body, full width.
 	var under []string
@@ -76,6 +81,11 @@ func (m *Model) View() tea.View {
 	if m.mode == modeForm && m.form != nil {
 		boxW = formWidth(m.width)
 		box = m.formBox(boxW, bodyH)
+		boxX, boxY = (m.width-boxW)/2, (bodyH-len(box))/2
+	}
+	if m.mode == modeProto && m.proto != nil {
+		boxW = protoWidth(m.width)
+		box = m.proto.view(boxW, bodyH)
 		boxX, boxY = (m.width-boxW)/2, (bodyH-len(box))/2
 	}
 	for i := 0; i < bodyH; i++ {
@@ -287,6 +297,8 @@ func (m *Model) statusLine() string {
 		return line
 	case modeConfirm:
 		return cStatus.Render(m.confirm.Text)
+	case modeProto:
+		return cStatus.Render(m.protoRun.title)
 	}
 	if strings.HasPrefix(m.status, "error:") {
 		return cErr.Render(m.status)
@@ -302,12 +314,16 @@ func (m *Model) helpLine() string {
 		return cDim.Render(" enter/y confirm · n/esc cancel")
 	case modePalette:
 		return cDim.Render(" type to filter · ↑/↓ ctrl+p/n pick · enter run · tab complete · esc close")
+	case modeProto:
+		return cDim.Render(" " + m.protoRun.title + " · the keys are in the box · ctrl+c cancel")
 	}
 	switch m.page {
 	case pageTasks:
 		return cDim.Render(" j/k select · {/} group · (/) level · N project · n task/subtask · A add many · e edit · s status · m colour · M glyph · a assign pane · enter go to pane · x delete · esc deck · q quit")
 	case pageCaptures:
 		return cDim.Render(" j/k select · J/K scroll · G follow · enter go to pane · x delete · r refresh · T tasks · esc deck · q quit")
+	case pageProtos:
+		return cDim.Render(" j/k select · enter try it for real · T tasks · I context · esc deck · q quit")
 	case pageContext:
 		return cDim.Render(" j/k select · {/} group · s sort · f filter · o/O group · * star · ! pin · a assign · y copy · enter insert · ^o open · w open with · x delete · esc deck · q quit")
 	}

@@ -345,6 +345,7 @@ func (m *Model) deckCommands() []palItem {
 		{"deck", "go to tasks", "the projects, tasks and subtasks page (T)", func() tea.Cmd { m.page = pageTasks; m.rebuildTasks(); return nil }},
 		{"deck", "go to captures", "the captures folder page (C)", func() tea.Cmd { m.openCaptures(); return nil }},
 		{"deck", "go to context", "the context items page (I)", func() tea.Cmd { m.openContext(); return nil }},
+		{"deck", "prototypes", "try the picker prototypes for assign and filter (U)", func() tea.Cmd { m.openProtos(); return nil }},
 		{"deck", "extract context from pane", "find links, paths, prompts and commands in the selected pane (i)", needPane(func(*panes.Pane) tea.Cmd { return m.extractContext() })},
 	}
 	for _, g := range presets {

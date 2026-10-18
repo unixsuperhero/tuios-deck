@@ -24,6 +24,7 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			}
 			m.mode, m.form = modeNormal, nil
 			m.setStatus("cancelled")
+			m.resumeProto()
 			return m, nil
 		}
 		done, cmd := m.form.handleKey(msg)
@@ -32,6 +33,7 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.form, m.formStack = m.formStack, nil
 		case done:
 			m.mode, m.form = modeNormal, nil
+			m.resumeProto()
 		case m.form.adding > 0:
 			m.formStack = m.form
 			return m, m.openMassAdd(m.addPrefill(m.form))
@@ -52,6 +54,9 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	case modePalette:
 		return m.handlePaletteKey(msg)
+
+	case modeProto:
+		return m.handleProtoKey(msg)
 	}
 
 	// Keys every page answers.
@@ -72,6 +77,9 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "I":
 		m.openContext()
 		return m, nil
+	case "U":
+		m.openProtos()
+		return m, nil
 	}
 	if m.page == pageTasks {
 		return m.handleTasksKey(msg)
@@ -81,6 +89,9 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 	if m.page == pageContext {
 		return m.handleContextKey(msg)
+	}
+	if m.page == pageProtos {
+		return m.handleProtosKey(msg)
 	}
 
 	switch msg.String() {

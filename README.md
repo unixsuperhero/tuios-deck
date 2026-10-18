@@ -214,7 +214,8 @@ and context extraction leaves the transcript out.
 The TUI has four pages. The deck page is the one at the top of this file:
 the panes on the left, the selected pane's screen, activity, transcript or
 turns on the right. On every page `T` opens the tasks page, `C` the
-captures page, `I` the context page, `A` the mass-add screen, `:` or
+captures page, `I` the context page, `U` the prototypes page, `A` the
+mass-add screen, `:` or
 `ctrl+p` the command palette, and `q` quits; `esc` comes back to the deck.
 The title line names the page and, on the deck, the grouping when it is not
 by session; on the context page, its sort, grouping and filter.
@@ -252,7 +253,7 @@ With the rail focused:
 | `i` | Extract context items from the pane (above) |
 | `x` | Close the pane, after a confirmation |
 | `r`, `enter` | Refresh |
-| `T` `C` `I` `A` | The tasks page, the captures page, the context page, the mass-add screen |
+| `T` `C` `I` `U` `A` | The tasks page, the captures page, the context page, the prototypes page, the mass-add screen |
 | `:` `ctrl+p` | The command palette |
 | `q` | Quit; the panes stay |
 
@@ -418,6 +419,42 @@ when it was found and whether it is starred and pinned.
 A prompt or a command has nothing to open; `y` and `enter` work on every
 kind.
 
+### Prototypes
+
+`U` (or the palette's "prototypes") opens a page of picker prototypes for
+assigning a pane and filtering the context page, so they can be tried on
+the real store and panes side by side. Each row names the prototype, what
+it drives and how it works; the right side lists its keys. `enter` runs it
+for real: an assign row assigns the pane selected on the deck page and
+reports it on the status line the way the assign form does, and a filter
+row filters the context page and goes there. `esc` cancels a prototype and
+leaves the page; `esc` on the page goes back to the deck. These will be
+consolidated into one picker once one wins.
+
+1. **Single fuzzy list**: one query line under a tall list of every target
+   (`project`, `project / task`, `project / task / subtask`), ranked like
+   the palette with the matched letters marked; `ctrl+n` `ctrl+p` move,
+   `enter` picks, `+ add new…` at the end opens the mass-add screen and
+   comes back.
+2. **Two-pane preview**: the same list on the left and, on the right, the
+   highlighted target's path, status, theme, assigned panes and the last
+   lines of the first pane's screen.
+3. **Tree**: projects collapsed; `l` opens a branch, `h` closes it or goes
+   to the parent, `/` filters to the branches holding a match.
+4. **Hotkey quick-pick**: the nine targets with the most panes and the
+   latest changes on `1`-`9`; `0` falls into the single fuzzy list.
+5. **Miller columns**: a project column, a task column and a subtask
+   column under a breadcrumb; `l` `h` move between them and `enter` picks
+   the highlighted node at any depth.
+6. **Type-ahead chips**: one input; `deck/` locks the project as a chip
+   and then tasks complete inside it, `tab` locks the highlighted
+   completion, `backspace` on an empty segment pops a chip, `enter` picks
+   what the chips spell.
+
+The filter rows (1, 2, 3, 5 and 6) start with the context kind, `any` for
+every kind, then the project and the task; a typed text that names nothing
+filters by the text instead.
+
 ### The command palette
 
 `:` or `ctrl+p` opens the palette over the lower part of the screen. Typing
@@ -428,7 +465,7 @@ then the query anywhere in it, then its letters in order. `ctrl+n` `ctrl+p`
 
 - `[deck]`, listed first: assign to task…, assign to project…, clear
   assignment, new agent, new terminal, prompt, capture, close pane,
-  refresh, go to deck, go to tasks, go to captures, go to context, extract
+  refresh, go to deck, go to tasks, go to captures, go to context, prototypes, extract
   context from pane, group by each of the presets, group by… for any
   levels, new project, new task, new subtask of…, add many…, delete
   capture. Each does what its key does.
@@ -509,12 +546,13 @@ Main area focused, and main area focused on the Turns tab:
  main area: h rail · j/k row · enter/space expand · y copy · g top · G newest · J/K half page · [/] or 1-4 tab · p prompt · T tasks · q quit
 ```
 
-The tasks, captures and context pages:
+The tasks, captures, context and prototypes pages:
 
 ```
  j/k select · N project · n task/subtask · A add many · e edit · s status · m colour · M glyph · a assign pane · enter go to pane · x delete · esc deck · q quit
  j/k select · J/K scroll · G follow · enter go to pane · x delete · r refresh · T tasks · esc deck · q quit
  j/k select · s sort · f filter · o/O group · * star · ! pin · a assign · y copy · enter insert · ^o open · w open with · x delete · esc deck · q quit
+ j/k select · enter try it for real · T tasks · I context · esc deck · q quit
 ```
 
 A form, a confirmation and the palette:

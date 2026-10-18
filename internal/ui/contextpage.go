@@ -91,8 +91,10 @@ func (m *Model) openContext() {
 	m.rebuildContext()
 }
 
-func (m *Model) ctxMatches(c store.ContextItem) bool {
-	f := m.cx.filter
+func (m *Model) ctxMatches(c store.ContextItem) bool { return m.cx.filter.keeps(c) }
+
+// keeps says whether the filter lets the item through.
+func (f ctxFilter) keeps(c store.ContextItem) bool {
 	switch {
 	case f.Kind != "" && c.Kind != f.Kind,
 		f.ProjectID != "" && c.ProjectID != f.ProjectID,
