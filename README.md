@@ -56,9 +56,10 @@ go build -o deck ./cmd/deck
 ./deck tui --socket /path/to/tuios.sock --captures ./captures
 ./deck web                   # http://127.0.0.1:8787
 ./deck web --listen 127.0.0.1:9000 --socket /path/to/tuios.sock
-./deck tui --data ~/deck.json  # projects, tasks, assignments and context items; web takes it too
+./deck tui --data ~/deck.db    # projects, tasks, assignments and context items; web takes it too
 ./deck tui -auto-capture=false  # no automatic captures; web takes it too
 ./deck setup                 # the files the deck needs on this machine
+./deck export > store.json   # the store as JSON; ./deck import store.json reads it back
 ```
 
 `deck tui` and `deck web` share `-socket`, `-captures`, `-data` and
@@ -331,10 +332,37 @@ also fill their project. The project field remains editable.
 tree (below); the palette's "clear assignment" drops it. The assignment of a pane that is gone from two
 listings in a row is dropped on its own.
 
-The record is one JSON file, `$XDG_DATA_HOME/tuios-deck/deck.json`, else
-`~/.local/share/tuios-deck/deck.json`. `TUIOS_DECK_DATA`, or the `-data`
-flag of `deck tui` and `deck web`, names another file. It is written whole,
-through a temp file and a rename, so it can be read or copied at any time:
+The record is one SQLite database, `$XDG_DATA_HOME/tuios-deck/deck.db`, else
+`~/.local/share/tuios-deck/deck.db`, in WAL mode and readable with any
+`sqlite3`. `TUIOS_DECK_DATA`, or the `-data` flag of `deck tui`, `deck web`,
+`deck export` and `deck import`, names another one. A path ending in `.json`
+names an old JSON store instead, and the database lives beside it under the
+same name ending in `.db` (`~/deck.json` means `~/deck.db`).
+
+Earlier decks kept everything in `deck.json`. When the deck opens a
+database with no rows and that file is beside it, it copies the file in,
+renames it to `deck.json.migrated` (never deleted) and says so in one line
+on stderr. Nothing reads the JSON file again.
+
+There is one table per part of the old file, ids as text primary keys and
+times as the integers they always were (seconds for `created` and
+`updated`, milliseconds for history), plus a `meta` table holding the
+schema version. The deck holds the rows in memory, as it did the file, and
+every change writes only the rows it touched, in one transaction; history
+is one insert batch a second. Two deck processes on one database (say
+`deck tui` and `deck web`) no longer overwrite each other's writes, but each
+reads the database once at start, so one does not see the other's changes
+until it restarts.
+
+`deck export` writes the store to stdout in the old file's shape, which is
+how to read, diff or copy it by hand; `deck import FILE.json` replaces every
+table with such a file:
+
+```sh
+deck export > backup.json
+deck export -data ~/deck.json | jq '.tasks[].title'   # the db beside an old file
+deck import backup.json
+```
 
 ```json
 {
@@ -362,16 +390,9 @@ through a temp file and a rename, so it can be read or copied at any time:
 }
 ```
 
-Context items live in this same file, under `context_items`, not in a
+Context items live in this same database, under `context_items`, not in a
 separate store; the `-data` flag and `TUIOS_DECK_DATA` move them with the
-rest. The deck keeps JSON for now: the file is
-read whole at start and rewritten whole under one process-local mutex, and a
-plain file can be read, diffed and copied by hand. SQLite would be worth
-its dependency if the store grew past what a rewrite per change tolerates,
-or if two deck processes had to write at once. Concurrent writers are a
-known limit: two deck processes on one file (say `deck tui` and `deck web`)
-each hold their own copy from start, so the later write wins; point them at
-different `-data` files, or run one.
+rest.
 
 Deleting a task takes its subtasks with it, deleting a project takes its
 tasks, and either takes the assignments that pointed at any of them. A
@@ -410,7 +431,7 @@ until you make one. The list's `x` adds the example "short answer"
 preset (`Answer this question in less than 10 words:`), and nothing else
 adds it. In the preset form, `ctrl+o` opens the operating system's folder
 dialog for the `cwd` field (macOS `osascript`, else `zenity` or `kdialog`); on
-the web page the field has a Browse button. Presets live in `deck.json`
+the web page the field has a Browse button. Presets live in the store
 under `prompt_presets`.
 
 On the web, the `preset` field of `POST /api/agents`, `/api/terminals` and
@@ -437,7 +458,7 @@ error, a refused start, an agent that is not ready, a pane that is gone,
 a prompt the daemon calls `held` or `stalled`, is shown and the prompt stays
 queued: after a `held` or `stalled` one, look at the new pane before starting
 it again, because the text may already be in it. Deleting a task or a project
-deletes its queued prompts. They live in `deck.json` under `queued_prompts`.
+deletes its queued prompts. They live in the store under `queued_prompts`.
 
 ## Review queue
 
@@ -471,7 +492,7 @@ no subagent the window started is still running (a `subagent_start` without
 its `subagent_stop`); until then the queue header counts it as still
 running. Nothing polls the daemon for turns, and nothing about a turn is
 stored twice: the list is computed from history on every read, and the only
-review state is the mark, in `deck.json` under `review_marks` (the prompt's
+review state is the mark, in the store under `review_marks` (the prompt's
 history id → first reviewed time, ms; a mark an earlier deck keyed by a
 response's id moves onto its turn). A prompt the
 deck sent but the harness never reported, a queued-only prompt, a running
@@ -540,7 +561,7 @@ notice in the daemon's most recently active session (read with
 notification (`osascript` on macOS, `notify-send` on Linux; the text is
 passed as an argument, never through a shell). `-reminders=false` turns the
 scheduler off and `-reminders-os=false` the OS notification. Reminders live
-in `deck.json`, with their next due time. One missed while the deck was off
+in the store, with their next due time. One missed while the deck was off
 fires once when it starts, and the next one is a whole interval on the
 original schedule. Run only one deck on a store, or each fires its own copy.
 
@@ -549,7 +570,7 @@ original schedule. Run only one deck on a store, or each fires its own copy.
 `c` writes the selected pane's screen and scrollback to
 `<session>-<pane>-<timestamp>.txt` under `$TUIOS_DECK_CAPTURES`, else
 `$XDG_DATA_HOME/tuios-deck/captures`, else
-`~/.local/share/tuios-deck/captures`, beside the deck's `deck.json`.
+`~/.local/share/tuios-deck/captures`, beside the deck's `deck.db`.
 
 Both `deck tui` and `deck web` also capture a pane on their own when an
 agent's turn ends (working to idle, needs_input, done or errored) and when
@@ -572,7 +593,7 @@ command palette. The TUI's configurable `history` action appears in
 `deck config keys` and the in-app `?` keybinding/action catalog. The web page
 also has a History navigation button and lists `H` in its `?` catalog.
 Entries are newest first, with source time, observation time, session, window,
-source identity and detail. They remain in `deck.json` after panes close and
+source identity and detail. They remain in the store after panes close and
 after the deck restarts. Re-reading retained sources does not duplicate entries.
 
 The timeline records:
@@ -681,7 +702,7 @@ its descendants, including descendants not themselves marked easy.
 In the browser, select a task and use **Mark easy** / **Remove easy flag**.
 **Focus plan** opens the saved list; **Saved easy tasks** toggles its filter.
 Select a row and use **Focus…** to start. Easy flags survive restarts in
-`deck.json`, are independent of task status, and are never inherited by
+the store, are independent of task status, and are never inherited by
 children. The task API exposes `easy`; `PATCH /api/tasks/{id}` with
 `{"easy": true}` or `{"easy": false}` updates it.
 
@@ -1219,7 +1240,7 @@ or submitting the form discards it. A repeated `ctrl+u` on an empty line does
 nothing to the text and does not replace the edit you can undo.
 
 Prompt fields autosave their exact text after each edit or paste. In the TUI,
-drafts live in `deck.json` under `prompt_stashes` and survive cancellation,
+drafts live in the store under `prompt_stashes` and survive cancellation,
 submission and restarting deck. One entry is updated while composing; clearing
 the whole field preserves its last nonempty text. `ctrl+u` also saves a snapshot
 before clearing a line. Recovery shows identical text once; empty drafts are not
@@ -1451,7 +1472,9 @@ POST   /api/call                               {"verb", "params"}: one daemon ve
 `scripts/e2e.sh` runs the TUI against two throwaway daemons under a scratch
 folder: one holds the panes it manages, the other runs the deck in a pane and
 drives it with `send-keys`. It seeds a `deck.json` by hand and points the
-deck at it through `TUIOS_DECK_DATA`, so your own is never touched.
+deck at it through `TUIOS_DECK_DATA`, so your own is never touched; the deck
+migrates it into the `deck.db` beside it, and the checks read the store back
+with `deck export`.
 `scripts/e2e-prompt-stash.sh` drives prompt stashing and recovery through the
 real TUI: exact text, preview/search, restart persistence, all composer forms,
 undo, deduplication, vim mode and failed-save protection.
@@ -1521,7 +1544,7 @@ newest tag, or the newest commit on `main` while there are no tags.
   rendering of activity and transcripts, shared by both front ends.
 - `internal/config`: the settings file and the key binding tables.
 - `internal/store`: projects, tasks, assignments and context items in
-  `deck.json`, and the themes they are drawn in.
+  the `deck.db` SQLite database, and the themes they are drawn in.
 - `internal/prompts`: sending a queued prompt, and the rule that takes it
   off the queue.
 - `internal/context`: finding context items in a pane, and copying and

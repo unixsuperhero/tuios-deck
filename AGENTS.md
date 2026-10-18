@@ -14,6 +14,8 @@ shows is a pane `tuios attach` would show too.
 deck            help, exit 2
 deck tui        Bubble Tea dashboard            internal/ui
 deck web        HTTP + SSE + WebSocket + page   internal/web (page embedded from internal/web/static)
+deck export     the store as the old JSON shape internal/store WriteJSON
+deck import     replace the store from that JSON internal/store ImportJSON
 deck setup      install files outside the binary setup/ (embedded)
 deck update     go install the published module cmd/deck/update.go
 deck version    the module version Go stamped in
@@ -26,7 +28,8 @@ cmd/deck/            main.go (subcommands, the shared -socket -captures -data -a
 internal/daemon/     the JSON client: Call, Subscribe, Presence, StreamPane; typed verb wrappers in verbs.go
 internal/panes/      sessions+agents merged into one shape; activity and transcript text rendering. Both front ends read this;
                      reviews.go names a review's pane from the listing and attaches its turn capture
-internal/store/      store.go projects, tasks (status, MoveTask) and assignments in one JSON file (deck.json);
+internal/store/      sqlite.go the sqlite database (deck.db): schema, Open and the deck.json migration, the per-table row sync, export/import;
+                     store.go projects, tasks (status, MoveTask) and assignments;
                      theme.go the 16-colour themes and the free-colour pool; context.go the context_items table;
                      history.go the history table; reviews.go the turns computed from it and the review_marks table
 internal/context/    context.go Extract, Unwrap and Gather: context items from scrollback, activity, transcript, command-history;
@@ -78,6 +81,7 @@ number of failures.
 ```sh
 GOWORK=off go build -o .dev/deck ./cmd/deck
 scripts/e2e-all.sh     # every suite below at once, one line per suite; ONLY="web history" picks some
+                       # SCRATCH_BASE=/tmp/deck-all-<name> PORT_BASE=<port> runs it beside another clone's
 scripts/e2e.sh         # the TUI: daemon A holds panes, daemon B runs deck tui in a pane driven by send-keys
 scripts/e2e-web.sh     # deck web: the API with curl, the event stream, the WebSocket stream with scripts/wscheck
 scripts/e2e-setup.sh   # deck setup against a scratch HOME; release.sh bump maths; the omp extension under bun with a fake pi and a fake tuios
@@ -193,19 +197,35 @@ Rules the suites follow, and a new check should too:
   `store.ProjectOf` walks parents to the root and reads it there, and
   `Resolve` does the same for an assignment. Never read `Task.ProjectID`
   off a subtask and expect its project.
-- **The store is one JSON file, written whole and atomically** (temp file,
-  rename, 0600), guarded by a mutex because `deck web` serves requests
-  concurrently. Every mutating method takes the lock and saves before it
-  returns; a new one does the same. No partial writes, no second file.
+- **The store is one sqlite database (`deck.db`, modernc.org/sqlite, no
+  cgo) mirrored in memory.** Every table is a slice or map on `Store`,
+  guarded by a mutex because `deck web` serves requests concurrently. Every
+  mutating method takes the lock, changes memory and calls `save()` before it
+  returns; a new one does the same. `save()` diffs each table against the
+  rows last written (`table.sync` in sqlite.go) and writes only the changed
+  ones, all in one transaction; history is not diffed, `AddHistory` inserts
+  its batch directly. A new table needs its `table[T]` in `newTables`, its
+  `CREATE TABLE` in `schema`, a line in `syncAll`, `load`, `importJSON` and
+  the `file` struct, and a bump of `schemaVersion` with a migration for
+  databases that exist. A new field on a row type needs its column too, or
+  it is silently not stored.
 - **The palette's result view holds the detail pane.** While `m.result` is
   set, `loadDetail` returns nil, so the timed re-read does not overwrite a
   verb's result; the deck-page keys that move the selection or the tab call
   `clearResult`, which gives the pane back. A new key that changes what the
   detail shows must do the same.
-- **The e2e seeds `deck.json` by hand** in the store's shape and points the
+- **The e2e seeds `deck.json` by hand** in the old JSON shape and points the
   deck at it with `TUIOS_DECK_DATA`, so a run never touches the person's
-  store. A check that needs a project or a task adds it to that seed, not
-  to the real file. Its seeded task is titled "command palette", which is
+  store. The deck migrates the seed into the `deck.db` beside it and renames
+  the seed to `deck.json.migrated`, so a check never reads `$DATA`: it reads
+  `"$(store_json)"`, which runs `deck export` into a file and prints its path
+  (python suites call `deck export` themselves, or open the `.db` with the
+  `sqlite3` module while the deck is off). A seed is migrated only into a
+  database with no rows; reseeding mid-suite needs `deck import`. A check
+  that needs a project or a task adds it to that seed, not to the real file.
+  To make a save fail, hold the write lock from a second connection with the
+  deck started under `TUIOS_DECK_BUSY_TIMEOUT=0` (`lock_store` in
+  e2e-prompt-stash.sh). Its seeded task is titled "command palette", which is
   also the palette's header text: a grep for the palette must match the
   `─ command palette` header, and a grep for the task must match its row,
   or a check passes for the wrong reason.
@@ -273,7 +293,7 @@ Rules the suites follow, and a new check should too:
   a suite, close a form with `cancel_form` (e2e.sh) or `cancel`
   (e2e-prompt-stash.sh), which answer the question only when it appears, and
   quit with `q` then `y`.
-- **Context items hold window ids too.** Each item in `deck.json` keeps the
+- **Context items hold window ids too.** Each item in the store keeps the
   `window` it came from, so a check that a pane's assignment was pruned
   must match the assignment key (`"<window id>": {`), never the bare id,
   or a context item keeps it "present". Pruning drops assignments only;
