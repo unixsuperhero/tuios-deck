@@ -794,6 +794,26 @@ check "status reports the project's change" "$SCRATCH/out/20g-project-edited.txt
 b send-keys -s host -w deck s >/dev/null; settle   # skipped
 b send-keys -s host -w deck s >/dev/null; settle   # open again for the checks that follow
 
+echo "== M on a project or a task, with odd glyphs, never panics"
+b send-keys -s host -w deck g >/dev/null; b send-keys -s host -w deck M >/dev/null; settle; deckcap 20h-glyph-project
+check "M on a project row opens its glyph form" "$SCRATCH/out/20h-glyph-project.txt" '╭─ glyph for project deck ─'
+b send-keys -s host -w deck Escape >/dev/null; settle
+b send-keys -s host -w deck j >/dev/null; b send-keys -s host -w deck M >/dev/null; settle
+b send-keys -s host -w deck ctrl+u >/dev/null; b send-text -s host -w deck 'ab'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 20i-glyph-multi
+check "a glyph of two characters is refused" "$SCRATCH/out/20i-glyph-multi.txt" 'one character only'
+b send-keys -s host -w deck ctrl+u >/dev/null; b send-text -s host -w deck $'❤️'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 20j-glyph-emoji
+check "an emoji with its variation selector is one glyph" "$SCRATCH/out/20j-glyph-emoji.txt" $'task command palette is now ❤️'
+b send-keys -s host -w deck M >/dev/null; settle
+b send-keys -s host -w deck ctrl+u >/dev/null; b send-text -s host -w deck $'é'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 20k-glyph-combining
+check "a letter with a combining accent is one glyph" "$SCRATCH/out/20k-glyph-combining.txt" $'task command palette is now é'
+b send-keys -s host -w deck M >/dev/null; settle
+b send-keys -s host -w deck ctrl+u >/dev/null; b send-text -s host -w deck $'❤️'; b send-keys -s host -w deck backspace >/dev/null; settle; deckcap 20l-glyph-backspace
+check "backspace takes the whole emoji, selector and all" "$SCRATCH/out/20l-glyph-backspace.txt" $'› glyph: ▏é (tab to take)'
+b send-text -s host -w deck '●'; b send-keys -s host -w deck Enter >/dev/null; settle; deckcap 20m-glyph-back
+check "the deck is alive after the glyph cases" "$SCRATCH/out/20m-glyph-back.txt" 'task command palette is now ●'
+python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if [t for t in d["tasks"] if t["title"]=="command palette"][0]["theme"]["glyph"]=="●" else 1)' "$DATA" \
+	&& echo "PASS the store holds the task's glyph back at ●" || { echo "FAIL command palette's glyph is not ● in $DATA"; fails=$((fails+1)); }
+
 echo "== back to the deck, and enter jumps to an assigned pane"
 b send-keys -s host -w deck Escape >/dev/null; settle; deckcap 17-deck
 check "esc returns to the deck page" "$SCRATCH/out/17-deck.txt" 'tuios-deck.* deck '

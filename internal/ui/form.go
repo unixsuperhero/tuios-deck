@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // addNew is the last entry of a project or task field's list.
@@ -431,9 +432,7 @@ func (f *form) handleKey(msg tea.KeyPressMsg) (finished bool, cmd tea.Cmd) {
 		}
 		return false, nil
 	case "backspace":
-		if r := []rune(cur.Value); len(r) > 0 {
-			cur.Value = string(r[:len(r)-1])
-		}
+		cur.Value = dropLastGrapheme(cur.Value)
 	case "ctrl+u":
 		cur.Value = ""
 	case "ctrl+w":
@@ -456,6 +455,22 @@ func (f *form) handleKey(msg tea.KeyPressMsg) (finished bool, cmd tea.Cmd) {
 	}
 	f.edited("")
 	return false, nil
+}
+
+// dropLastGrapheme is s without its last grapheme, so backspace takes a
+// whole glyph, an emoji with its variation selector or a letter with its
+// combining accent, rather than leaving half of one behind.
+func dropLastGrapheme(s string) string {
+	last := 0
+	for rest := s; rest != ""; {
+		g, _ := ansi.FirstGraphemeCluster(rest, ansi.GraphemeWidth)
+		if g == "" {
+			break
+		}
+		last = len(s) - len(rest)
+		rest = rest[len(g):]
+	}
+	return s[:last]
 }
 
 // indentLast puts two spaces at the start of the last line of v, or with
