@@ -79,11 +79,12 @@ type protoDef struct {
 }
 
 func protoDefs() []protoDef {
-	fuzzyKeys := []string{"type to filter, fuzzy, the matched letters marked", "ctrl+n/ctrl+p or ↓/↑ move", "enter pick", "esc cancel"}
+	preview := "? preview: the target's details and its pane's recent screen"
+	fuzzyKeys := []string{"type to filter, fuzzy, the matched letters marked", "ctrl+n/ctrl+p or ↓/↑ move", "enter pick", preview, "esc cancel"}
 	twoKeys := append([]string{"the right side previews the highlighted target"}, fuzzyKeys...)
-	treeKeys := []string{"j/k or ↓/↑ move · g/G top/bottom", "l/→ expand, again to step in", "h/← collapse, again to the parent", "/ filter: keeps matching branches, esc clears it", "enter pick the node", "esc cancel"}
-	millerKeys := []string{"j/k or ↓/↑ move in the column", "l/→ next column · h/← previous", "the breadcrumb shows the path", "enter pick the highlighted node at any depth", "esc cancel"}
-	chipKeys := []string{"type a name; / locks it as a chip", "tab locks the highlighted completion", "backspace on an empty segment pops the chip", "ctrl+n/ctrl+p or ↓/↑ move in the completions", "enter pick what the chips spell", "esc cancel"}
+	treeKeys := []string{"j/k or ↓/↑ move · g/G top/bottom", "l/→ expand, again to step in", "h/← collapse, again to the parent", "/ filter: keeps matching branches, esc clears it", "enter pick the node", preview, "esc cancel"}
+	millerKeys := []string{"j/k or ↓/↑ move in the column", "l/→ next column · h/← previous", "the breadcrumb shows the path", "enter pick the highlighted node at any depth", preview, "esc cancel"}
+	chipKeys := []string{"type a name; / locks it as a chip", "tab locks the highlighted completion", "backspace on an empty segment pops the chip", "ctrl+n/ctrl+p or ↓/↑ move in the completions", "enter pick what the chips spell", preview, "esc cancel"}
 	hotKeys := []string{"1-9 pick that target at once", "0 more…: the single fuzzy list", "j/k move · enter pick", "esc cancel"}
 	defs := []protoDef{
 		{"single fuzzy list", "one query line, a tall ranked list of every target", purposeAssign, append(fuzzyKeys, "+ add new… opens the mass-add screen"), func() picker { return &fuzzyPicker{} }},

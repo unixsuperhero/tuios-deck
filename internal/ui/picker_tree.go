@@ -127,6 +127,10 @@ func (t *treePicker) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	if moveSel(&t.sel, len(rows), key) {
 		return nil
 	}
+	if key == "?" {
+		t.preview = !t.preview
+		return nil
+	}
 	if t.filtering {
 		switch key {
 		case "esc":
@@ -252,10 +256,10 @@ func (t *treePicker) view(width, height int) []string {
 			lines[i] = pad(lines[i], listW) + cBorder.Render(" │") + pv[i]
 		}
 	}
-	help := "j/k move · l open · h close · / filter · enter pick · esc cancel"
+	help := "j/k move · l open · h close · / filter · enter pick · ? preview · esc cancel"
 	if t.filtering {
 		lines = append(lines, cBorder.Render(strings.Repeat("─", iw)), " "+cStatus.Render("/")+" "+t.query+"▏")
-		help = "type to filter · ↓/↑ move · enter pick · esc clear the filter"
+		help = "type to filter · ↓/↑ move · enter pick · ? preview · esc clear the filter"
 	}
 	return pickerBox(t.m.protoRun.title, lines, help, width)
 }

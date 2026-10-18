@@ -822,6 +822,18 @@ b send-keys -s host -w deck 'j Enter' >/dev/null; settle; deckcap 21x-tree-picke
 check "enter on the task assigns it" "$SCRATCH/out/21x-tree-picked.txt" 'assigned fake to deck › command palette'
 assigned "$FAKE" t_e2e001 "" && echo "PASS prototype 3 assigned fake to the task" || { echo "FAIL fake is not assigned to command palette"; fails=$((fails+1)); }
 
+echo "== ? previews the highlighted target's details and recent screen"
+b send-keys -s host -w deck 'g Enter' >/dev/null; settle
+b send-text -s host -w deck 'palette'; settle
+b send-text -s host -w deck '?'; settle; deckcap 21x2-preview
+check "? opens the preview beside the list" "$SCRATCH/out/21x2-preview.txt" '│path *deck › command palette'
+check "the preview shows the task's status" "$SCRATCH/out/21x2-preview.txt" '│status *open'
+check "the preview lists the task's panes" "$SCRATCH/out/21x2-preview.txt" '│  target › fake'
+wait_deck '── screen of fake' 10 && echo "PASS the preview shows the assigned pane's recent screen" || { echo "FAIL no screen of fake in the preview"; fails=$((fails+1)); }
+b send-text -s host -w deck '?'; settle; deckcap 21x3-preview-off
+if grep -q '│path *deck › command palette' "$SCRATCH/out/21x3-preview-off.txt"; then echo "FAIL ? did not close the preview"; fails=$((fails+1)); else echo "PASS ? again closes the preview"; fi
+b send-keys -s host -w deck Escape >/dev/null; settle
+
 cp "$DATA" "$SCRATCH/out/store-before-esc.json"
 for row in 1 4 5; do # prototypes 2, 5 and 6
 	b send-keys -s host -w deck g >/dev/null; b send-keys -s host -w deck j --repeat $row >/dev/null; b send-keys -s host -w deck Enter >/dev/null; settle

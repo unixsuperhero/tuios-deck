@@ -92,6 +92,8 @@ func (c *chipsPicker) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	switch {
 	case key == "esc":
 		c.finish(nil)
+	case key == "?":
+		c.preview = !c.preview
 	case key == "enter":
 		n := c.spelled()
 		switch {
@@ -203,6 +205,6 @@ func (c *chipsPicker) view(width, height int) []string {
 	for i := range body {
 		body[i] = ansi.Truncate(body[i], iw, "")
 	}
-	help := "/ or tab lock a chip · backspace pops · ctrl+n/ctrl+p move · enter pick · esc cancel"
+	help := "/ or tab lock · backspace pops · ctrl+n/p move · enter pick · ? preview · esc cancel"
 	return pickerBox(c.m.protoRun.title, body, help, width)
 }

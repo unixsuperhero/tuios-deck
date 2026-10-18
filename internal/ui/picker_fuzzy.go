@@ -60,6 +60,8 @@ func (f *fuzzyPicker) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	switch {
 	case key == "esc":
 		f.finish(nil)
+	case key == "?":
+		f.preview = !f.preview
 	case key == "enter":
 		if f.hl >= 0 && f.hl < len(list) {
 			n := list[f.hl].n
@@ -116,6 +118,6 @@ func (f *fuzzyPicker) view(width, height int) []string {
 	} else {
 		body = append(listLines, rule, query)
 	}
-	help := "type to filter · ctrl+n/ctrl+p move · enter pick · esc cancel"
+	help := "type to filter · ctrl+n/ctrl+p move · enter pick · ? preview · esc cancel"
 	return pickerBox(f.m.protoRun.title, body, help, width)
 }

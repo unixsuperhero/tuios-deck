@@ -451,6 +451,13 @@ consolidated into one picker once one wins.
    completion, `backspace` on an empty segment pops a chip, `enter` picks
    what the chips spell.
 
+`?` in prototypes 1, 3, 5 and 6 (and 2, where it is open from the start)
+opens or closes a preview beside the list: the highlighted target's path,
+status, theme, subtasks or tasks and assigned panes, and the last 15
+lines of the first assigned pane's screen, read once per pane while the
+picker is up. In the filter rows the preview counts the context items the
+filter would keep and lists the first of them.
+
 The filter rows (1, 2, 3, 5 and 6) start with the context kind, `any` for
 every kind, then the project and the task; a typed text that names nothing
 filters by the text instead.

@@ -72,6 +72,8 @@ func (c *millerPicker) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	switch key {
 	case "esc":
 		c.finish(nil)
+	case "?":
+		c.preview = !c.preview
 	case "enter":
 		if cur := c.current(); cur != nil {
 			pick := *cur
@@ -185,6 +187,6 @@ func (c *millerPicker) view(width, height int) []string {
 		}
 	}
 	body = append(body, grid...)
-	help := "j/k move · l/h next/previous column · enter pick · esc cancel"
+	help := "j/k move · l/h next/previous column · enter pick · ? preview · esc cancel"
 	return pickerBox(c.m.protoRun.title, body, help, width)
 }
