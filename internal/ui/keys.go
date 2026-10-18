@@ -21,6 +21,9 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 	switch m.mode {
 	case modeForm:
+		if !m.saveFormPrompts(m.form) {
+			return m, nil
+		}
 		if m.form.recovery != nil {
 			m.promptRecoveryKey(msg)
 			return m, nil

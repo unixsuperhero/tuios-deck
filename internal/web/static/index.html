@@ -553,6 +553,7 @@ body.focused { border: 1px solid var(--focus-color, var(--accent)); }
   <div class="actions"><button type="button" id="focus-stop">Unlock now</button><button type="button" id="focus-continue" class="primary">Continue focus (Enter)</button></div>
 </form></dialog>
 <script src="/focus-clock.js"></script>
+<script src="/prompt-drafts.js"></script>
 <script>
 (() => {
 const $ = (id) => document.getElementById(id);
@@ -1314,6 +1315,8 @@ function dialog(id, fill, validate) {
     form.reset();
     if (err) err.textContent = '';
     if (fill) for (const [k, v] of Object.entries(fill)) if (form.elements[k]) form.elements[k].value = v;
+    dlg.returnValue = '';
+    PromptDrafts.begin(form);
     const task = form.querySelector('input[name="task"][list="dl-tasks"]');
     const project = form.querySelector('input[name="project"][list="dl-projects"]');
     if (task && project) {
@@ -1331,8 +1334,9 @@ function dialog(id, fill, validate) {
       task.oninput = task.onchange = syncProject;
       syncProject();
     }
-    dlg.querySelectorAll('[data-cancel]').forEach((b) => (b.onclick = () => dlg.close('')));
+    dlg.querySelectorAll('[data-cancel]').forEach((b) => (b.onclick = () => { if (PromptDrafts.save(form)) dlg.close(''); }));
     form.onsubmit = (e) => {
+      if (!PromptDrafts.save(form)) { e.preventDefault(); return; }
       if (!validate) return;
       const msg = validate(Object.fromEntries(new FormData(form)));
       if (msg) { e.preventDefault(); if (err) err.textContent = msg; }
@@ -1402,6 +1406,7 @@ function initCompose(ta) {
     if (!it) return;
     const v = ta.value, tail = it.label.endsWith('/') ? '' : ' ';
     ta.value = v.slice(0, span.start) + it.text + tail + v.slice(span.end);
+    ta.dispatchEvent(new Event('input', {bubbles: true}));
     const at = span.start + it.text.length + tail.length;
     ta.setSelectionRange(at, at);
     close();
@@ -1457,6 +1462,7 @@ function initCompose(ta) {
     const refs = picked.map((p) => { const r = p.startsWith(root + '/') ? p.slice(root.length + 1) : p; return /\s/.test(r) ? '@"' + r + '"' : '@' + r; });
     const sep = ta.value && !/\s$/.test(ta.value) ? ' ' : '';
     ta.value += sep + refs.join(' ') + ' ';
+    ta.dispatchEvent(new Event('input', {bubbles: true}));
     ta.focus();
   };
 }
@@ -2523,10 +2529,12 @@ function verbForm(v) {
       }
     }
     input.name = p.name; input.dataset.type = p.type; input.required = !!p.required;
+    if (v.verb === 'start-agent' && p.name === 'prompt' || v.verb === 'queue-prompt' && p.name === 'text') input.dataset.compose = 'verb';
     label.append(input);
     if (p.description) label.title = p.description;
     form.append(label);
   }
+  PromptDrafts.begin(form);
   const fillWindows = () => {
     const sess = sessionInput ? sessionInput.value.trim() : '';
     const dl = $('dl-windows'); dl.replaceChildren();
@@ -2539,11 +2547,12 @@ function verbForm(v) {
   if (sessionInput) sessionInput.oninput = fillWindows;
   const actions = document.createElement('div'); actions.className = 'actions';
   const back = document.createElement('button'); back.type = 'button'; back.textContent = 'Back';
-  back.onclick = () => { pal.verb = null; form.classList.remove('on'); form.replaceChildren(); $('pal-list').style.display = ''; $('pal-input').focus(); };
+  back.onclick = () => { if (!PromptDrafts.save(form)) return; pal.verb = null; form.classList.remove('on'); form.replaceChildren(); $('pal-list').style.display = ''; $('pal-input').focus(); };
   const run = document.createElement('button'); run.type = 'submit'; run.className = 'primary'; run.textContent = 'Call';
   actions.append(back, run); form.append(actions);
   form.onsubmit = async (e) => {
     e.preventDefault();
+    if (!PromptDrafts.save(form)) return;
     const params = {};
     for (const el of form.querySelectorAll('[name]')) { const val = coerce(el.dataset.type, el.value); if (val !== undefined) params[el.name] = val; }
     $('dlg-palette').close();
@@ -2575,11 +2584,11 @@ $('pal-input').onkeydown = (e) => {
   const ctrl = e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey;
   if (e.key === 'ArrowDown' || (ctrl && e.key === 'n')) { e.preventDefault(); if (pal.active < pal.shown.length - 1) { pal.active++; renderPalette(); } }
   else if (e.key === 'ArrowUp' || (ctrl && e.key === 'p')) { e.preventDefault(); if (pal.active > 0) { pal.active--; renderPalette(); } }
-  else if (e.key === 'Escape') { e.preventDefault(); $('dlg-palette').close(); }
+  else if (e.key === 'Escape') { e.preventDefault(); if (PromptDrafts.save($('pal-form'))) $('dlg-palette').close(); }
   else if (e.key === 'Enter') { e.preventDefault(); const it = pal.shown[pal.active]; if (it) runPalette(it); }
 };
 $('dlg-palette').onclose = () => { pal.verb = null; };
-$('dlg-palette').onclick = (e) => { if (e.target === $('dlg-palette')) $('dlg-palette').close(); };
+$('dlg-palette').onclick = (e) => { if (e.target === $('dlg-palette') && PromptDrafts.save($('pal-form'))) $('dlg-palette').close(); };
 $('btn-palette').onclick = openPalette;
 
 // ---------------------------------------------------------------- keys

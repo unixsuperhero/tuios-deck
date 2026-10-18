@@ -200,6 +200,13 @@ func (m *Model) Init() tea.Cmd {
 
 // Update is the message loop.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	previousForm := m.form
+	defer func() {
+		m.saveFormPrompts(previousForm)
+		if m.form != previousForm {
+			m.saveFormPrompts(m.form)
+		}
+	}()
 	defer m.autofillTaskProject()
 	wasBuffer := m.focus != nil && !m.focus.clock.BufferUntil.IsZero()
 	switch msg.(type) {

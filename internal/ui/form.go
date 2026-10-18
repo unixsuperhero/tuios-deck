@@ -53,12 +53,14 @@ type field struct {
 	// the status when it is final.
 	Known func(value string) []string
 
-	hl   int // the highlighted list entry plus one; 0 is none
-	at   int // the offset of the '@' being completed plus one; 0 is none
-	sl   int // the offset after the leading '/' being completed; 0 is none
-	pos  int // an Outline field's cursor, a byte offset into Value
-	top  int // the first of an Outline field's lines in sight
-	undo []fieldEdit
+	hl          int // the highlighted list entry plus one; 0 is none
+	at          int // the offset of the '@' being completed plus one; 0 is none
+	sl          int // the offset after the leading '/' being completed; 0 is none
+	pos         int // an Outline field's cursor, a byte offset into Value
+	top         int // the first of an Outline field's lines in sight
+	undo        []fieldEdit
+	draftID     string
+	savedPrompt string
 }
 
 type fieldEdit struct {

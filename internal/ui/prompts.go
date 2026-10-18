@@ -327,7 +327,7 @@ func (m *Model) reopenModal(msg modalMsg) {
 	if msg.done && m.pm != nil {
 		m.pm.busy = false
 	}
-	if !msg.reopen {
+	if !msg.reopen || m.mode != modeNormal && m.mode != modePrompts {
 		return
 	}
 	m.mode = modePrompts

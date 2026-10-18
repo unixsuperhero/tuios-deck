@@ -37,6 +37,27 @@ func (m *Model) stashCurrentPrompt() bool {
 		m.setStatus(m.form.Err)
 		return false
 	}
+	m.form.Fields[m.form.Cur].draftID = ""
+	return true
+}
+
+func (m *Model) saveFormPrompts(f *form) bool {
+	if f == nil {
+		return true
+	}
+	for i := range f.Fields {
+		field := &f.Fields[i]
+		if !field.Prompt || field.Value == field.savedPrompt {
+			continue
+		}
+		id, err := m.store.SavePromptDraft(field.draftID, field.Value)
+		if err != nil {
+			f.Err = "prompt autosave failed; keep this form open: " + err.Error()
+			m.setStatus(f.Err)
+			return false
+		}
+		field.draftID, field.savedPrompt = id, field.Value
+	}
 	return true
 }
 

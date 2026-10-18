@@ -1085,11 +1085,13 @@ Undo history belongs to each field and lasts while the form is open; cancelling
 or submitting the form discards it. A repeated `ctrl+u` on an empty line does
 nothing to the text and does not replace the edit you can undo.
 
-Prompt stashes are separate from undo: they live in `deck.json` under
-`prompt_stashes` and survive cancelling a form or restarting deck. `ctrl+u`
-stashes the entire draft, including newlines, before clearing a line. Identical
-drafts share one entry; empty drafts are not saved. The stack has no automatic
-expiry or entry limit. If saving fails, the draft is left untouched.
+Prompt fields autosave their exact text after each edit or paste. In the TUI,
+drafts live in `deck.json` under `prompt_stashes` and survive cancellation,
+submission and restarting deck. One entry is updated while composing; clearing
+the whole field preserves its last nonempty text. `ctrl+u` also saves a snapshot
+before clearing a line. Recovery shows identical text once; empty drafts are not
+saved. There is no automatic expiry or entry limit. Failed saves are shown in
+the form and block dismissal until the text can be saved.
 
 In a prompt field, `ctrl+r` opens **stashed prompts**. Type to search the full
 text, use arrows or `ctrl+n`/`ctrl+p` to select, and `PgUp`/`PgDn` to scroll
@@ -1101,6 +1103,15 @@ prompts, new/edit queued prompts, and the palette's `queue-prompt`/`start-agent`
 prompt parameters. `ctrl+r` also works in a prompt field in vim normal mode.
 Stashes are local plaintext, protected by the store file's 0600 permissions;
 they are retained until removed from the store, not automatically expired.
+
+Web prompt fields save synchronously in this browser's local storage, including
+new-agent prompts, pane prompts and queued prompts. **Recover saved prompt…**
+opens a list with a full-text preview; **Restore prompt** fills the editor
+without submitting. Cancelled and submitted text remains recoverable after a
+reload, and separate browser tabs do not overwrite each other's drafts. Browser
+drafts are local plaintext, not synced to the server or other browsers; clearing
+site data removes them. If browser storage is unavailable or full, the editor
+shows **Prompt NOT saved** and blocks Cancel, Escape and submission.
 
 In a multiline field other than the outline `@` at the start of a word lists what is in the
 selected pane's cwd (the deck's own when no pane is selected): folders with
