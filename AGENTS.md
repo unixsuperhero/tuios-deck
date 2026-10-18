@@ -88,6 +88,12 @@ Rules the suites follow, and a new check should too:
   `not_human` once, and that cost an hour.
 - Needs `tuios` on PATH; the setup suite needs `bun` for the extension check
   and skips it otherwise.
+- Never test with a headed browser if there is any other way. The web page
+  is verified with curl against the API, the SSE stream and `scripts/wscheck`;
+  if a check truly needs a DOM, drive a headless browser from a script that
+  prints PASS or FAIL, and never open a window on the person's screen or ask
+  them to click through it. Visual review of the page by a person is their
+  call, not a step an agent takes.
 - The scratch folder holds the daemons' sockets, and on macOS a unix socket
   path over 104 bytes fails. `$TMPDIR` there is already long, so give a
   short `/tmp` path, and a different one per run when suites run side by
