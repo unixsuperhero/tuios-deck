@@ -908,15 +908,26 @@ b send-text -s host -w deck 'T'; settle
 b send-keys -s host -w deck g >/dev/null; b send-keys -s host -w deck j >/dev/null; settle
 b send-text -s host -w deck 'A'; settle; deckcap 20-mass-box
 check "A opens the mass-add box" "$SCRATCH/out/20-mass-box.txt" '╭─ add projects and tasks ─'
-check "the hint shows the example outline" "$SCRATCH/out/20-mass-box.txt" '│         verb autocomplete'
-printf '  orphan\n' | type_lines
+check "the hint says existing items are shown dim" "$SCRATCH/out/20-mass-box.txt" 'existing items are shown dim; editing or removing them changes nothing'
+python3 - "$SCRATCH/out/20-mass-box.txt" <<'PYO' && echo "PASS A opens with the existing projects and tasks as an outline, the cursor on an empty line after it" || { echo "FAIL the outline A opens with"; fails=$((fails+1)); }
+import re, sys
+rows = [re.sub(r"\s*│\s*$", "", l.split("│", 1)[1]) for l in open(sys.argv[1]) if l.count("│") >= 2]
+want = ["     deck", "       command palette", "     web", "       landing", "       docs", "     ▏"]
+i = rows.index(want[0])
+assert rows[i:i+6] == want, rows[i:i+6]
+PYO
+# At the top, at the start of deck: type, split, indent the typed line.
+b send-keys -s host -w deck Up --repeat 10 >/dev/null; b send-keys -s host -w deck Home >/dev/null
+b send-text -s host -w deck 'orphan'; b send-keys -s host -w deck 'Enter Up Tab' >/dev/null
 b send-keys -s host -w deck ctrl+s >/dev/null; settle; deckcap 20b-mass-refused
 check "an indent under nothing is refused with its line" "$SCRATCH/out/20b-mass-refused.txt" 'line 1: indented under nothing'
 b send-keys -s host -w deck ctrl+u >/dev/null
-printf 'deck\n    too deep\n' | type_lines
+b send-text -s host -w deck 'deck'; b send-keys -s host -w deck 'Enter' >/dev/null
+b send-text -s host -w deck 'too deep'; b send-keys -s host -w deck 'Tab Tab' >/dev/null
 b send-keys -s host -w deck ctrl+s >/dev/null; settle; deckcap 20c-mass-jump
 check "an indent jump of two levels is refused with its line" "$SCRATCH/out/20c-mass-jump.txt" 'line 2: indented more than one level'
 b send-keys -s host -w deck 'ctrl+u Backspace ctrl+u' >/dev/null   # clears the line, joins it to the one above, clears that
+b send-keys -s host -w deck Down --repeat 20 >/dev/null
 printf '# the example from the hint\ndeck\n  command palette\n    verb autocomplete\n  captures page\nweb\n  landing\n' | type_lines
 b send-keys -s host -w deck ctrl+s >/dev/null; settle; deckcap 20d-mass-added
 check "status counts what was added; existing ones are reused" "$SCRATCH/out/20d-mass-added.txt" 'added 0 projects, 2 tasks'
@@ -985,7 +996,7 @@ python3 - "$SCRATCH/out/20l-cur-split.txt" <<'PYC' && echo "PASS enter splits be
 import re, sys
 rows = [re.sub(r"\s*│\s*$", "", l.split("│", 1)[1]) for l in open(sys.argv[1]) if l.count("│") >= 2]
 want = ["     deck", "       edited", "         split child▏", "       later"]
-i = rows.index(want[0])
+i = len(rows) - 1 - rows[::-1].index(want[0])   # the typed deck, after the prefilled one
 assert rows[i:i+4] == want, rows[i:i+4]
 PYC
 b send-keys -s host -w deck ctrl+s >/dev/null; settle; deckcap 20m-cur-added
@@ -1004,6 +1015,60 @@ assert c["parent_id"] == e["id"], c
 assert l["project_id"] == deck["id"] and l["parent_id"] == "", l
 PY4
 
+echo "== mass-add opens with the existing tree, so a subtask goes under an existing task"
+b send-text -s host -w deck 'A'; settle; deckcap 20n-tree
+b capture-pane --ansi -s host -w deck > "$SCRATCH/out/20n-tree-ansi.txt"
+check "the outline holds the existing task" "$SCRATCH/out/20n-tree.txt" '│       command palette  '
+check "and its existing subtask under it" "$SCRATCH/out/20n-tree.txt" '│         verb autocomplete  '
+python3 - "$SCRATCH/out/20n-tree-ansi.txt" <<'PYD' && echo "PASS existing lines are drawn dim (faint), the cursor's new line is not" || { echo "FAIL dim drawing of existing lines"; fails=$((fails+1)); }
+import re, sys
+lines = open(sys.argv[1]).read().split("\n")
+faint = lambda l, text: re.search(r"\x1b\[(?:[0-9;]*;)?2(?:;[0-9;]*)?m[^\x1b]*" + re.escape(text), l)
+assert any(faint(l, "verb autocomplete") for l in lines), "verb autocomplete not faint"
+assert any(faint(l, "command palette") for l in lines), "command palette not faint"
+cur = [l for l in lines if "▏" in l and "│" in l]
+assert cur and not faint(cur[0], "▏"), cur
+PYD
+b send-keys -s host -w deck Up --repeat 60 >/dev/null
+b send-keys -s host -w deck 'Down End Enter Tab' >/dev/null
+b send-text -s host -w deck 'dim child'; settle; deckcap 20o-tree-typed
+check "the new subtask line sits under command palette" "$SCRATCH/out/20o-tree-typed.txt" '│         dim child▏'
+b send-keys -s host -w deck ctrl+s >/dev/null; settle; deckcap 20p-tree-added
+check "only the new subtask is added" "$SCRATCH/out/20p-tree-added.txt" 'added 0 projects, 1 task$'
+python3 - "$DATA" <<'PY5' && echo "PASS store has dim child under command palette, nothing duplicated" || { echo "FAIL store after adding under an existing task"; fails=$((fails+1)); }
+import json, sys
+d = json.load(open(sys.argv[1]))
+def one(title):
+    ts = [t for t in d["tasks"] if t["title"] == title]
+    assert len(ts) == 1, (title, ts)
+    return ts[0]
+assert one("dim child")["parent_id"] == one("command palette")["id"]
+one("verb autocomplete"); one("landing"); one("docs")
+PY5
+b send-text -s host -w deck 'A'; settle
+b send-keys -s host -w deck Up --repeat 60 >/dev/null
+b send-keys -s host -w deck 'Down Down' >/dev/null; settle; deckcap 20q-tree-at
+check "the cursor is on the prefilled subtask line" "$SCRATCH/out/20q-tree-at.txt" '│     ▏    verb autocomplete'
+b send-keys -s host -w deck 'ctrl+u Backspace' >/dev/null; settle; deckcap 20r-tree-removed
+if grep -q 'verb autocomplete' "$SCRATCH/out/20r-tree-removed.txt"; then echo "FAIL the prefilled line was not removed"; fails=$((fails+1)); else echo "PASS ctrl+u and backspace remove the prefilled line"; fi
+b send-keys -s host -w deck ctrl+s >/dev/null; settle; deckcap 20s-tree-kept
+check "removing a prefilled line adds nothing" "$SCRATCH/out/20s-tree-kept.txt" 'added 0 projects, 0 tasks'
+python3 - "$DATA" <<'PY6' && echo "PASS the removed line's task is still in the store" || { echo "FAIL removing a prefilled line deleted its task"; fails=$((fails+1)); }
+import json, sys
+d = json.load(open(sys.argv[1]))
+cp = [t for t in d["tasks"] if t["title"] == "command palette"][0]
+va = [t for t in d["tasks"] if t["title"] == "verb autocomplete"]
+assert len(va) == 1 and va[0]["parent_id"] == cp["id"], va
+PY6
+# A project marked done still shows, dim with its mark, so subtasks can go under it.
+b send-text -s host -w deck 'T'; settle
+b send-keys -s host -w deck g >/dev/null; b send-keys -s host -w deck s >/dev/null; settle
+b send-text -s host -w deck 'A'; b send-keys -s host -w deck Up --repeat 60 >/dev/null; settle; deckcap 20t-tree-done
+check "a done project shows with its status mark" "$SCRATCH/out/20t-tree-done.txt" '│     ▏deck  ✓ done'
+b send-keys -s host -w deck Escape >/dev/null; settle
+b send-keys -s host -w deck s >/dev/null; settle; b send-keys -s host -w deck s >/dev/null; settle   # skipped, then open
+b send-keys -s host -w deck Escape >/dev/null; settle
+
 echo "== a task picker offers + add new…, which opens the mass-add screen"
 select_pane 3
 b send-keys -s host -w deck a >/dev/null; settle
@@ -1011,13 +1076,14 @@ b send-text -s host -w deck 'zzz'; b send-keys -s host -w deck ctrl+n >/dev/null
 check "the list ends with + add new…, highlighted by ctrl+n" "$SCRATCH/out/21-add-entry.txt" '▸ + add new…'
 b send-keys -s host -w deck Tab >/dev/null; settle; deckcap 21b-mass-from-form
 check "+ add new… opens the mass-add box" "$SCRATCH/out/21b-mass-from-form.txt" '╭─ add projects and tasks ─'
-check "it is prefilled with the pane's project" "$SCRATCH/out/21b-mass-from-form.txt" '│     deck  '
-check "and the typed task under it" "$SCRATCH/out/21b-mass-from-form.txt" '│       zzz▏'
+check "it holds the existing outline" "$SCRATCH/out/21b-mass-from-form.txt" '│     deck  '
+check "and the typed task under the pane's task, command palette" "$SCRATCH/out/21b-mass-from-form.txt" '│         zzz▏'
 b send-keys -s host -w deck Escape >/dev/null; settle; deckcap 21c-mass-esc
 check "esc in the mass-add box returns to the assign form unchanged" "$SCRATCH/out/21c-mass-esc.txt" '› task: zzz▏'
 b send-keys -s host -w deck ctrl+u >/dev/null
 b send-text -s host -w deck 'brand new task'; b send-keys -s host -w deck ctrl+n >/dev/null; settle
 b send-keys -s host -w deck Tab >/dev/null; settle
+b send-keys -s host -w deck BTab >/dev/null             # out from under command palette to the project
 b send-keys -s host -w deck ctrl+s >/dev/null; settle; deckcap 21d-resumed
 check "ctrl+s in the mass-add box returns to the assign form" "$SCRATCH/out/21d-resumed.txt" '╭─ assign extra ─'
 check "the task field holds the new task's path" "$SCRATCH/out/21d-resumed.txt" '› task: deck / brand new task▏'

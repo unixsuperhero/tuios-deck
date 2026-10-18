@@ -47,6 +47,10 @@ type field struct {
 	// skills that a `/` typed as the first character completes.
 	Attach bool
 	Slash  func() []string
+	// Known, on an Outline field, gives for each line the status of the
+	// existing item it names, "" for none; such a line is drawn dim, with
+	// the status when it is final.
+	Known func(value string) []string
 
 	hl  int // the highlighted list entry plus one; 0 is none
 	at  int // the offset of the '@' being completed plus one; 0 is none

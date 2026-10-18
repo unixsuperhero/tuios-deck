@@ -256,25 +256,11 @@ func (m *Model) resumeProto() {
 	}
 }
 
-// protoPrefill is the outline "+ add new…" opens with: what was typed, as
-// a task under the selected pane's project, or as a project when there is
-// no project at all.
+// protoPrefill is the outline "+ add new…" merges into the mass-add
+// screen: what was typed, as a task under the selected pane's task or
+// project, or as a project when there is no project at all.
 func (m *Model) protoPrefill(typed string) string {
-	project := ""
-	if p := m.selected(); p != nil {
-		if pr, _, _ := m.store.Resolve(p.ID); pr != nil {
-			project = pr.Name
-		}
-	}
-	if project == "" {
-		if ps := m.store.Projects(); len(ps) > 0 {
-			project = ps[0].Name
-		}
-	}
-	if project == "" {
-		return typed
-	}
-	return project + "\n  " + typed
+	return m.taskPrefill(typed)
 }
 
 // nodeFilter is the context filter a node spells. A task implies its

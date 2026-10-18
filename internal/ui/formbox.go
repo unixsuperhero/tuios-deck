@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/unixsuperhero/tuios-deck/internal/panes"
+	"github.com/unixsuperhero/tuios-deck/internal/store"
 )
 
 // formWidth is the width of the form box on a screen of width w.
@@ -159,6 +160,10 @@ func (m *Model) outlineView(iw, rows int) []string {
 	rows = min(max(rows, 3), outlineRows)
 	vl := strings.Split(fl.Value, "\n")
 	line, col := fl.cursorLine()
+	var known []string
+	if fl.Known != nil {
+		known = fl.Known(fl.Value)
+	}
 	// The window moves only when the cursor leaves it; a line marking what
 	// is cut off above or below takes a row.
 	if len(vl) <= rows {
@@ -174,17 +179,23 @@ func (m *Model) outlineView(iw, rows int) []string {
 	}
 	w := iw - 4
 	for j := fl.top; j < end; j++ {
-		l := vl[j]
-		if j != line {
-			out = append(out, "    "+ansi.Truncate(l, w, "…"))
-			continue
+		l, mark := vl[j], ""
+		if j < len(known) && store.IsFinal(known[j]) {
+			mark = "  " + statusMark(known[j]) + " " + known[j]
 		}
-		left := firstRunes(l, col)
-		if ansi.StringWidth(left)+1 > w {
-			out = append(out, "    "+tail(left+"▏", w))
-		} else {
-			out = append(out, "    "+ansi.Truncate(left+"▏"+l[len(left):], w, "…"))
+		var s string
+		switch left := firstRunes(l, col); {
+		case j != line:
+			s = ansi.Truncate(l+mark, w, "…")
+		case ansi.StringWidth(left)+1 > w:
+			s = tail(left+"▏", w)
+		default:
+			s = ansi.Truncate(left+"▏"+l[len(left):]+mark, w, "…")
 		}
+		if j < len(known) && known[j] != "" {
+			s = cDim.Render(s)
+		}
+		out = append(out, "    "+s)
 	}
 	if end < len(vl) {
 		out = append(out, cDim.Render(fmt.Sprintf("    ⋮ %d lines below", len(vl)-end)))

@@ -559,7 +559,10 @@ regroup.
 ### Adding many at once
 
 `A`, on any page, or `add many…` in the palette, opens a multiline form
-titled `add projects and tasks`. Its text is an outline:
+titled `add projects and tasks`. It opens holding every existing project,
+sorted by name, with its tasks and subtasks nested beneath in the order
+they were made, and the cursor on an empty line after them. Its text is an
+outline:
 
 ```
 deck
@@ -593,6 +596,18 @@ spaces is refused with its line number, and nothing is created. Then the
 items are created in order, each new one with a free colour from the theme
 pool, and the status says `added N projects, M tasks`. The tasks page keeps
 its selection.
+
+To add a subtask to an existing task, move the cursor to the task's line,
+press `end` if needed, `enter` and `tab`, and type the title: the existing
+lines are reused, so only the new line is created. Existing items are
+drawn dim, a project or task that is done or skipped with its mark and
+status after it (`deck  ✓ done`), and they stay in the outline so items
+can still be added under them. Mass-add only adds: removing a prefilled
+line deletes nothing, and editing one renames nothing (the edited text
+reads as a new item under the same parent). The hint says so. With an
+empty store the box opens empty and the hint shows the example above. A
+task whose title starts with `#` is listed at the end as its path, since a
+line starting with `#` is a comment.
 
 ### The captures page
 
@@ -744,11 +759,14 @@ leaves in the box, so on a small terminal it shrinks and the key hints stay.
 
 Every project or task field (new agent, new terminal, assign, the palette's
 assign, new task and new subtask entries) ends its list with `+ add new…`.
-Taking it puts the form aside and opens the mass-add screen with what you
-typed: as a project line in a project field, or as a task under the
-selected pane's project in a task field. `ctrl+s` there adds the outline
-and brings the form back with the field set to the first project or task
-it added (a task as its path); `esc` brings the form back unchanged.
+Taking it puts the form aside and opens the mass-add screen, holding the
+whole existing outline, with what you typed on a new line and the cursor
+at its end: as a project line at the end in a project field, or in a task
+field as a task under the selected pane's task (its project when it has
+no task, the first project when it has neither). `ctrl+s` there adds the
+outline and brings the form back with the field set to the first project
+or task it added (a task as its path), or when it added none, to the item
+on the cursor's line; `esc` brings the form back unchanged.
 
 The prompt (`p`), the new agent's first prompt and the mass-add outline are
 multiline: `enter` starts a new line (the outline edits at a line cursor,
